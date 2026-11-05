@@ -92,7 +92,7 @@ input[type=file]{display:none}
   </div>
 
   <section class="panel" id="shootPanel" hidden>
-    <div class="label">2 · What are you shooting?</div>
+    <div class="label">2 · Which item?</div>
     <div class="chips" id="chips"></div>
     <input type="text" id="note" placeholder="Short note (optional), e.g. base units fixed">
     <div class="cam">
@@ -110,7 +110,6 @@ input[type=file]{display:none}
 </div>
 
 <script>
-const CATS=["General","Kitchen","AC","Plumbing","Finishing","Snag"];
 const MAX_BYTES=2500000;
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
@@ -154,11 +153,17 @@ $("q").addEventListener("input",renderUnits);
 function pick(u){
   unit=u;$("selCode").textContent=u.unit;$("selSub").textContent=u.project||"";
   $("sel").hidden=false;$("pickPanel").hidden=true;$("shootPanel").hidden=false;
+  renderChips();
 }
 $("change").onclick=()=>{$("pickPanel").hidden=false;$("sel").hidden=true;$("shootPanel").hidden=true;$("q").value="";renderUnits();$("q").focus()};
 
-for(const c of CATS){const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=c;b.setAttribute("aria-pressed",c===cat);
-  b.onclick=()=>{cat=c;[...$("chips").children].forEach(x=>x.setAttribute("aria-pressed",x.textContent===c))};$("chips").append(b)}
+function renderChips(){
+  const box=$("chips");box.textContent="";
+  const list=[...(unit.items||[]),"General"];
+  cat=list[0];
+  for(const c of list){const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=c;b.setAttribute("aria-pressed",c===cat);
+    b.onclick=()=>{cat=c;[...box.children].forEach(x=>x.setAttribute("aria-pressed",x.textContent===c))};box.append(b)}
+}
 
 /* capture + compress */
 $("shoot").onclick=()=>{if(!$("by").value.trim()){$("by").focus();$("by").placeholder="Please write your name first";return}$("fCam").click()};
@@ -231,8 +236,8 @@ async function pump(){
 
 /* boot */
 function showUnits(u,label){units=u;renderUnits();$("unitNote").textContent=label}
-try{const c=JSON.parse(store.get("units")||"null");if(c&&c.length)showUnits(c,`${c.length} units`)}catch(e){}
-api("GET",{action:"units"}).then(j=>{store.set("units",JSON.stringify(j.units));showUnits(j.units,`${j.units.length} units`)})
+try{const c=JSON.parse(store.get("units2")||"null");if(c&&c.length)showUnits(c,`${c.length} units`)}catch(e){}
+api("GET",{action:"units"}).then(j=>{store.set("units2",JSON.stringify(j.units));showUnits(j.units,`${j.units.length} units`)})
   .catch(e=>{if(units.length){$("unitNote").textContent=`${units.length} units (saved list, offline)`;return}
     $("units").textContent="";$("unitNote").textContent="";const s=document.createElement("span");s.className="err";s.textContent="Couldn't load the unit list. Check your connection and reload.";$("unitNote").append(s)});
 </script>

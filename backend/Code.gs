@@ -15,7 +15,8 @@ const TZ = 'Africa/Cairo';
 const UNITS_SHEET_INDEX = 0;              // first tab = Unit | Active | Project
 const LOG_SHEET_NAME = 'Log';
 const MAX_BASE64_CHARS = 12 * 1024 * 1024; // ~9 MB image cap
-const CATEGORIES = ['General', 'Kitchen', 'AC', 'Plumbing', 'Finishing', 'Snag'];
+const SCOPE_SHEET_NAME = 'Scope';             // Unit | Item  (what each unit bought, from ClickUp)
+const GENERAL = 'General';
 
 function doGet(e) {
   try {
@@ -38,13 +39,26 @@ function doPost(e) {
   }
 }
 
-/** Active units. Rows with Active = "No" are hidden. */
+/** Active units, each with the items in its scope. Rows with Active = "No" are hidden. */
 function getUnits() {
-  const sh = SpreadsheetApp.getActive().getSheets()[UNITS_SHEET_INDEX];
-  const rows = sh.getDataRange().getValues().slice(1);
+  const ss = SpreadsheetApp.getActive();
+  const rows = ss.getSheets()[UNITS_SHEET_INDEX].getDataRange().getValues().slice(1);
+  const scope = {};
+  const sc = ss.getSheetByName(SCOPE_SHEET_NAME);
+  if (sc) {
+    sc.getDataRange().getValues().slice(1).forEach(r => {
+      const u = String(r[0]).trim().toLowerCase(), item = String(r[1]).trim();
+      if (!u || !item) return;
+      (scope[u] = scope[u] || []);
+      if (scope[u].indexOf(item) < 0) scope[u].push(item);
+    });
+  }
   return rows
     .filter(r => String(r[0]).trim() && String(r[1]).trim().toLowerCase() !== 'no')
-    .map(r => ({ unit: String(r[0]).trim(), project: String(r[2] || '').trim() }));
+    .map(r => {
+      const unit = String(r[0]).trim();
+      return { unit: unit, project: String(r[2] || '').trim(), items: scope[unit.toLowerCase()] || [] };
+    });
 }
 
 function uploadPhoto(p) {
@@ -54,7 +68,8 @@ function uploadPhoto(p) {
   const match = getUnits().find(u => u.unit.toLowerCase() === String(p.unit || '').trim().toLowerCase());
   if (!match) throw new Error('This unit is no longer in the list. Reload the page.');
 
-  const category = CATEGORIES.indexOf(p.category) >= 0 ? p.category : 'General';
+  const category = match.items.indexOf(p.category) >= 0 ? p.category : GENERAL;
+  const catTag = category.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const by = String(p.by || '').trim().slice(0, 60);
   const note = String(p.note || '').trim().slice(0, 300);
   const safeUnit = match.unit.replace(/[\/\\]+/g, '-').replace(/\s+/g, ' ').trim();
@@ -73,7 +88,7 @@ function uploadPhoto(p) {
     const it = dayFolder.getFiles();
     while (it.hasNext()) { it.next(); n++; }
 
-    const name = `${safeUnit}_${day}_${time}_${category}_${String(n).padStart(2, '0')}.jpg`;
+    const name = `${safeUnit}_${day}_${time}_${catTag}_${String(n).padStart(2, '0')}.jpg`;
     const blob = Utilities.newBlob(Utilities.base64Decode(p.base64), 'image/jpeg', name);
     const file = dayFolder.createFile(blob);
     if (note || by) file.setDescription([note, by && ('By: ' + by)].filter(Boolean).join(' | '));
