@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>O West Site Camera</title>
+<meta name="theme-color" content="#0d1b3e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Site Camera">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --ink:#0d1b3e; --bg:#f4f5f8; --card:#ffffff; --line:#dfe2ea; --muted:#5d6577;
+  --accent:#e9b88f; --accent-ink:#0d1b3e; --ok:#1f7a4d; --warn:#9a5b00; --bad:#b3261e;
+  --head-bg:#0d1b3e; --head-fg:#f4f5f8; --chip:#eceef4;
+  --f-display:"Lora",Georgia,serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --ink:#e9ecf4; --bg:#0b1020; --card:#141b2e; --line:#26304a; --muted:#9aa3b8;
+  --ok:#58c48e; --warn:#e3a54a; --bad:#ff8a80; --head-bg:#070b17; --head-fg:#e9ecf4; --chip:#1c2540; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+header{background:var(--head-bg);color:var(--head-fg);border-bottom:3px solid var(--accent);padding-top:env(safe-area-inset-top,0px)}
+.in,.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header .in{padding-block:14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.brand{font-family:var(--f-display);letter-spacing:.35em;font-size:13px;font-weight:500}
+.title{font-family:var(--f-display);font-size:20px;font-weight:600;margin-top:2px}
+.date{font-family:var(--f-mono);font-size:12px;opacity:.8;white-space:nowrap}
+.wrap{padding-block:16px 32px;display:flex;flex-direction:column;gap:16px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+input[type=search],input[type=text]{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.units{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px}
+.unit{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--line);cursor:pointer;font-family:var(--f-mono);font-size:14px}
+.unit:last-child{border-bottom:0}
+.unit:hover{background:var(--chip)}
+.unit small{font-family:var(--f-body);color:var(--muted);font-size:12px}
+.sel{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sel .code{font-family:var(--f-mono);font-size:17px}
+.sel .sub{font-size:12px;color:var(--muted)}
+.link{color:var(--ink);font-size:13px;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;font-family:inherit}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.cam{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.btn{font:inherit;font-weight:600;border-radius:10px;border:0;cursor:pointer;padding:16px;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center}
+.btn-main{background:var(--accent);color:var(--accent-ink);font-size:17px;min-height:64px}
+.btn-sub{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+.queue{display:flex;flex-direction:column;gap:8px}
+.item{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px}
+.item img{width:56px;height:56px;object-fit:cover;border-radius:6px;background:var(--chip)}
+.fn{font-family:var(--f-mono);font-size:11.5px;word-break:break-all}
+.st{font-size:12px;color:var(--muted)}
+.pill{font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;white-space:nowrap;background:var(--chip)}
+.p-wait{color:var(--muted)} .p-up{color:var(--warn)} .p-ok{color:var(--ok)} .p-bad{color:var(--bad)}
+.note{font-size:13px;color:var(--muted)}
+.err{font-size:13px;color:var(--bad)}
+.stats{display:flex;gap:16px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stats b{color:var(--ink)}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div><div class="brand">O WEST</div><div class="title">Site Camera</div></div>
+  <div class="date" id="today"></div>
+</div></header>
+
+<div class="wrap">
+  <section class="panel" id="namePanel">
+    <label class="label" for="by">Your name</label>
+    <input type="text" id="by" placeholder="e.g. Omar Nada" autocomplete="name">
+  </section>
+
+  <section class="panel" id="pickPanel">
+    <div class="label">1 · Choose unit</div>
+    <input type="search" id="q" placeholder="Search unit, e.g. RA2-19" autocomplete="off">
+    <div class="units" id="units"><div class="unit"><small>Loading units…</small></div></div>
+    <div class="note" id="unitNote"></div>
+  </section>
+
+  <div class="sel" id="sel" hidden>
+    <div style="min-width:0"><div class="code" id="selCode"></div><div class="sub" id="selSub"></div></div>
+    <button class="link" id="change" type="button">Change</button>
+  </div>
+
+  <section class="panel" id="shootPanel" hidden>
+    <div class="label">2 · What are you shooting?</div>
+    <div class="chips" id="chips"></div>
+    <input type="text" id="note" placeholder="Short note (optional), e.g. base units fixed">
+    <div class="cam">
+      <button class="btn btn-main" id="shoot" type="button">📷 Take photo</button>
+      <button class="btn btn-sub" id="gallery" type="button">Gallery</button>
+    </div>
+    <input type="file" id="fCam" accept="image/*" capture="environment">
+    <input type="file" id="fGal" accept="image/*" multiple>
+  </section>
+
+  <section id="qPanel" hidden style="display:flex;flex-direction:column;gap:10px">
+    <div class="stats"><span>Uploaded <b id="nOk">0</b></span><span>Sending <b id="nUp">0</b></span><span>Failed <b id="nBad">0</b></span></div>
+    <div class="queue" id="queue"></div>
+  </section>
+</div>
+
+<script>
+const CATS=["General","Kitchen","AC","Plumbing","Finishing","Snag"];
+const MAX_BYTES=2500000;
+const $=id=>document.getElementById(id);
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const pad=n=>String(n).padStart(2,"0");
+const d0=new Date();$("today").textContent=`${d0.getFullYear()}-${pad(d0.getMonth()+1)}-${pad(d0.getDate())}`;
+
+// Paste the Apps Script Web app URL (ends with /exec) here:
+const API_URL="PASTE_APPS_SCRIPT_EXEC_URL_HERE";
+
+async function api(method,payload){
+  const opt=method==="GET"?{method:"GET"}:{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)};
+  const url=method==="GET"?API_URL+"?action="+encodeURIComponent(payload.action):API_URL;
+  const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),90000);
+  let r;
+  try{r=await fetch(url,{...opt,signal:ctl.signal,redirect:"follow",credentials:"omit"})}
+  catch(e){throw new Error(e.name==="AbortError"?"The upload took too long.":"No connection.")}
+  finally{clearTimeout(t)}
+  let j;try{j=await r.json()}catch(e){throw new Error("Server sent an unexpected reply.")}
+  if(!j.ok)throw new Error(j.error||"Server error.");
+  return j;
+}
+
+let units=[],unit=null,cat="General";
+$("by").value=store.get("by")||"";
+$("by").addEventListener("input",()=>store.set("by",$("by").value));
+
+/* units */
+function renderUnits(){
+  const q=$("q").value.trim().toLowerCase().replace(/[\/\-\s]/g,"");
+  const list=units.filter(u=>!q||u.unit.toLowerCase().replace(/[\/\-\s]/g,"").includes(q));
+  const box=$("units");box.textContent="";
+  if(!list.length){const d=document.createElement("div");d.className="unit";const s=document.createElement("small");s.textContent=units.length?"No unit matches that search.":"No units in the list.";d.append(s);box.append(d);return}
+  for(const u of list){
+    const b=document.createElement("button");b.type="button";b.className="unit";
+    const s=document.createElement("span");s.textContent=u.unit;
+    const m=document.createElement("small");m.textContent=u.project;
+    b.append(s,m);b.onclick=()=>pick(u);box.append(b);
+  }
+}
+$("q").addEventListener("input",renderUnits);
+function pick(u){
+  unit=u;$("selCode").textContent=u.unit;$("selSub").textContent=u.project||"";
+  $("sel").hidden=false;$("pickPanel").hidden=true;$("shootPanel").hidden=false;
+}
+$("change").onclick=()=>{$("pickPanel").hidden=false;$("sel").hidden=true;$("shootPanel").hidden=true;$("q").value="";renderUnits();$("q").focus()};
+
+for(const c of CATS){const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=c;b.setAttribute("aria-pressed",c===cat);
+  b.onclick=()=>{cat=c;[...$("chips").children].forEach(x=>x.setAttribute("aria-pressed",x.textContent===c))};$("chips").append(b)}
+
+/* capture + compress */
+$("shoot").onclick=()=>{if(!$("by").value.trim()){$("by").focus();$("by").placeholder="Please write your name first";return}$("fCam").click()};
+$("gallery").onclick=()=>{if(!$("by").value.trim()){$("by").focus();$("by").placeholder="Please write your name first";return}$("fGal").click()};
+$("fCam").onchange=e=>{take(e.target.files);e.target.value=""};
+$("fGal").onchange=e=>{take(e.target.files);e.target.value=""};
+
+async function loadBitmap(file){
+  try{return await createImageBitmap(file,{imageOrientation:"from-image"})}catch(e){}
+  const url=URL.createObjectURL(file);const img=new Image();img.src=url;await img.decode();return img;
+}
+async function compress(file){
+  const bmp=await loadBitmap(file);
+  const w0=bmp.width,h0=bmp.height;let scale=Math.min(1,2000/Math.max(w0,h0)),q=.85,blob;
+  for(let i=0;i<10;i++){
+    const c=document.createElement("canvas");c.width=Math.round(w0*scale);c.height=Math.round(h0*scale);
+    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    blob=await new Promise(r=>c.toBlob(r,"image/jpeg",q));
+    if(blob&&blob.size<=MAX_BYTES)return blob;
+    if(q>.55)q-=.1;else scale*=.8;
+  }
+  return blob;
+}
+function b64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(blob)})}
+
+/* queue */
+const jobs=[];
+function counts(){$("nOk").textContent=jobs.filter(j=>j.state==="ok").length;$("nUp").textContent=jobs.filter(j=>j.state==="wait"||j.state==="up").length;$("nBad").textContent=jobs.filter(j=>j.state==="bad").length}
+function paint(j){
+  const m={wait:["p-wait","Waiting"],up:["p-up","Sending"],ok:["p-ok","Saved"],bad:["p-bad","Failed"]};
+  j.pill.className="pill "+m[j.state][0];j.pill.textContent=m[j.state][1];
+  j.fn.textContent=j.name||j.unit.unit;j.st.textContent=j.msg||"";j.retry.hidden=j.state!=="bad";counts();
+}
+function take(files){
+  if(!unit||!files||!files.length)return;
+  $("qPanel").hidden=false;
+  for(const f of files){
+    const el=document.createElement("div");el.className="item";
+    const img=document.createElement("img");img.alt="";img.src=URL.createObjectURL(f);
+    const mid=document.createElement("div");mid.style.minWidth="0";
+    const fn=document.createElement("div");fn.className="fn";
+    const st=document.createElement("div");st.className="st";
+    const retry=document.createElement("button");retry.type="button";retry.className="link";retry.textContent="Try again";retry.hidden=true;
+    mid.append(fn,st,retry);const pill=document.createElement("span");
+    el.append(img,mid,pill);$("queue").prepend(el);
+    const j={file:f,unit,category:cat,note:$("note").value.trim(),by:$("by").value.trim(),state:"wait",fn,st,pill,retry};
+    retry.onclick=()=>{j.state="wait";j.msg="";paint(j);pump()};
+    jobs.push(j);paint(j);
+  }
+  pump();
+}
+let busy=false;
+async function pump(){
+  if(busy)return;busy=true;
+  let j;
+  while((j=jobs.find(x=>x.state==="wait"))){
+    j.state="up";j.msg="Preparing…";paint(j);
+    try{
+      if(!j.b64){const blob=await compress(j.file);j.kb=Math.round(blob.size/1024);j.b64=await b64(blob)}
+      j.msg=`Sending ${j.kb} KB…`;paint(j);
+      const r=await api("POST",{action:"upload",unit:j.unit.unit,category:j.category,note:j.note,by:j.by,base64:j.b64});
+      j.state="ok";j.name=r.name;j.msg=`${j.kb} KB · photo #${r.n} today`;j.b64=null;
+    }catch(e){
+      j.state="bad";j.msg=(e&&e.message?e.message:"Upload failed.")+" Check your signal, then tap Try again.";
+    }
+    paint(j);
+  }
+  busy=false;
+}
+
+/* boot */
+function showUnits(u,label){units=u;renderUnits();$("unitNote").textContent=label}
+try{const c=JSON.parse(store.get("units")||"null");if(c&&c.length)showUnits(c,`${c.length} units`)}catch(e){}
+api("GET",{action:"units"}).then(j=>{store.set("units",JSON.stringify(j.units));showUnits(j.units,`${j.units.length} units`)})
+  .catch(e=>{if(units.length){$("unitNote").textContent=`${units.length} units (saved list, offline)`;return}
+    $("units").textContent="";$("unitNote").textContent="";const s=document.createElement("span");s.className="err";s.textContent="Couldn't load the unit list. Check your connection and reload.";$("unitNote").append(s)});
+</script>
+</body>
+</html>
