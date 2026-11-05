@@ -118,7 +118,7 @@ const pad=n=>String(n).padStart(2,"0");
 const d0=new Date();$("today").textContent=`${d0.getFullYear()}-${pad(d0.getMonth()+1)}-${pad(d0.getDate())}`;
 
 // Paste the Apps Script Web app URL (ends with /exec) here:
-const API_URL="PASTE_APPS_SCRIPT_EXEC_URL_HERE";
+const API_URL="https://script.google.com/macros/s/AKfycbyPqz639Y6R1--7qazMyHZ0-LpQFSX7e_daagYkQgmgUK2TDYilBjrbOwUdojpsIB3_qQ/exec";
 
 async function api(method,payload){
   const opt=method==="GET"?{method:"GET"}:{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)};
