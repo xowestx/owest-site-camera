@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 <head>
 <meta charset="utf-8">
 <title>O West Site Camera</title>
@@ -35,10 +35,10 @@ header .in{padding-block:14px;display:flex;justify-content:space-between;align-i
 .title{font-family:var(--f-display);font-size:20px;font-weight:600;margin-top:2px}
 .date{font-family:var(--f-mono);font-size:12px;opacity:.8;white-space:nowrap}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.navbtn{font:inherit;font-size:13px;font-weight:600;color:var(--head-fg);background:none;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:6px 12px;cursor:pointer}
+.navbtn{font:inherit;font-size:14px;font-weight:600;color:var(--head-fg);background:none;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .row2>*{min-width:0}
-input[type=date],input[type=password]{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input[type=date],input[type=password]{width:100%;font:inherit;font-size:16px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 .out{display:flex;flex-direction:column;gap:8px;font-size:14px}
 .out .busy{color:var(--warn)}
 .out .res{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -46,33 +46,33 @@ input[type=date],input[type=password]{width:100%;font:inherit;padding:12px;borde
 .out a.dl{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
 .lockline{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
 .wrap{padding-block:16px 130px;display:flex;flex-direction:column;gap:16px}
-.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;gap:8px}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .label .ar{text-transform:none;letter-spacing:0;font-size:12px}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;scroll-margin-top:90px}
 .panel.need{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad-bg)}
-input[type=search],input[type=text],input[type=number],select,textarea{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input[type=search],input[type=text],input[type=number],select,textarea{width:100%;font:inherit;font-size:16px;min-height:46px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
 textarea{min-height:92px;resize:vertical}
 [dir=auto]{text-align:start}
 input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .units{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px}
-.unit{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--line);cursor:pointer;font-family:var(--f-mono);font-size:14px}
+.unit{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 12px;min-height:52px;border-bottom:1px solid var(--line);cursor:pointer;font-family:var(--f-mono);font-size:14px}
 .unit:last-child{border-bottom:0}
 .unit:hover{background:var(--chip)}
 .unit small{font-family:var(--f-body);color:var(--muted);font-size:12px;text-align:right}
-.sel{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sel{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 4px 12px rgba(13,27,62,.08)}
 .sel .code{font-family:var(--f-mono);font-size:17px}
 .sel .sub{font-size:12px;color:var(--muted)}
-.link{color:var(--ink);font-size:13px;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;font-family:inherit}
+.link{color:var(--ink);font-size:14px;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:10px 6px;min-height:44px;cursor:pointer;font-family:inherit}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{font:inherit;font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
+.chip{font:inherit;font-size:14px;padding:10px 14px;min-height:40px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .cam{display:grid;grid-template-columns:2fr 1fr;gap:10px}
 .btn{font:inherit;font-weight:600;border-radius:10px;border:0;cursor:pointer;padding:16px;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center}
 .btn-main{background:var(--accent);color:var(--accent-ink);font-size:17px;min-height:64px}
 .btn-sub{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
 .btn-ok{background:var(--ok);color:#fff;font-size:17px;width:100%;min-height:56px}
-.btn-line{background:none;border:1px dashed var(--line);color:var(--ink);padding:12px;font-weight:500}
+.btn-line{background:none;border:1px dashed var(--muted);color:var(--ink);padding:14px;min-height:48px;font-weight:500}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .queue{display:flex;flex-direction:column;gap:8px}
 .item{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px}
@@ -82,7 +82,7 @@ input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-vis
 .side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .pill{font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;white-space:nowrap;background:var(--chip)}
 .p-wait{color:var(--muted)} .p-up{color:var(--warn)} .p-ok{color:var(--ok);background:var(--ok-bg)} .p-bad{color:var(--bad);background:var(--bad-bg)}
-.x{font:inherit;font-size:12px;border:1px solid var(--line);background:none;color:var(--muted);border-radius:6px;padding:4px 8px;cursor:pointer}
+.x{font:inherit;font-size:13px;border:1px solid var(--line);background:none;color:var(--muted);border-radius:6px;padding:8px 12px;min-height:36px;cursor:pointer}
 .x.arm{background:var(--bad);border-color:var(--bad);color:#fff}
 .stats{display:flex;gap:16px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .stats b{color:var(--ink)}
@@ -94,14 +94,14 @@ input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-vis
 .step button{font:inherit;font-size:20px;width:42px;height:44px;border:0;background:var(--chip);color:var(--ink);cursor:pointer}
 .step input{width:52px;border:0;border-radius:0;text-align:center;padding:10px 0;background:var(--card);font-variant-numeric:tabular-nums;-moz-appearance:textfield}
 .step input::-webkit-outer-spin-button,.step input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.rm{font:inherit;font-size:12px;color:var(--muted);background:none;border:0;cursor:pointer;justify-self:start;padding:0;text-decoration:underline}
+.rm{font:inherit;font-size:14px;color:var(--muted);background:none;border:0;cursor:pointer;justify-self:start;padding:10px 6px;min-height:44px;text-decoration:underline}
 .total{display:flex;justify-content:space-between;align-items:center;font-size:14px}
 .total b{font-size:20px;font-variant-numeric:tabular-nums}
-.check-row{display:flex;gap:10px;align-items:center;font-size:14px}
-.check-row input{width:20px;height:20px}
-.hint{font-size:12px;color:var(--muted)}
-.err{font-size:13px;color:var(--bad)}
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);padding-top:12px;padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+.check-row{display:flex;gap:10px;align-items:center;font-size:14px;min-height:44px}
+.check-row input{width:22px;height:22px;flex:none}
+.hint{font-size:13px;color:var(--muted)}
+.err{font-size:14px;color:var(--bad)}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(13,27,62,.10);padding-top:12px;padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
 .dock .in{display:flex;flex-direction:column;gap:6px}
 .dock .hint{text-align:center}
 .dock .hint.bad{color:var(--bad)}
@@ -111,6 +111,10 @@ input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-vis
 .done h2{font-family:var(--f-display);font-size:24px;margin:0}
 .done .code{font-family:var(--f-mono);font-size:16px}
 .done p{margin:0;color:var(--muted)}
+.step button:active,.chip:active,.unit:active,.btn:active{transform:scale(.98)}
+.namebar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px}
+.namebar b{font-size:17px}
+.crow .line .step{justify-self:end}
 input[type=file]{display:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -118,122 +122,128 @@ input[type=file]{display:none}
 <body>
 <header><div class="in">
   <div id="logo" style="-webkit-user-select:none;user-select:none;-webkit-touch-callout:none"><div class="brand">O WEST</div><div class="title">Site Camera</div></div>
-  <div class="hright"><button class="navbtn" id="navBtn" type="button">Reports</button><div class="date" id="today"></div></div>
+  <div class="hright"><button class="navbtn" id="navBtn" type="button">التقارير</button><div class="date" id="today"></div></div>
 </div></header>
 
 <main class="wrap">
   <!-- start -->
   <section class="panel" id="namePanel">
-    <label class="label" for="by"><span>Your name</span><span class="ar">اسمك</span></label>
-    <select id="by"><option value="">Choose your name…</option></select>
-    <input type="text" id="byText" placeholder="e.g. Mohamed Emira" autocomplete="name" hidden>
+    <div class="namebar" id="nameBar" hidden><span>أنت: <b id="nameShow"></b></span><button class="link" id="nameChange" type="button">غيّر</button></div>
+    <label class="label" for="by" id="nameLabel"><span>اسمك</span></label>
+    <select id="by"><option value="">اختار اسمك…</option></select>
+    <input type="text" id="byText" placeholder="مثال: محمد اميرة" autocomplete="name" hidden>
   </section>
 
   <section class="panel" id="pickPanel">
-    <div class="label"><span>1 · Choose unit</span><span class="ar">اختار الوحدة</span></div>
-    <input type="search" id="q" placeholder="Search unit, e.g. RA2-19" autocomplete="off">
-    <div class="units" id="units"><div class="unit"><small>Loading units…</small></div></div>
+    <div class="label"><span>1 · اختار الوحدة</span></div>
+    <input type="search" id="q" placeholder="ابحث عن وحدة، مثال RA2-19" autocomplete="off">
+    <div class="units" id="units"><div class="unit"><small>جاري تحميل الوحدات…</small></div></div>
     <div class="hint" id="unitNote"></div>
   </section>
 
   <!-- visit -->
   <div class="sel" id="sel" hidden>
     <div style="min-width:0"><div class="code" id="selCode"></div><div class="sub" id="selSub"></div></div>
-    <button class="link" id="cancel" type="button">Cancel</button>
+    <button class="link" id="cancel" type="button">إلغاء</button>
   </div>
 
   <section class="panel" id="shootPanel" hidden>
-    <div class="label"><span>2 · Photos</span><span class="ar">الصور</span></div>
+    <div class="label"><span>2 · الصور</span></div>
+    <div class="hint" id="itemQ">الشغل ده في أنهي بند؟</div>
     <div class="chips" id="chips"></div>
-    <input type="text" id="note" dir="auto" placeholder="Photo caption (optional), e.g. تركيب سيراميك حوائط">
+    <button class="link" id="noteToggle" type="button" style="align-self:flex-start">+ وصف للصورة</button>
+    <input type="text" id="note" dir="auto" placeholder="مثال: تركيب سيراميك حوائط" hidden>
     <div class="cam">
-      <button class="btn btn-main" id="shoot" type="button">📷 Take photo</button>
-      <button class="btn btn-sub" id="gallery" type="button">Gallery</button>
+      <button class="btn btn-main" id="shoot" type="button">📷 صوّر</button>
+      <button class="btn btn-sub" id="gallery" type="button">المعرض</button>
     </div>
     <input type="file" id="fCam" accept="image/*" capture="environment">
     <input type="file" id="fGal" accept="image/*" multiple>
     <div id="qPanel" hidden style="display:flex;flex-direction:column;gap:10px">
-      <div class="stats"><span>Saved <b id="nOk">0</b></span><span>Sending <b id="nUp">0</b></span><span>Failed <b id="nBad">0</b></span></div>
+      <div class="stats"><span>اتحفظ <b id="nOk">0</b></span><span>بيترفع <b id="nUp">0</b></span><span>فشل <b id="nBad">0</b></span></div>
       <div class="queue" id="queue"></div>
     </div>
   </section>
 
   <section class="panel" id="workPanel" hidden>
-    <label class="label" for="work"><span>3 · Work done today</span><span class="ar">الشغل اللي اتعمل النهارده</span></label>
+    <label class="label" for="work"><span>3 · الشغل اللي اتعمل النهارده</span></label>
     <textarea id="work" dir="auto" placeholder="مثال: تركيب سيراميك الحوائط. شغل الجبس في السقف."></textarea>
   </section>
 
   <section class="panel" id="crewPanel" hidden>
-    <div class="label"><span>4 · Manpower on site</span><span class="ar">العمالة</span></div>
+    <div class="label"><span>4 · العمالة في الموقع</span></div>
     <div class="crew" id="crew"></div>
-    <button class="btn btn-line" id="addCrew" type="button">+ Add contractor / trade</button>
-    <label class="check-row"><input type="checkbox" id="noWorkers"> No workers on site today · مفيش عمالة</label>
-    <div class="total"><span>Total workers · الإجمالي</span><b id="crewTotal">0</b></div>
+    <button class="btn btn-line" id="addCrew" type="button">+ إضافة مقاول / حرفة</button>
+    <label class="check-row"><input type="checkbox" id="noWorkers"> مفيش عمالة النهارده</label>
+    <div class="total"><span>إجمالي العمالة</span><b id="crewTotal">0</b></div>
   </section>
 
   <section class="panel" id="notesPanel" hidden>
-    <label class="label" for="notes"><span>5 · Internal notes (saved, not in reports)</span><span class="ar">ملاحظات داخلية</span></label>
-    <textarea id="notes" dir="auto" placeholder="Problems, materials missing, client requests…"></textarea>
+    <button class="link" id="notesToggle" type="button" style="align-self:flex-start">+ ملاحظة داخلية (مش بتظهر في التقارير)</button>
+    <div id="notesBox" hidden style="display:flex;flex-direction:column;gap:10px">
+      <label class="label" for="notes"><span>ملاحظات داخلية (مش بتظهر في التقارير)</span></label>
+      <textarea id="notes" dir="auto" placeholder="مشاكل، مواد ناقصة، طلبات العميل…"></textarea>
+    </div>
   </section>
 
   <!-- reports -->
   <section class="panel" id="repDaily" hidden>
-    <div class="label"><span>Daily report</span><span class="ar">التقرير اليومي</span></div>
-    <div class="row2"><input type="date" id="rdDay" aria-label="Day"><select id="rdEng" aria-label="Engineer"></select></div>
-    <button class="btn btn-main" id="rdGo" type="button">Open daily report</button>
+    <div class="label"><span>التقرير اليومي</span></div>
+    <div class="row2"><input type="date" id="rdDay" aria-label="اليوم"><select id="rdEng" aria-label="المهندس"></select></div>
+    <button class="btn btn-main" id="rdGo" type="button">افتح التقرير اليومي</button>
     <div class="out" id="rdOut"></div>
   </section>
 
   <section class="panel" id="repLock" hidden>
-    <div class="label"><span>Extra reports</span></div>
-    <input type="password" id="pw" placeholder="Code" autocomplete="current-password" inputmode="numeric">
-    <button class="btn btn-sub" id="unlock" type="button">Open</button>
+    <div class="label"><span>تقارير إضافية</span></div>
+    <input type="password" id="pw" placeholder="الكود" autocomplete="current-password" inputmode="numeric">
+    <button class="btn btn-sub" id="unlock" type="button">افتح</button>
     <div class="out" id="lockOut"></div>
   </section>
 
   <section class="panel" id="repMp" hidden>
-    <div class="label"><span>Manpower by contractor</span><span class="ar">العمالة حسب المقاول</span></div>
+    <div class="label"><span>العمالة حسب المقاول</span></div>
     <div class="chips" id="mpQuick"></div>
-    <div class="row2"><input type="date" id="mpFrom" aria-label="From"><input type="date" id="mpTo" aria-label="To"></div>
-    <button class="btn btn-main" id="mpGo" type="button">Open manpower report</button>
+    <div class="row2"><input type="date" id="mpFrom" aria-label="من"><input type="date" id="mpTo" aria-label="إلى"></div>
+    <button class="btn btn-main" id="mpGo" type="button">افتح تقرير العمالة</button>
     <div class="out" id="mpOut"></div>
   </section>
 
   <section class="panel" id="repWk" hidden>
-    <div class="label"><span>Weekly client report</span><span class="ar">تقرير الأسبوع للعميل</span></div>
-    <select id="wkUnit" aria-label="Unit"></select>
-    <label class="hint" for="wkEnd">Week ending (7 days up to this day)</label>
+    <div class="label"><span>تقرير أسبوعي للعميل</span></div>
+    <select id="wkUnit" aria-label="الوحدة"></select>
+    <label class="hint" for="wkEnd">نهاية الأسبوع (7 أيام لحد اليوم ده)</label>
     <input type="date" id="wkEnd">
-    <button class="btn btn-main" id="wkGo" type="button">Open weekly report</button>
+    <button class="btn btn-main" id="wkGo" type="button">افتح التقرير الأسبوعي</button>
     <div class="out" id="wkOut"></div>
-    <div class="lockline"><span>Extra reports open on this phone</span><button class="link" id="lockBtn" type="button">Lock</button></div>
+    <div class="lockline"><span>التقارير الإضافية مفتوحة على التليفون ده</span><button class="link" id="lockBtn" type="button">قفل</button></div>
   </section>
 
   <section class="panel" id="repSync" hidden>
-    <div class="label"><span>ClickUp</span><span class="ar">المزامنة</span></div>
-    <div class="hint">Units, items and contractors update from ClickUp every 30 minutes. Use this after a change you need right away.</div>
-    <button class="btn btn-sub" id="syncGo" type="button">Sync from ClickUp now</button>
+    <div class="label"><span>ClickUp</span></div>
+    <div class="hint">الوحدات والبنود والمقاولين بتتحدث من ClickUp كل 30 دقيقة. استخدم الزرار ده بعد أي تعديل محتاجه فوراً.</div>
+    <button class="btn btn-sub" id="syncGo" type="button">حدّث من ClickUp دلوقتي</button>
     <div class="out" id="syncOut"></div>
   </section>
 
   <!-- done -->
   <section class="panel done" id="donePanel" hidden>
     <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-    <h2>Saved · تم</h2>
+    <h2>اتحفظ ✓</h2>
     <div class="code" id="doneUnit"></div>
     <p id="doneSummary"></p>
-    <button class="btn btn-main" id="again" type="button" style="width:100%">New case</button>
+    <button class="btn btn-main" id="again" type="button" style="width:100%">حالة جديدة</button>
   </section>
 </main>
 
 <div class="dock" id="dock" hidden><div class="in">
-  <button class="btn btn-ok" id="finish" type="button">✓ Done · تم</button>
+  <button class="btn btn-ok" id="finish" type="button">✓ خلصت</button>
   <div class="hint" id="dockHint"></div>
 </div></div>
 
 <script>
 const API_URL="https://script.google.com/macros/s/AKfycbyPqz639Y6R1--7qazMyHZ0-LpQFSX7e_daagYkQgmgUK2TDYilBjrbOwUdojpsIB3_qQ/exec";
-const MAX_SIDE=1280, MAX_BYTES=450000, PARALLEL=3, NEW="__new__", OTHER="__other__";
+const MAX_SIDE=1280, MAX_BYTES=450000, PARALLEL=3, NEW="__new__", OTHER="__other__", TYPE_NAME="__type__";
 
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -242,6 +252,7 @@ const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const stamp=d=>`${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 function rnd(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return [...a].map(b=>"abcdefghijkmnpqrstuvwxyz23456789"[b%32]).join("")}
 $("today").textContent=ymd(new Date());
+const itemLabel=i=>i==="General"?"عام":i;
 
 async function api(method,payload,ms){
   const opt=method==="GET"?{method:"GET"}:{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)};
@@ -249,10 +260,10 @@ async function api(method,payload,ms){
   const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms||90000);
   let r;
   try{r=await fetch(url,{...opt,signal:ctl.signal,redirect:"follow",credentials:"omit"})}
-  catch(e){throw new Error(e.name==="AbortError"?"Took too long.":"No connection.")}
+  catch(e){throw new Error(e.name==="AbortError"?"الاتصال أخد وقت طويل.":"مفيش اتصال بالنت.")}
   finally{clearTimeout(t)}
-  let j;try{j=await r.json()}catch(e){throw new Error("Server sent an unexpected reply.")}
-  if(!j.ok){const e=new Error(j.error||"Server error.");e.code=j.code;throw e}
+  let j;try{j=await r.json()}catch(e){throw new Error("السيرفر رد برد غريب.")}
+  if(!j.ok){const e=new Error(j.error||"حصلت مشكلة في السيرفر.");e.code=j.code;throw e}
   return j;
 }
 
@@ -266,34 +277,50 @@ function show(v0){
   view=v0;
   const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"],reports:["repDaily",...(mgr()?["repMp","repWk","repSync"]:(extra?["repLock"]:[]))]}[v0];
   ["namePanel","pickPanel","donePanel",...VISIT_PANELS,...REPORT_PANELS].forEach(id=>$(id).hidden=!v.includes(id));
-  $("navBtn").textContent=v0==="reports"?"Camera":"Reports";
+  $("navBtn").textContent=v0==="reports"?"الكاميرا":"التقارير";
   window.scrollTo(0,0);
 }
 
 /* ---------- name ---------- */
-const byName=()=>($("by").hidden?$("byText").value:$("by").value).trim();
-$("byText").addEventListener("input",()=>{store.set("by",$("byText").value);$("namePanel").classList.remove("need")});
+let nameEditing=false;
+const byName=()=>{const s=$("by");if(!data.engineers.length||s.value===TYPE_NAME)return $("byText").value.trim();return s.value.trim()};
+function refreshName(){
+  const n=byName(),free=!data.engineers.length,bar=!!n&&!nameEditing;
+  $("nameBar").hidden=!bar;$("nameShow").textContent=n;
+  $("nameLabel").hidden=bar;
+  $("by").hidden=bar||free;
+  $("byText").hidden=bar?true:!(free||$("by").value===TYPE_NAME);
+}
 function renderNames(){
-  const s=$("by"),cur=s.value||store.get("by")||"";
-  const free=!data.engineers.length;s.hidden=free;$("byText").hidden=!free;if(free){$("byText").value=cur;return}
+  const s=$("by"),cur=s.value&&s.value!==TYPE_NAME?s.value:(store.get("by")||"");
+  if(!data.engineers.length){$("byText").value=cur;refreshName();return}
   s.textContent="";
-  const o0=document.createElement("option");o0.value="";o0.textContent="Choose your name…";s.append(o0);
+  const o0=document.createElement("option");o0.value="";o0.textContent="اختار اسمك…";s.append(o0);
   for(const n of data.engineers){const o=document.createElement("option");o.value=o.textContent=n;s.append(o)}
   if(cur&&!data.engineers.includes(cur)){const o=document.createElement("option");o.value=o.textContent=cur;s.append(o)}
+  const ot=document.createElement("option");ot.value=TYPE_NAME;ot.textContent="✎ اسم تاني (اكتب)";s.append(ot);
   s.value=cur;
+  refreshName();
 }
-$("by").addEventListener("change",()=>{store.set("by",$("by").value);$("namePanel").classList.remove("need")});
+$("by").addEventListener("change",()=>{
+  const s=$("by");
+  if(s.value===TYPE_NAME){$("byText").value="";refreshName();$("byText").focus();return}
+  nameEditing=false;store.set("by",s.value);$("namePanel").classList.remove("need");refreshName();
+});
+$("byText").addEventListener("input",()=>{store.set("by",$("byText").value.trim());$("namePanel").classList.remove("need")});
+$("byText").addEventListener("change",()=>{if(byName()){nameEditing=false;refreshName()}});
+$("nameChange").onclick=()=>{nameEditing=true;refreshName();($("by").hidden?$("byText"):$("by")).focus()};
 
 /* ---------- units ---------- */
 function renderUnits(){
   const q=$("q").value.trim().toLowerCase().replace(/[\/\-\s]/g,"");
   const list=data.units.filter(u=>!q||u.unit.toLowerCase().replace(/[\/\-\s]/g,"").includes(q));
   const box=$("units");box.textContent="";
-  if(!list.length){const d=document.createElement("div");d.className="unit";const s=document.createElement("small");s.textContent=data.units.length?"No unit matches that search.":"No units in the list.";d.append(s);box.append(d);return}
+  if(!list.length){const d=document.createElement("div");d.className="unit";const s=document.createElement("small");s.textContent=data.units.length?"مفيش وحدة بالاسم ده.":"مفيش وحدات في القايمة.";d.append(s);box.append(d);return}
   for(const u of list){
     const b=document.createElement("button");b.type="button";b.className="unit";
     const s=document.createElement("span");s.textContent=u.unit;
-    const m=document.createElement("small");m.textContent=(u.items&&u.items.length)?u.items.slice(0,2).join(" · ")+(u.items.length>2?` +${u.items.length-2}`:""):u.project;
+    const m=document.createElement("small");m.textContent=(u.items&&u.items.length)?u.items.slice(0,2).map(itemLabel).join(" · ")+(u.items.length>2?` +${u.items.length-2}`:""):u.project;
     b.append(s,m);b.onclick=()=>startVisit(u);box.append(b);
   }
 }
@@ -302,16 +329,19 @@ $("q").addEventListener("input",renderUnits);
 /* ---------- visit ---------- */
 const draftKey=()=>`draft:${unit.unit}:${ymd(new Date())}`;
 function startVisit(u){
-  if(!byName()){$("namePanel").classList.add("need");($("by").hidden?$("byText"):$("by")).focus();return}
+  if(!byName()){nameEditing=true;refreshName();$("namePanel").classList.add("need");($("by").hidden?$("byText"):$("by")).focus();return}
   unit=u;
   visit={id:"V-"+stamp(new Date())+"-"+rnd(6),startedAt:Date.now()};
   jobs.length=0;$("queue").textContent="";$("qPanel").hidden=true;
   $("selCode").textContent=u.unit;$("selSub").textContent=u.project||"";
-  $("note").value="";$("work").value="";$("notes").value="";$("noWorkers").checked=false;$("crew").textContent="";
+  $("note").value="";$("note").hidden=true;$("noteToggle").hidden=false;$("work").value="";$("notes").value="";$("noWorkers").checked=false;$("crew").textContent="";
   ["shootPanel","workPanel","crewPanel"].forEach(id=>$(id).classList.remove("need"));
   renderChips();
   let d=null;try{d=JSON.parse(store.get(draftKey())||"null")}catch(e){}
   if(d){$("work").value=d.work||"";$("notes").value=d.notes||"";$("noWorkers").checked=!!d.noWorkers;(d.crew||[]).forEach(c=>addCrewRow(c))}
+  else{let last=null;try{last=JSON.parse(store.get("last:"+u.unit)||"null")}catch(e){}
+    (last||[]).forEach(c=>addCrewRow({contractor:c.contractor,count:c.count}))}
+  $("notesBox").hidden=!$("notes").value.trim();$("notesToggle").hidden=!$("notesBox").hidden;
   if(!$("crew").children.length&&!$("noWorkers").checked)addCrewRow();
   crewChanged();counts();show("visit");
 }
@@ -325,8 +355,9 @@ function renderChips(){
   const box=$("chips");box.textContent="";
   const list=[...(unit.items||[]),"General"];
   item=list[0];
-  for(const c of list){const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=c;b.setAttribute("aria-pressed",c===item);
-    b.onclick=()=>{item=c;[...box.children].forEach(x=>x.setAttribute("aria-pressed",x.textContent===c))};box.append(b)}
+  const hasItems=(unit.items||[]).length>0;$("chips").hidden=!hasItems;$("itemQ").hidden=!hasItems;
+  for(const c of list){const b=document.createElement("button");b.type="button";b.className="chip";b.dataset.v=c;b.textContent=itemLabel(c);b.setAttribute("aria-pressed",c===item);
+    b.onclick=()=>{item=c;[...box.children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===c))};box.append(b)}
 }
 
 /* ---------- manpower ---------- */
@@ -338,52 +369,50 @@ function unitContractors(){
 function contractorOptions(sel,value){
   sel.textContent="";
   const add=(parent,v,t)=>{const o=document.createElement("option");o.value=v;o.textContent=t;parent.append(o);return o};
-  add(sel,"","Contractor…");
+  add(sel,"","اختار المقاول…");
   const used=unitContractors(),showAll=!used.length||sel.dataset.all==="1"||(value&&!used.includes(value));
   const all=data.contractors.filter(c=>!used.includes(c));
-  if(used.length){const g=document.createElement("optgroup");g.label="On this unit";used.forEach(c=>add(g,c,c));sel.append(g)}
-  if(showAll){const g2=document.createElement("optgroup");g2.label=used.length?"Other contractors":"Contractors";all.forEach(c=>add(g2,c,c));sel.append(g2);add(sel,NEW,"+ New contractor…")}
-  else add(sel,OTHER,"Other contractor…");
+  if(used.length){const g=document.createElement("optgroup");g.label="في الوحدة دي";used.forEach(c=>add(g,c,c));sel.append(g)}
+  if(showAll){const g2=document.createElement("optgroup");g2.label=used.length?"مقاولين تانيين":"المقاولين";all.forEach(c=>add(g2,c,c));sel.append(g2);add(sel,NEW,"+ مقاول جديد…")}
+  else add(sel,OTHER,"مقاول تاني…");
   if(value&&value!==NEW&&![...used,...all].includes(value)){add(sel,value,value)}
   sel.value=value||"";
 }
 function addCrewRow(c){
   c=c||{};
   const row=document.createElement("div");row.className="crow";
-  const csel=document.createElement("select");csel.className="c";csel.setAttribute("aria-label","Contractor");
-  const cnew=document.createElement("input");cnew.type="text";cnew.className="cn";cnew.placeholder="New contractor name";cnew.hidden=true;cnew.dir="auto";
+  const csel=document.createElement("select");csel.className="c";csel.setAttribute("aria-label","المقاول");
+  const cnew=document.createElement("input");cnew.type="text";cnew.className="cn";cnew.placeholder="اسم المقاول الجديد";cnew.hidden=true;cnew.dir="auto";
   if(c.contractorNew)csel.dataset.all="1";
   contractorOptions(csel,c.contractor);
   csel.onchange=()=>{if(csel.value===OTHER){csel.dataset.all="1";contractorOptions(csel,"");csel.focus();if(csel.showPicker)try{csel.showPicker()}catch(e){}return}cnew.hidden=csel.value!==NEW;if(!cnew.hidden)cnew.focus();crewChanged()};
   cnew.oninput=crewChanged;
-  const isel=document.createElement("select");isel.className="i";isel.setAttribute("aria-label","Item");
-  const items=[...(unit.items||[]),"General"];
-  const i0=document.createElement("option");i0.value="";i0.textContent="Item it worked on…";isel.append(i0);
-  items.forEach(t=>{const x=document.createElement("option");x.value=x.textContent=t;isel.append(x)});
-  isel.value=c.item&&items.includes(c.item)?c.item:(items.length===2?items[0]:"");isel.onchange=crewChanged;
   const line=document.createElement("div");line.className="line";
-  const tsel=document.createElement("select");tsel.className="t";tsel.setAttribute("aria-label","Trade");
-  const o=document.createElement("option");o.value="";o.textContent="Trade (optional)";tsel.append(o);
-  data.trades.forEach(t=>{const x=document.createElement("option");x.value=t.en;x.textContent=t.ar?`${t.en} · ${t.ar}`:t.en;tsel.append(x)});
+  const tsel=document.createElement("select");tsel.className="t";tsel.setAttribute("aria-label","الحرفة");
+  const o=document.createElement("option");o.value="";o.textContent="الحرفة (اختياري)";tsel.append(o);
+  data.trades.forEach(t=>{const x=document.createElement("option");x.value=t.en;x.textContent=t.ar?`${t.ar} · ${t.en}`:t.en;tsel.append(x)});
   tsel.value=c.trade||"";tsel.onchange=crewChanged;
+  tsel.hidden=!c.trade;
+  const tbtn=document.createElement("button");tbtn.type="button";tbtn.className="link";tbtn.textContent="+ حرفة";tbtn.hidden=!!c.trade;
+  tbtn.onclick=()=>{tbtn.hidden=true;tsel.hidden=false;tsel.focus()};
   const step=document.createElement("div");step.className="step";
-  const minus=document.createElement("button");minus.type="button";minus.textContent="−";minus.setAttribute("aria-label","Less");
-  const num=document.createElement("input");num.type="number";num.inputMode="numeric";num.min="0";num.max="500";num.className="n";num.value=c.count!=null?c.count:1;num.setAttribute("aria-label","Workers");
-  const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.setAttribute("aria-label","More");
+  const minus=document.createElement("button");minus.type="button";minus.textContent="−";minus.setAttribute("aria-label","أقل");
+  const num=document.createElement("input");num.type="number";num.inputMode="numeric";num.min="0";num.max="500";num.className="n";num.value=c.count!=null?c.count:1;num.setAttribute("aria-label","عدد العمال");
+  const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.setAttribute("aria-label","أكتر");
   minus.onclick=()=>{num.value=Math.max(0,(+num.value||0)-1);crewChanged()};
   plus.onclick=()=>{num.value=Math.min(500,(+num.value||0)+1);crewChanged()};
   num.oninput=crewChanged;
   step.append(minus,num,plus);line.append(tsel,step);
-  const rm=document.createElement("button");rm.type="button";rm.className="rm";rm.textContent="Remove";
+  const rm=document.createElement("button");rm.type="button";rm.className="rm";rm.textContent="امسح الصف";
   rm.onclick=()=>{row.remove();crewChanged()};
-  row.append(csel,cnew,isel,line,rm);$("crew").append(row);
+  row.append(csel,cnew,tbtn,line,rm);$("crew").append(row);
   if(c.contractorNew){csel.value=NEW;cnew.hidden=false;cnew.value=c.contractorNew}
   return row;
 }
 function readCrew(raw){
   return [...$("crew").children].map(r=>{
     const sel=r.querySelector(".c").value,nw=r.querySelector(".cn").value.trim();
-    const o={contractor:sel===NEW?nw:sel,item:r.querySelector(".i").value,trade:r.querySelector(".t").value,count:Math.max(0,Math.round(+r.querySelector(".n").value||0))};
+    const o={contractor:sel===NEW?nw:sel,item:item,trade:r.querySelector(".t").value,count:Math.max(0,Math.round(+r.querySelector(".n").value||0))};
     if(raw&&sel===NEW){o.contractor="";o.contractorNew=nw}
     return o;
   });
@@ -429,18 +458,18 @@ function counts(){
   $("nOk").textContent=saved();$("nUp").textContent=pending();$("nBad").textContent=failed();
   $("qPanel").hidden=!jobs.length;
   const f=$("finish"),h=$("dockHint");h.classList.remove("bad");
-  if(closing){f.disabled=true;f.textContent=pending()?`Finishing… ${pending()} photo(s) left`:"Saving…";h.textContent="Keep this page open";return}
+  if(closing){f.disabled=true;f.textContent=pending()?`بنخلص… باقي ${pending()} صورة`:"بيتحفظ…";h.textContent="خلي الصفحة مفتوحة";return}
   f.disabled=false;
-  f.textContent=`✓ Done · تم${saved()?` (${saved()} photos)`:""}`;
-  h.textContent=failed()?`${failed()} photo(s) failed. Tap Try again or Remove.`:pending()?`${pending()} photo(s) still sending. Done will wait for them.`:"Photos, work done and manpower, then Done.";
+  f.textContent=`✓ خلصت${saved()?` (${saved()} صورة)`:""}`;
+  h.textContent=failed()?`فشل ${failed()} صورة. اضغط حاول تاني أو امسح.`:pending()?`${pending()} صورة لسه بتترفع. خلاص هيستنى ليها.`:"الصور والشغل والعمالة، وبعدين خلاص.";
 }
 function paint(j){
-  const m={wait:["p-wait","Waiting"],up:["p-up","Sending"],ok:["p-ok","Saved"],bad:["p-bad","Failed"],del:["p-up","Deleting"]};
+  const m={wait:["p-wait","مستني"],up:["p-up","بيترفع"],ok:["p-ok","اتحفظ"],bad:["p-bad","فشل"],del:["p-up","بيتمسح"]};
   j.pill.className="pill "+m[j.state][0];j.pill.textContent=m[j.state][1];
-  j.fn.textContent=j.note?`${j.item} · ${j.note}`:j.item;j.st.textContent=j.msg||"";
+  j.fn.textContent=j.note?`${itemLabel(j.item)} · ${j.note}`:itemLabel(j.item);j.st.textContent=j.msg||"";
   j.retry.hidden=j.state!=="bad";
   j.x.hidden=!(j.state==="ok"||j.state==="bad");
-  j.x.textContent=j.state==="bad"?"Remove":"Delete";j.x.classList.remove("arm");j.armed=false;
+  j.x.textContent=j.state==="bad"?"امسح":"امسح";j.x.classList.remove("arm");j.armed=false;
   counts();
 }
 function take(files){
@@ -452,7 +481,7 @@ function take(files){
     const mid=document.createElement("div");mid.style.minWidth="0";
     const fn=document.createElement("div");fn.className="fn";fn.dir="auto";
     const st=document.createElement("div");st.className="st";
-    const retry=document.createElement("button");retry.type="button";retry.className="link";retry.textContent="Try again";retry.hidden=true;
+    const retry=document.createElement("button");retry.type="button";retry.className="link";retry.textContent="حاول تاني";retry.hidden=true;
     mid.append(fn,st,retry);
     const side=document.createElement("div");side.className="side";
     const pill=document.createElement("span");
@@ -469,42 +498,40 @@ function take(files){
 }
 async function removeJob(j){
   if(j.state==="bad"){jobs.splice(jobs.indexOf(j),1);j.el.remove();counts();return}
-  if(!j.armed){j.armed=true;j.x.textContent="Tap again to delete";j.x.classList.add("arm");setTimeout(()=>{if(j.armed&&j.state==="ok"){j.armed=false;j.x.textContent="Delete";j.x.classList.remove("arm")}},3500);return}
   j.state="del";j.msg="";paint(j);
   try{await api("POST",{action:"delete",photoId:j.photoId,visitId:visit.id});jobs.splice(jobs.indexOf(j),1);j.el.remove();counts()}
-  catch(e){j.state="ok";j.msg="Couldn't delete: "+e.message;paint(j)}
+  catch(e){j.state="ok";j.msg="معرفناش نمسح: "+e.message;paint(j)}
 }
 let active=0;
 function pump(){
   while(active<PARALLEL){
     const j=jobs.find(x=>x.state==="wait");
     if(!j)break;
-    active++;j.state="up";j.msg="Preparing…";paint(j);
+    active++;j.state="up";j.msg="بتجهز…";paint(j);
     send(j).finally(()=>{active--;pump();maybeClose()});
   }
 }
 async function send(j){
   try{
     if(!j.b64){const blob=await compress(j.file);j.kb=Math.round(blob.size/1024);j.b64=await b64(blob)}
-    j.msg=`Sending ${j.kb} KB…`;paint(j);
+    j.msg=`بيترفع ${j.kb} KB…`;paint(j);
     const r=await api("POST",{action:"upload",photoId:j.photoId,visitId:visit.id,unit:unit.unit,item:j.item,note:j.note,by:byName(),base64:j.b64});
     j.state="ok";j.name=r.name;j.msg=`${j.kb} KB`;j.b64=null;
-  }catch(e){j.state="bad";j.msg=e.message+" Check your signal."}
+  }catch(e){j.state="bad";j.msg=e.message+" اتأكد من النت."}
   paint(j);
 }
 
 /* ---------- done ---------- */
 function problems(){
   const out=[];
-  if(!saved()&&!pending())out.push(["shootPanel","Take at least one photo."]);
-  if(failed())out.push(["shootPanel",`${failed()} photo(s) failed. Try again or Remove.`]);
-  if(!$("work").value.trim())out.push(["workPanel","Write what was done today."]);
+  if(!saved()&&!pending())out.push(["shootPanel","صوّر صورة واحدة على الأقل."]);
+  if(failed())out.push(["shootPanel",`فشل ${failed()} صورة. حاول تاني أو امسح.`]);
+  if(!$("work").value.trim())out.push(["workPanel","اكتب الشغل اللي اتعمل النهارده."]);
   if(!$("noWorkers").checked){
     const c=readCrew();
-    if(!c.length)out.push(["crewPanel","Add the manpower, or tick No workers."]);
-    else if(c.some(x=>!x.contractor))out.push(["crewPanel","Choose the contractor on every manpower row."]);
-    else if(c.some(x=>!x.item))out.push(["crewPanel","Choose the item on every manpower row."]);
-    else if(c.some(x=>x.count<1))out.push(["crewPanel","Workers count must be 1 or more (or remove the row)."]);
+    if(!c.length)out.push(["crewPanel","ضيف العمالة، أو علّم مفيش عمالة."]);
+    else if(c.some(x=>!x.contractor))out.push(["crewPanel","اختار المقاول في كل صف."]);
+    else if(c.some(x=>x.count<1))out.push(["crewPanel","عدد العمال لازم يكون 1 أو أكتر (أو امسح الصف)."]);
   }
   return out;
 }
@@ -526,27 +553,30 @@ async function maybeClose(){
     const r=await api("POST",{action:"close",visitId:visit.id,unit:unit.unit,by:byName(),startedAt:visit.startedAt,
       workDone:$("work").value.trim(),notes:$("notes").value.trim(),noWorkers:$("noWorkers").checked,manpower:crew});
     store.del(draftKey());
+    store.set("last:"+unit.unit,JSON.stringify(crew.filter(c=>c.contractor).map(c=>({contractor:c.contractor,count:c.count}))));
     crew.forEach(c=>{if(c.contractor&&!data.contractors.includes(c.contractor))data.contractors.push(c.contractor);
       if(c.contractor&&!(unit.contractors||[]).includes(c.contractor))(unit.contractors=unit.contractors||[]).push(c.contractor)});
     $("doneUnit").textContent=unit.unit;
-    $("doneSummary").textContent=`${r.count} photo${r.count===1?"":"s"} · ${r.manpower||0} workers${r.items&&r.items.length?" · "+r.items.join(", "):""}`;
+    $("doneSummary").textContent=`${r.count} صورة · ${r.manpower||0} عامل${r.items&&r.items.length?" · "+r.items.map(itemLabel).join("، "):""}`;
     closing=false;show("done");
-  }catch(e){closing=false;counts();const h=$("dockHint");h.textContent="Couldn't save: "+e.message+" Tap Done again.";h.classList.add("bad")}
+  }catch(e){closing=false;counts();const h=$("dockHint");h.textContent="معرفناش نحفظ: "+e.message+" اضغط خلصت تاني.";h.classList.add("bad")}
 }
 $("again").onclick=()=>{unit=null;visit=null;jobs.length=0;$("queue").textContent="";$("q").value="";renderUnits();show("pick")};
+$("noteToggle").onclick=()=>{$("note").hidden=false;$("noteToggle").hidden=true;$("note").focus()};
+$("notesToggle").onclick=()=>{$("notesBox").hidden=false;$("notesToggle").hidden=true;$("notes").focus()};
 let cancelArmed=false;
 $("cancel").onclick=()=>{
-  if(!cancelArmed){cancelArmed=true;$("cancel").textContent=saved()?"Photos stay saved. Tap to leave":"Tap again to leave";setTimeout(()=>{cancelArmed=false;$("cancel").textContent="Cancel"},3500);return}
-  cancelArmed=false;$("cancel").textContent="Cancel";$("again").onclick();
+  if(!cancelArmed){cancelArmed=true;$("cancel").textContent=saved()?"الصور اتحفظت. اضغط للخروج":"اضغط تاني للخروج";setTimeout(()=>{cancelArmed=false;$("cancel").textContent="إلغاء"},3500);return}
+  cancelArmed=false;$("cancel").textContent="إلغاء";$("again").onclick();
 };
 window.addEventListener("beforeunload",e=>{if(pending()||closing){e.preventDefault();e.returnValue=""}});
 
 /* ---------- boot ---------- */
-function apply(d){data=Object.assign({units:[],engineers:[],contractors:[],trades:[]},d);renderNames();renderUnits();$("unitNote").textContent=`${data.units.length} units`}
+function apply(d){data=Object.assign({units:[],engineers:[],contractors:[],trades:[]},d);renderNames();renderUnits();$("unitNote").textContent=`${data.units.length} وحدة`}
 try{const c=JSON.parse(store.get("boot4")||"null");if(c&&c.units)apply(c)}catch(e){}
 api("GET",{action:"units"}).then(j=>{delete j.ok;store.set("boot4",JSON.stringify(j));apply(j)})
-  .catch(e=>{if(data.units.length){$("unitNote").textContent=`${data.units.length} units (saved list)`;return}
-    $("units").textContent="";$("unitNote").textContent="";const s=document.createElement("span");s.className="err";s.textContent="Couldn't load the lists. Check your connection and reload.";$("unitNote").append(s)});
+  .catch(e=>{if(data.units.length){$("unitNote").textContent=`${data.units.length} وحدة (من القايمة المحفوظة)`;return}
+    $("units").textContent="";$("unitNote").textContent="";const s=document.createElement("span");s.className="err";s.textContent="معرفناش نحمّل القوايم. اتأكد من النت واعمل تحديث للصفحة.";$("unitNote").append(s)});
 /* ---------- reports ---------- */
 function mgr(){try{const m=JSON.parse(store.get("mgr")||"null");return m&&m.expires>Date.now()?m.token:null}catch(e){return null}}
 let lastView="pick",extra=/^#extra/.test(location.hash);
@@ -563,7 +593,7 @@ function openExtra(){
 window.addEventListener("hashchange",()=>{if(/^#extra/.test(location.hash))openExtra()});
 $("navBtn").onclick=()=>{
   if(view==="reports"){show(lastView);return}
-  if(view==="visit"&&(pending()||closing)){$("dockHint").textContent="Wait for the photos to finish sending first.";return}
+  if(view==="visit"&&(pending()||closing)){$("dockHint").textContent="استنى الصور تخلص ترفع الأول.";return}
   lastView=view==="visit"?"visit":view;fillReports();show("reports");
 };
 function fillReports(){
@@ -572,14 +602,15 @@ function fillReports(){
   if(!$("wkEnd").value)$("wkEnd").value=today;
   if(!$("mpFrom").value){$("mpFrom").value=today;$("mpTo").value=today}
   const e=$("rdEng"),cur=e.value||byName();e.textContent="";
-  const o0=document.createElement("option");o0.value="";o0.textContent="Engineer…";e.append(o0);
+  const o0=document.createElement("option");o0.value="";o0.textContent="اختار المهندس…";e.append(o0);
   const names=[...data.engineers];if(cur&&!names.includes(cur))names.push(cur);
   names.forEach(n=>{const o=document.createElement("option");o.value=o.textContent=n;e.append(o)});e.value=cur||"";
+  e.hidden=!(extra||mgr());
   const w=$("wkUnit"),cu=w.value;w.textContent="";
-  const u0=document.createElement("option");u0.value="";u0.textContent="Unit…";w.append(u0);
+  const u0=document.createElement("option");u0.value="";u0.textContent="اختار الوحدة…";w.append(u0);
   data.units.forEach(u=>{const o=document.createElement("option");o.value=o.textContent=u.unit;w.append(o)});w.value=cu||"";
 }
-const quick=[["Today",0],["Last 7 days",6],["This month",-1]];
+const quick=[["النهارده",0],["آخر 7 أيام",6],["الشهر ده",-1]];
 quick.forEach(([t,n])=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
   b.onclick=()=>{const d=new Date(),to=ymd(d);let from;if(n<0){from=ymd(new Date(d.getFullYear(),d.getMonth(),1))}else{const f=new Date(d);f.setDate(f.getDate()-n);from=ymd(f)}
     $("mpFrom").value=from;$("mpTo").value=to};$("mpQuick").append(b)});
@@ -587,7 +618,7 @@ quick.forEach(([t,n])=>{const b=document.createElement("button");b.type="button"
 const urls={};
 async function getReport(out,btn,payload){
   const box=$(out);box.textContent="";
-  const busy=document.createElement("div");busy.className="busy";busy.textContent="Making the report… this can take up to a minute.";box.append(busy);
+  const busy=document.createElement("div");busy.className="busy";busy.textContent="بنعمل التقرير… ممكن ياخد دقيقة.";box.append(busy);
   $(btn).disabled=true;
   try{
     const r=await api("POST",Object.assign({action:"report"},payload),300000);
@@ -597,8 +628,8 @@ async function getReport(out,btn,payload){
     box.textContent="";
     const name=document.createElement("div");name.textContent=r.name;
     const res=document.createElement("div");res.className="res";
-    const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.textContent="Open PDF";
-    const d=document.createElement("a");d.href=url;d.download=r.name;d.className="dl";d.textContent="Download";
+    const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.textContent="افتح الـ PDF";
+    const d=document.createElement("a");d.href=url;d.download=r.name;d.className="dl";d.textContent="حمّل";
     res.append(a,d);box.append(name,res);
   }catch(e){
     box.textContent="";const er=document.createElement("div");er.className="err";er.textContent=e.message;box.append(er);
@@ -618,9 +649,9 @@ $("unlock").onclick=async()=>{
 $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("unlock").click()});
 $("lockBtn").onclick=()=>{store.del("mgr");extra=false;history.replaceState(null,"",location.pathname);show("reports")};
 $("syncGo").onclick=async()=>{
-  const box=$("syncOut");box.textContent="";const b=document.createElement("div");b.className="busy";b.textContent="Syncing… up to a minute.";box.append(b);
+  const box=$("syncOut");box.textContent="";const b=document.createElement("div");b.className="busy";b.textContent="بيتحدّث… ممكن ياخد دقيقة.";box.append(b);
   $("syncGo").disabled=true;
-  try{const r=await api("POST",{action:"sync",token:mgr()},300000);box.textContent=`Done: ${r.units} units, ${r.contractors} unit-contractor links${r.newContractors?`, ${r.newContractors} new contractor(s)`:""}.`;
+  try{const r=await api("POST",{action:"sync",token:mgr()},300000);box.textContent=`تم: ${r.units} وحدة، ${r.contractors} ربط مقاول${r.newContractors?`، ${r.newContractors} مقاول جديد`:""}.`;
     const j=await api("GET",{action:"units"});delete j.ok;store.set("boot4",JSON.stringify(j));apply(j)}
   catch(e){box.textContent="";const er=document.createElement("div");er.className="err";er.textContent=e.message;box.append(er);if(e.code==="auth"){store.del("mgr");show("reports")}}
   finally{$("syncGo").disabled=false}
