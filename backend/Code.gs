@@ -25,7 +25,7 @@
 const TZ = 'Africa/Cairo';
 const T = {                    // tab names
   units: 'Units', scope: 'Scope', engineers: 'Engineers', contractors: 'Contractors',
-  trades: 'Trades', settings: 'Settings', photos: 'Photos', visits: 'Visits',
+  trades: 'Trades', unitContractors: 'Unit Contractors', settings: 'Settings', photos: 'Photos', visits: 'Visits',
   manpower: 'Manpower', reports: 'Reports'
 };
 const PHOTO_HEADERS = ['Photo ID', 'Visit ID', 'Uploaded at', 'Date', 'Unit', 'Project', 'Item', 'Note', 'By', 'File name', 'Photo link', 'File ID', 'Status'];
@@ -56,6 +56,7 @@ function doPost(e) {
     if (b.action === 'close') return json_(Object.assign({ ok: true }, closeVisit_(b)));
     if (b.action === 'report') return json_(Object.assign({ ok: true }, report_(b)));
     if (b.action === 'login') return json_(Object.assign({ ok: true }, login_(b)));
+    if (b.action === 'sync') { requireAdmin_(b.token); return json_(Object.assign({ ok: true }, syncClickUp_())); }
     return json_({ ok: false, error: 'Unknown action.' });
   } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
 }
@@ -179,13 +180,15 @@ function bootData_() {
     if (!u || !item) return;
     (scope[u] = scope[u] || []).indexOf(item) < 0 && scope[u].push(item);
   });
-  // contractors already used on each unit (shown first in the app)
+  // contractors on each unit: assigned in ClickUp first, then ones used before in the app
+  const alias = aliases_();
   const used = {};
+  const add = (u, c) => { c = alias[c.toLowerCase()] || c; (used[u] = used[u] || []).indexOf(c) < 0 && used[u].push(c); };
+  rows_(T.unitContractors).forEach(r => { const u = low_(r['Unit']), c = str_(r['Contractor']); if (u && c) add(u, c); });
   rows_(T.manpower).forEach(r => {
     if (str_(r['Status']) === 'Deleted') return;
     const u = low_(r['Unit']), c = str_(r['Contractor']);
-    if (!u || !c) return;
-    (used[u] = used[u] || []).indexOf(c) < 0 && used[u].push(c);
+    if (u && c) add(u, c);
   });
   const units = rows_(T.units)
     .filter(r => str_(r['Unit']) && low_(r['Active']) !== 'no')
@@ -196,7 +199,7 @@ function bootData_() {
   const out = {
     units: units,
     engineers: rows_(T.engineers).filter(r => str_(r['Name']) && low_(r['Active']) !== 'no').map(r => str_(r['Name'])),
-    contractors: rows_(T.contractors).filter(r => str_(r['Contractor']) && low_(r['Active']) !== 'no').map(r => str_(r['Contractor'])),
+    contractors: rows_(T.contractors).filter(r => str_(r['Contractor']) && low_(r['Active']) !== 'no' && !str_(r['Same as'])).map(r => str_(r['Contractor'])).sort(),
     trades: rows_(T.trades).filter(r => str_(r['Trade'])).map(r => ({ en: str_(r['Trade']), ar: str_(r['Arabic']) }))
   };
   try { cache.put('boot', JSON.stringify(out), 600); } catch (e) {}
@@ -281,8 +284,9 @@ function closeVisit_(p) {
   if (!by) throw new Error('Choose your name.');
   if (!workDone) throw new Error('Write what was done today.');
 
+  const alias = aliases_();
   const crew = (Array.isArray(p.manpower) ? p.manpower : []).map(m => ({
-    contractor: str_(m.contractor).slice(0, 80),
+    contractor: (alias[low_(m.contractor)] || str_(m.contractor)).slice(0, 80),
     trade: str_(m.trade).slice(0, 40),
     count: Math.max(0, Math.min(500, Math.round(Number(m.count) || 0)))
   })).filter(m => m.contractor && m.count > 0);
@@ -320,9 +324,9 @@ function closeVisit_(p) {
       mp.getRange(mp.getLastRow() + 1, 1, rows.length, MP_HEADERS.length).setValues(rows);
 
       // new contractor names typed in the app join the list
-      const known = bootData_().contractors.map(c => c.toLowerCase());
+      const known = rows_(T.contractors).map(r => low_(r['Contractor']));
       const fresh = [];
-      crew.forEach(m => { const k = m.contractor.toLowerCase(); if (known.indexOf(k) < 0 && fresh.indexOf(k) < 0) { fresh.push(k); sheet_(T.contractors, ['Contractor', 'Active']).appendRow([m.contractor, 'Yes']); } });
+      crew.forEach(m => { const k = m.contractor.toLowerCase(); if (known.indexOf(k) < 0 && fresh.indexOf(k) < 0) { fresh.push(k); sheet_(T.contractors, ['Contractor', 'Active', 'Same as']).appendRow([m.contractor, 'Yes', '']); } });
     }
     clearBoot_();
     return { visitId: visitId, count: count, items: items, manpower: total };
@@ -710,6 +714,8 @@ function onOpen() {
     .addItem('Delete selected visits (photos + manpower)', 'menuDeleteVisits')
     .addSeparator()
     .addItem('Set manager password', 'menuSetPassword')
+    .addItem('Connect ClickUp (API token)', 'menuSetClickUpToken')
+    .addItem('Sync from ClickUp now', 'menuSync')
     .addItem('Apply schedule from Settings', 'installTriggers')
     .addItem('Refresh lists in the app', 'menuRefresh')
     .addToUi();
@@ -767,7 +773,7 @@ function menuDeleteVisits() {
 
 function installTriggers() {
   ScriptApp.getProjectTriggers().forEach(t => {
-    if (['dailyJob', 'weeklyJob'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (['dailyJob', 'weeklyJob', 'syncJob'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   const S = settings_();
   const dh = clampHour_(S['Daily report hour'], 19), wh = clampHour_(S['Weekly report hour'], 17);
@@ -775,7 +781,9 @@ function installTriggers() {
   const wd = days[low_(S['Weekly report day'])] || 'THURSDAY';
   ScriptApp.newTrigger('dailyJob').timeBased().everyDays(1).atHour(dh).inTimezone(TZ).create();
   ScriptApp.newTrigger('weeklyJob').timeBased().onWeekDay(ScriptApp.WeekDay[wd]).atHour(wh).inTimezone(TZ).create();
-  try { SpreadsheetApp.getUi().alert(`Schedule set: daily reports at ${dh}:00, weekly reports every ${wd.charAt(0) + wd.slice(1).toLowerCase()} at ${wh}:00 (Cairo).`); } catch (e) {}
+  const sync = !!PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
+  if (sync) ScriptApp.newTrigger('syncJob').timeBased().everyMinutes(30).create();
+  try { SpreadsheetApp.getUi().alert(`Schedule set: daily reports at ${dh}:00, weekly reports every ${wd.charAt(0) + wd.slice(1).toLowerCase()} at ${wh}:00 (Cairo).` + (sync ? ' ClickUp sync every 30 minutes.' : ' ClickUp sync is off until you connect ClickUp.')); } catch (e) {}
 }
 
 /** Run once after pasting the code. */
@@ -872,3 +880,171 @@ function dayFolder_(safeUnit, day) {
 }
 
 function reportsFolder_(kind, day) { return folderPath_([REPORTS_ROOT, kind, day]); }
+
+
+/* =========================== CLICKUP SYNC =========================== */
+/*
+ * Every 30 minutes (and from the menu / the manager page) this reads the ClickUp
+ * "Main Tracking Sheet" list and rebuilds, for every task in "site execution":
+ *   Units (Source = ClickUp)  unit, project, client name/email
+ *   Scope                     what the client bought (Request Type, or the description for "Others")
+ *   Unit Contractors          the Contractor field (comma = several)
+ * Rows with Source = Manual (e.g. the Authority Units) are never touched.
+ * A unit you set Active = No stays No after syncing.
+ */
+
+const CU = {
+  list: '1201250000001676',
+  status: 'site execution',
+  f: {
+    requestType: '8f185b3c-db17-4dac-b577-d377a949db9f',
+    description: 'af390993-91be-4db5-b8d9-c4a2dca60ce8',
+    contractor: '8d4a9069-1ade-4b4e-9702-ef05ff3ecf97',
+    client: '75747da4-250c-42e7-8d65-98d9d503060f',
+    email: 'ecdc4bdb-8444-4074-b32c-cd4c36274f25'
+  },
+  skipTypes: ['design fees'],
+  skipContractors: ['', 'pending', 'design team', '-', 'n/a', 'tbd'],
+  typeNames: {
+    'standard finishing package': 'Standard Finishing', 'customized finishing package': 'Customized Finishing',
+    'ff&e': 'Furniture (FF&E)', 'ac`s': 'ACs', "ac's": 'ACs', 'bua enclosure': 'BUA Enclosure'
+  }
+};
+
+function syncJob() { try { syncClickUp_(); } catch (e) { console.error(e); } }
+
+function menuSync() {
+  const r = syncClickUp_();
+  SpreadsheetApp.getUi().alert(`ClickUp sync done: ${r.units} units, ${r.items} items, ${r.contractors} unit-contractor links. ${r.newContractors ? r.newContractors + ' new contractor name(s) added to Contractors.' : ''}`);
+}
+
+function menuSetClickUpToken() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Connect ClickUp', 'Paste your ClickUp personal API token.\nClickUp > avatar > Settings > Apps > API Token (starts with pk_).', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const t = r.getResponseText().trim();
+  if (!/^pk_/.test(t)) return ui.alert('That does not look like a ClickUp token (it should start with pk_).');
+  PropertiesService.getScriptProperties().setProperty('CLICKUP_TOKEN', t);
+  try { syncClickUp_(); } catch (e) { return ui.alert('Token saved, but the first sync failed: ' + msg_(e)); }
+  installTriggers();
+}
+
+function syncClickUp_() {
+  const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
+  if (!token) throw new Error('ClickUp is not connected. Sheet menu: O West Camera > Connect ClickUp.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(60000);
+  try {
+    // 1) read every task in site execution
+    const tasks = [];
+    for (let page = 0; page < 30; page++) {
+      const url = `https://api.clickup.com/api/v2/list/${CU.list}/task?statuses[]=${encodeURIComponent(CU.status)}&subtasks=true&include_closed=true&page=${page}`;
+      const res = UrlFetchApp.fetch(url, { headers: { Authorization: token }, muteHttpExceptions: true });
+      if (res.getResponseCode() !== 200) throw new Error('ClickUp answered ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
+      const j = JSON.parse(res.getContentText());
+      (j.tasks || []).forEach(t => tasks.push(t));
+      if (j.last_page || !(j.tasks || []).length) break;
+    }
+
+    // 2) turn tasks into units / items / contractors
+    const alias = aliases_();
+    const knownC = {};
+    rows_(T.contractors).forEach(r => knownC[low_(r['Contractor'])] = 1);
+    const units = {}, scope = {}, uc = {}, freshC = [];
+    tasks.forEach(t => {
+      const unit = normUnit_(t.name);
+      if (!unit) return;
+      const k = unit.toLowerCase();
+      const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
+      const u = units[k] = units[k] || { unit: unit, client: '', email: '' };
+      u.client = u.client || str_(f[CU.f.client] && f[CU.f.client].value);
+      u.email = u.email || str_(f[CU.f.email] && f[CU.f.email].value);
+
+      const type = dropName_(f[CU.f.requestType]);
+      if (type && CU.skipTypes.indexOf(type.toLowerCase()) < 0) {
+        let item = CU.typeNames[type.toLowerCase().trim()] || type.trim();
+        if (item.toLowerCase() === 'others') {
+          item = str_(f[CU.f.description] && f[CU.f.description].value).split('\n')[0].trim().slice(0, 40) || 'Other works';
+        }
+        (scope[k] = scope[k] || []).indexOf(item) < 0 && scope[k].push(item);
+      }
+      str_(f[CU.f.contractor] && f[CU.f.contractor].value).split(',').forEach(c => {
+        c = c.trim().replace(/\s+/g, ' ');
+        if (CU.skipContractors.indexOf(c.toLowerCase()) >= 0) return;
+        const name = alias[c.toLowerCase()] || c;
+        if (!knownC[name.toLowerCase()]) { knownC[name.toLowerCase()] = 1; freshC.push(name); }
+        (uc[k] = uc[k] || []).indexOf(name) < 0 && uc[k].push(name);
+      });
+    });
+
+    // 3) write, keeping Manual rows and Active = No choices
+    const ss = SpreadsheetApp.getActive();
+    const uSh = ss.getSheetByName(T.units);
+    const oldUnits = rows_(T.units);
+    const manual = {}, active = {};
+    oldUnits.forEach(r => {
+      const k = low_(r['Unit']); if (!k) return;
+      if (low_(r['Source']) === 'manual') manual[k] = r;
+      active[k] = str_(r['Active']) || 'Yes';
+    });
+    const uRows = [];
+    Object.keys(manual).forEach(k => { const r = manual[k]; uRows.push([str_(r['Unit']), str_(r['Active']) || 'Yes', str_(r['Project']), str_(r['Client name']), str_(r['Client email']), 'Manual']); });
+    Object.keys(units).sort().forEach(k => {
+      if (manual[k]) return;
+      const u = units[k];
+      uRows.push([u.unit, active[k] === 'No' ? 'No' : 'Yes', 'Extra Works', u.client, u.email, 'ClickUp']);
+    });
+    rewrite_(uSh, ['Unit', 'Active', 'Project', 'Client name', 'Client email', 'Source'], uRows);
+
+    const keepRows = (tab, cols) => rows_(tab).filter(r => manual[low_(r['Unit'])]).map(r => cols.map(c => str_(r[c])));
+    const sRows = keepRows(T.scope, ['Unit', 'Item']);
+    Object.keys(scope).sort().forEach(k => { if (!manual[k]) scope[k].forEach(i => sRows.push([units[k].unit, i])); });
+    rewrite_(sheet_(T.scope, ['Unit', 'Item']), ['Unit', 'Item'], sRows);
+
+    const cRows = keepRows(T.unitContractors, ['Unit', 'Contractor']);
+    Object.keys(uc).sort().forEach(k => { if (!manual[k]) uc[k].forEach(c => cRows.push([units[k].unit, c])); });
+    rewrite_(sheet_(T.unitContractors, ['Unit', 'Contractor']), ['Unit', 'Contractor'], cRows);
+
+    const cSh = sheet_(T.contractors, ['Contractor', 'Active', 'Same as']);
+    freshC.forEach(n => cSh.appendRow([n, 'Yes', '']));
+
+    setSetting_('Last ClickUp sync', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ` · ${Object.keys(units).length} units`);
+    clearBoot_();
+    return { units: Object.keys(units).length, items: sRows.length, contractors: cRows.length, newContractors: freshC.length };
+  } finally { lock.releaseLock(); }
+}
+
+function normUnit_(name) {
+  let n = str_(name).replace(/\s+/g, '').toUpperCase();
+  if (!/^OW\//.test(n)) return '';
+  return n;
+}
+
+function dropName_(f) {
+  if (!f || f.value == null || f.value === '') return '';
+  const opts = (f.type_config && f.type_config.options) || [];
+  const v = f.value;
+  const o = opts.find(x => x.id === v || x.orderindex === v || String(x.orderindex) === String(v));
+  return o ? str_(o.name) : (typeof v === 'object' && v.name ? str_(v.name) : '');
+}
+
+/** "Same as" column in Contractors: other spellings -> one name. */
+function aliases_() {
+  const a = {};
+  rows_(T.contractors).forEach(r => { const s = str_(r['Same as']); if (s) a[low_(r['Contractor'])] = s; });
+  return a;
+}
+
+function rewrite_(sh, headers, rows) {
+  sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+  const last = sh.getLastRow();
+  if (last > 1) sh.getRange(2, 1, last - 1, Math.max(headers.length, sh.getLastColumn())).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
+}
+
+function setSetting_(key, value) {
+  const sh = sheet_(T.settings, ['Setting', 'Value', 'What it does']);
+  const v = sh.getDataRange().getValues();
+  for (let i = 1; i < v.length; i++) if (str_(v[i][0]) === key) { sh.getRange(i + 1, 2).setValue(value); return; }
+  sh.appendRow([key, value, 'Filled automatically']);
+}

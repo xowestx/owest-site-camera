@@ -211,6 +211,13 @@ input[type=file]{display:none}
     <div class="lockline"><span>Manager reports unlocked on this phone</span><button class="link" id="lockBtn" type="button">Lock</button></div>
   </section>
 
+  <section class="panel" id="repSync" hidden>
+    <div class="label"><span>ClickUp</span><span class="ar">المزامنة</span></div>
+    <div class="hint">Units, items and contractors update from ClickUp every 30 minutes. Use this after a change you need right away.</div>
+    <button class="btn btn-sub" id="syncGo" type="button">Sync from ClickUp now</button>
+    <div class="out" id="syncOut"></div>
+  </section>
+
   <!-- done -->
   <section class="panel done" id="donePanel" hidden>
     <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
@@ -255,11 +262,11 @@ async function api(method,payload,ms){
 let data={units:[],engineers:[],contractors:[],trades:[]},unit=null,item="General",visit=null,closing=false;
 const jobs=[];
 const VISIT_PANELS=["sel","shootPanel","workPanel","crewPanel","notesPanel","dock"];
-const REPORT_PANELS=["repDaily","repLock","repMp","repWk"];
+const REPORT_PANELS=["repDaily","repLock","repMp","repWk","repSync"];
 let view="pick";
 function show(v0){
   view=v0;
-  const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"],reports:["repDaily",...(mgr()?["repMp","repWk"]:["repLock"])]}[v0];
+  const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"],reports:["repDaily",...(mgr()?["repMp","repWk","repSync"]:["repLock"])]}[v0];
   ["namePanel","pickPanel","donePanel",...VISIT_PANELS,...REPORT_PANELS].forEach(id=>$(id).hidden=!v.includes(id));
   $("navBtn").textContent=v0==="reports"?"Camera":"Reports";
   window.scrollTo(0,0);
@@ -588,6 +595,14 @@ $("unlock").onclick=async()=>{
 };
 $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("unlock").click()});
 $("lockBtn").onclick=()=>{store.del("mgr");show("reports")};
+$("syncGo").onclick=async()=>{
+  const box=$("syncOut");box.textContent="";const b=document.createElement("div");b.className="busy";b.textContent="Syncing… up to a minute.";box.append(b);
+  $("syncGo").disabled=true;
+  try{const r=await api("POST",{action:"sync",token:mgr()},300000);box.textContent=`Done: ${r.units} units, ${r.contractors} unit-contractor links${r.newContractors?`, ${r.newContractors} new contractor(s)`:""}.`;
+    const j=await api("GET",{action:"units"});delete j.ok;store.set("boot4",JSON.stringify(j));apply(j)}
+  catch(e){box.textContent="";const er=document.createElement("div");er.className="err";er.textContent=e.message;box.append(er);if(e.code==="auth"){store.del("mgr");show("reports")}}
+  finally{$("syncGo").disabled=false}
+};
 
 show("pick");
 </script>
