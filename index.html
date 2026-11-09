@@ -13,13 +13,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://script.google.com">
 <link rel="preconnect" href="https://script.googleusercontent.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 :root{
   --ink:#0d1b3e; --bg:#f4f5f8; --card:#ffffff; --line:#dfe2ea; --muted:#5d6577;
   --accent:#e9b88f; --accent-ink:#0d1b3e; --ok:#1f7a4d; --ok-bg:#e3f2ea; --warn:#9a5b00; --bad:#b3261e; --bad-bg:#fbe7e5;
   --head-bg:#0d1b3e; --head-fg:#f4f5f8; --chip:#eceef4;
-  --f-display:"Lora",Georgia,serif; --f-body:"IBM Plex Sans","IBM Plex Sans Arabic",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+  --f-display:Georgia,"Times New Roman",serif; --f-body:system-ui,-apple-system,"Segoe UI",Roboto,Tahoma,sans-serif; --f-mono:ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root{
   --ink:#e9ecf4; --bg:#0b1020; --card:#141b2e; --line:#26304a; --muted:#9aa3b8;
@@ -173,7 +172,7 @@ input[type=file]{display:none}
   </section>
 
   <section class="panel" id="notesPanel" hidden>
-    <label class="label" for="notes"><span>5 · Notes (optional, internal)</span><span class="ar">ملاحظات</span></label>
+    <label class="label" for="notes"><span>5 · Internal notes (saved, not in reports)</span><span class="ar">ملاحظات داخلية</span></label>
     <textarea id="notes" dir="auto" placeholder="Problems, materials missing, client requests…"></textarea>
   </section>
 
@@ -235,7 +234,7 @@ input[type=file]{display:none}
 
 <script>
 const API_URL="https://script.google.com/macros/s/AKfycbyPqz639Y6R1--7qazMyHZ0-LpQFSX7e_daagYkQgmgUK2TDYilBjrbOwUdojpsIB3_qQ/exec";
-const MAX_SIDE=1600, MAX_BYTES=700000, PARALLEL=3, NEW="__new__";
+const MAX_SIDE=1280, MAX_BYTES=450000, PARALLEL=3, NEW="__new__";
 
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -398,7 +397,7 @@ async function loadBitmap(file){
 }
 async function compress(file){
   const bmp=await loadBitmap(file);
-  const w0=bmp.width,h0=bmp.height;let scale=Math.min(1,MAX_SIDE/Math.max(w0,h0)),q=.8,blob;
+  const w0=bmp.width,h0=bmp.height;let scale=Math.min(1,MAX_SIDE/Math.max(w0,h0)),q=.75,blob;
   for(let i=0;i<8;i++){
     const c=document.createElement("canvas");c.width=Math.round(w0*scale);c.height=Math.round(h0*scale);
     c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);

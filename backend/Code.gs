@@ -329,8 +329,58 @@ function closeVisit_(p) {
       crew.forEach(m => { const k = m.contractor.toLowerCase(); if (known.indexOf(k) < 0 && fresh.indexOf(k) < 0) { fresh.push(k); sheet_(T.contractors, ['Contractor', 'Active', 'Same as']).appendRow([m.contractor, 'Yes', '']); } });
     }
     clearBoot_();
+    try {
+      unitLog_(u, { day: day, started: started, closed: fmt_(now, 'yyyy-MM-dd HH:mm:ss'), by: by, items: items, count: count,
+        workDone: workDone, notes: notes, crew: crew, total: total, link: link });
+    } catch (e) { console.error('unit log', e); }
     return { visitId: visitId, count: count, items: items, manpower: total };
   } finally { lock.releaseLock(); }
+}
+
+/* =========================== UNIT FILE (site log) =========================== */
+/* Each unit folder in Drive has one Google Doc "<unit> - Site log" with every visit, newest at the top:
+   date, time, engineer, items, work done, manpower by contractor, internal notes, link to that day's photos. */
+
+function unitLog_(u, v) {
+  const safe = safeUnit_(u.unit);
+  const folder = folderPath_([PHOTOS_ROOT, safe]);
+  const name = `${safe} - Site log`;
+  const props = PropertiesService.getScriptProperties();
+  const key = 'log:' + safe.toLowerCase();
+  let doc = null;
+  const id = props.getProperty(key);
+  if (id) { try { doc = DocumentApp.openById(id); } catch (e) {} }
+  if (!doc) {
+    const it = folder.getFilesByName(name);
+    if (it.hasNext()) doc = DocumentApp.openById(it.next().getId());
+    else {
+      doc = DocumentApp.create(name);
+      const f = DriveApp.getFileById(doc.getId());
+      folder.addFile(f); DriveApp.getRootFolder().removeFile(f);
+      const b = doc.getBody();
+      b.clear();
+      b.appendParagraph(u.unit).setHeading(DocumentApp.ParagraphHeading.TITLE);
+      b.appendParagraph(`${u.project} · Site log · newest visit first`).setItalic(true);
+    }
+    props.setProperty(key, doc.getId());
+  }
+  const b = doc.getBody();
+  let at = 2;                                   // right under the title lines
+  const put = (text, heading, bold) => {
+    const p = b.insertParagraph(at++, text);
+    if (heading) p.setHeading(heading); else p.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    p.setBold(!!bold);
+    return p;
+  };
+  put(`${v.day} · ${hm_(v.started) || '?'}–${hm_(v.closed)} · ${v.by}`, DocumentApp.ParagraphHeading.HEADING2);
+  if (v.items.length) put('Items: ' + v.items.join(', '));
+  put('Work done: ' + v.workDone);
+  put(`Manpower (${v.total}): ` + (v.crew.length ? v.crew.map(m => `${m.contractor}${m.trade ? ' – ' + m.trade : ''} ${m.count}`).join(' · ') : 'none'));
+  if (v.notes) put('Notes (internal): ' + v.notes, null, true);
+  const ph = put(`Photos (${v.count}): open folder`);
+  if (v.link) ph.editAsText().setLinkUrl(v.link);
+  put('');
+  doc.saveAndClose();
 }
 
 /* =========================== DAILY REPORTS =========================== */
@@ -388,23 +438,22 @@ function makeDaily_(day, send) {
 
 function dailyHtml_(S, day, eng, list, photos, crew) {
   const total = list.reduce((s, v) => s + v.manpower, 0);
-  let h = head_(`تقرير الموقع اليومي`, `${dayAr_(day)} · ${esc_(eng)}`, `${S['Company name'] || 'O-Plus'} · متابعة تنفيذ الوحدات`);
-  h += `<h2>ملخص اليوم (${list.length} وحدات)</h2>
-  <table class="sum"><tr><th style="width:24px">#</th><th style="width:120px">الوحدة</th><th style="width:48px">الوقت</th><th style="width:60px">العمالة</th><th>الشغل</th></tr>`;
+  const nPh = list.reduce((s, v) => s + (photos[v.id] || []).length, 0);
+  const first = list.map(v => v.started || v.closed).sort()[0] || '', last = list.map(v => v.closed).sort().slice(-1)[0] || '';
+  let h = head_('تقرير الموقع اليومي', 'Daily Site Report', `${dayAr_(day)} · ${day}`, `${esc_(eng)} · ${esc_(S['Company name'] || 'O-Plus')}`);
+  h += kpis_([[list.length, 'وحدات', 'Units'], [total, 'عمالة', 'Workers'], [nPh, 'صور', 'Photos'], [`<span class="mono">${hm_(first)}–${hm_(last)}</span>`, 'الوقت', 'Time on site']]);
+  h += `<h2>ملخص اليوم <span class="en">Summary</span></h2><table class="sum">
+    <tr><th class="c" style="width:22px">#</th><th style="width:118px">الوحدة <span class="en">Unit</span></th><th style="width:78px">الوقت <span class="en">Time</span></th>
+    <th style="width:120px">البنود <span class="en">Items</span></th><th class="c" style="width:46px">العمالة</th><th>الشغل <span class="en">Work done</span></th></tr>`;
   list.forEach((v, i) => {
-    h += `<tr><td>${i + 1}</td><td class="mono">${esc_(v.unit)}</td><td class="mono">${v.closed.slice(11, 16)}</td><td>${v.manpower || '—'}</td><td>${esc_(v.workDone).replace(/\n/g, '<br>')}</td></tr>`;
+    h += `<tr><td class="c">${i + 1}</td><td class="mono b">${esc_(v.unit)}</td><td class="mono">${timeRange_(v)}</td>
+      <td class="sm">${esc_(v.items)}</td><td class="c b">${v.manpower || '—'}</td><td>${br_(v.workDone)}</td></tr>`;
   });
-  h += `</table><p class="foot">إجمالي العمالة: <b>${total}</b> فرد · ${list.length} وحدة · الأوقات بتوقيت القاهرة.</p>`;
-
+  h += `</table><p class="foot">الأوقات بتوقيت القاهرة · Cairo time</p>`;
   list.forEach((v, i) => {
-    h += `<div class="page">`;
-    h += `<table class="bar"><tr><td class="mono big">${i + 1} · ${esc_(v.unit)}</td><td style="text-align:left">المعاينة ${v.closed.slice(11, 16)} · ${esc_(v.project)}</td></tr></table>`;
+    h += `<div class="page">${unitHead_(i + 1, v, eng)}`;
     h += photoGrid_(photos[v.id] || [], 0);
-    const c = crew[v.id] || [];
-    h += `<table class="two"><tr>
-      <td><div class="lbl">العمالة (Manpower) <span class="pill">${v.manpower || 0}</span></div>${crewList_(c)}</td>
-      <td><div class="lbl">الحالة (Status)</div><div>${esc_(v.workDone).replace(/\n/g, '<br>')}</div></td></tr></table>`;
-    if (v.notes) h += `<div class="note"><b>ملاحظات:</b> ${esc_(v.notes).replace(/\n/g, '<br>')}</div>`;
+    h += workAndCrew_(v, crew[v.id] || []);
     h += `</div>`;
   });
   return h + '</body></html>';
@@ -421,32 +470,34 @@ function manpowerHtml_(S, from, to, visits, crew) {
   }));
   const names = Object.keys(byC).sort((a, b) => byC[b].total - byC[a].total);
   const grand = names.reduce((s, n) => s + byC[n].total, 0);
-  const noCrew = visits.filter(v => !(crew[v.id] || []).length);
-
   const range = from !== to;
+  const days = groupBy_(visits, v => v.date);
   const unitsCount = Object.keys(groupBy_(visits, v => v.unit)).length;
-  let h = head_('العمالة حسب المقاول', range ? `${dayAr_(from)} ← ${dayAr_(to)}` : dayAr_(from), `${S['Company name'] || 'O-Plus'} · Manpower by contractor`);
-  h += `<table class="kpi"><tr><td><div class="n">${grand}</div>${range ? 'إجمالي العمالة (عامل × يوم)' : 'إجمالي العمالة'}</td><td><div class="n">${names.length}</div>مقاولين</td><td><div class="n">${unitsCount}</div>وحدات</td>${range ? `<td><div class="n">${Object.keys(groupBy_(visits, v => v.date)).length}</div>أيام شغل</td>` : ''}</tr></table>`;
-  h += `<table class="sum"><tr><th>المقاول</th><th style="width:60px">العدد</th><th>حسب الحرفة</th><th>حسب الوحدة</th></tr>`;
+  let h = head_('العمالة حسب المقاول', 'Manpower by Contractor', range ? `${from} → ${to}` : `${dayAr_(from)} · ${from}`, esc_(S['Company name'] || 'O-Plus'));
+  const k = [[grand, range ? 'عامل × يوم' : 'عمالة', range ? 'Worker-days' : 'Workers'], [names.length, 'مقاولين', 'Contractors'], [unitsCount, 'وحدات', 'Units']];
+  if (range) k.push([Object.keys(days).length, 'أيام', 'Days']);
+  h += kpis_(k);
+  h += `<table class="sum"><tr><th>المقاول <span class="en">Contractor</span></th><th class="c" style="width:56px">العدد</th>
+    <th style="width:150px">حسب الحرفة <span class="en">By trade</span></th><th style="width:190px">حسب الوحدة <span class="en">By unit</span></th></tr>`;
   names.forEach(n => {
     const c = byC[n];
-    h += `<tr><td><b>${esc_(n)}</b></td><td class="mono big">${c.total}</td>
-      <td>${Object.keys(c.trades).map(t => `${esc_(tradeAr_(t))} ${c.trades[t]}`).join('<br>')}</td>
-      <td class="mono">${Object.keys(c.units).sort().map(u => `${esc_(u)}: ${c.units[u]}`).join('<br>')}</td></tr>`;
+    h += `<tr><td class="b">${esc_(n)}</td><td class="c big">${c.total}</td>
+      <td class="sm">${Object.keys(c.trades).sort((a, b) => c.trades[b] - c.trades[a]).map(t => `${esc_(tradeAr_(t))}: <b>${c.trades[t]}</b>`).join('<br>')}</td>
+      <td class="sm mono">${Object.keys(c.units).sort().map(u => `${esc_(u)}: <b>${c.units[u]}</b>`).join('<br>')}</td></tr>`;
   });
-  h += `<tr class="tot"><td>الإجمالي</td><td class="mono big">${grand}</td><td></td><td></td></tr></table>`;
+  h += `<tr class="tot"><td>الإجمالي <span class="en">Total</span></td><td class="c big">${grand}</td><td></td><td></td></tr></table>`;
   if (range) {
-    const byDay = groupBy_(visits, v => v.date);
-    h += `<h2>حسب اليوم</h2><table class="sum"><tr><th style="width:150px">اليوم</th><th style="width:60px">العمالة</th><th>المقاولين</th></tr>`;
-    Object.keys(byDay).sort().forEach(d => {
+    h += `<h2>حسب اليوم <span class="en">By day</span></h2><table class="sum"><tr><th style="width:150px">اليوم</th><th class="c" style="width:56px">العمالة</th><th>المقاولين</th></tr>`;
+    Object.keys(days).sort().forEach(d => {
       const c = {};
-      byDay[d].forEach(v => (crew[v.id] || []).forEach(m => c[m.contractor] = (c[m.contractor] || 0) + m.count));
-      const tot = Object.keys(c).reduce((s, k) => s + c[k], 0);
-      h += `<tr><td>${dayAr_(d)}</td><td class="mono big">${tot}</td><td>${Object.keys(c).sort((a, b) => c[b] - c[a]).map(k => `${esc_(k)} ${c[k]}`).join(' · ')}</td></tr>`;
+      days[d].forEach(v => (crew[v.id] || []).forEach(m => c[m.contractor] = (c[m.contractor] || 0) + m.count));
+      const tot = Object.keys(c).reduce((s, x) => s + c[x], 0);
+      h += `<tr><td>${dayAr_(d)}</td><td class="c b">${tot}</td><td class="sm">${Object.keys(c).sort((a, b) => c[b] - c[a]).map(x => `${esc_(x)} <b>${c[x]}</b>`).join(' · ')}</td></tr>`;
     });
     h += `</table>`;
   }
-  if (noCrew.length && !range) h += `<p class="foot">وحدات من غير عمالة النهارده: ${noCrew.map(v => esc_(v.unit)).join('، ')}</p>`;
+  const noCrew = visits.filter(v => !(crew[v.id] || []).length);
+  if (noCrew.length && !range) h += `<p class="foot">وحدات من غير عمالة: ${noCrew.map(v => esc_(v.unit)).join('، ')}</p>`;
   return h + '</body></html>';
 }
 
@@ -529,69 +580,127 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   const items = [];
   list.forEach(v => v.items.split(',').map(s => s.trim()).filter(Boolean).forEach(i => items.indexOf(i) < 0 && items.push(i)));
   const workerDays = list.reduce((s, v) => s + v.manpower, 0);
+  const nPh = list.reduce((s, v) => s + (photos[v.id] || []).length, 0);
 
-  let h = head_('تقرير الأسبوع', `${esc_(unit)}${cl.name ? ' · ' + esc_(cl.name) : ''}`, `${S['Company name'] || 'O-Plus'} · ${startDay} → ${endDay}`);
-  h += `<table class="kpi"><tr><td><div class="n">${dayKeys.length}</div>أيام شغل</td><td><div class="n">${workerDays}</div>إجمالي العمالة (عامل × يوم)</td><td><div class="n">${list.reduce((s, v) => s + v.photos, 0)}</div>صور</td></tr></table>`;
-  if (items.length) h += `<p><b>البنود:</b> ${items.map(esc_).join(' · ')}</p>`;
-  h += `<h2>ملخص الأسبوع</h2><table class="sum"><tr><th style="width:110px">اليوم</th><th style="width:60px">العمالة</th><th>الشغل اللي اتعمل</th></tr>`;
+  let h = head_('تقرير الأسبوع', 'Weekly Progress Report', `${startDay} → ${endDay}`, `<span class="mono">${esc_(unit)}</span>${cl.name ? ' · ' + esc_(cl.name) : ''}`);
+  h += kpis_([[dayKeys.length, 'أيام شغل', 'Working days'], [workerDays, 'عامل × يوم', 'Worker-days'], [nPh, 'صور', 'Photos']]);
+  if (items.length) h += `<p class="items">${items.map(i => `<span class="chip">${esc_(i)}</span>`).join(' ')}</p>`;
+  h += `<h2>ملخص الأسبوع <span class="en">This week</span></h2><table class="sum">
+    <tr><th style="width:130px">اليوم <span class="en">Day</span></th><th class="c" style="width:56px">العمالة</th><th>الشغل اللي اتعمل <span class="en">Work done</span></th></tr>`;
   dayKeys.forEach(d => {
     const vs = days[d];
-    h += `<tr><td>${dayAr_(d)}</td><td>${vs.reduce((s, v) => s + v.manpower, 0) || '—'}</td><td>${vs.map(v => esc_(v.workDone).replace(/\n/g, '<br>')).join('<br>')}</td></tr>`;
+    h += `<tr><td>${dayAr_(d)}</td><td class="c b">${vs.reduce((s, v) => s + v.manpower, 0) || '—'}</td><td>${vs.map(v => br_(v.workDone)).join('<br>')}</td></tr>`;
   });
   h += `</table>`;
   dayKeys.forEach(d => {
     const vs = days[d];
     let ph = [];
     vs.forEach(v => ph = ph.concat(photos[v.id] || []));
-    h += `<div class="page"><table class="bar"><tr><td class="big">${dayAr_(d)}</td><td style="text-align:left" class="mono">${esc_(unit)}</td></tr></table>`;
-    h += photoGrid_(ph, 12);
-    h += `<div class="box"><div class="lbl">الحالة (Status)</div>${vs.map(v => esc_(v.workDone).replace(/\n/g, '<br>')).join('<br>')}</div>`;
     const tot = vs.reduce((s, v) => s + v.manpower, 0);
-    if (tot) h += `<div class="box"><div class="lbl">العمالة في الموقع</div>${tot} فرد</div>`;
+    h += `<div class="page"><table class="uh"><tr><td><div class="ucode">${dayAr_(d)}</div><div class="sub mono">${esc_(unit)}</div></td>
+      <td class="meta">${tot ? `<b>${tot}</b> عامل · ` : ''}<b>${ph.length}</b> صور</td></tr></table>`;
+    h += photoGrid_(ph, 8);
+    h += `<table class="two"><tr><td><div class="lbl">الحالة <span class="en">Status</span></div>${vs.map(v => br_(v.workDone)).join('<br>')}</td></tr></table>`;
     h += `</div>`;
   });
   return h + '</body></html>';
 }
 
 /* =========================== shared report pieces =========================== */
+/* Layout rules: tables only (the PDF converter is old-school), photos never cropped or stretched:
+   each photo is scaled to fit inside a fixed box using its real width/height. */
 
-function head_(title, sub, line) {
+const PH_BOX = { w: 330, h: 248 };   // one photo cell, 2 per row
+
+function head_(title, titleEn, line1, line2) {
   return `<html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
-    @page { size: A4; margin: 14mm 12mm; }
+    @page { size: A4; margin: 12mm 11mm; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: Arial, sans-serif; font-size: 11pt; color: #0d1b3e; direction: rtl; }
-    .hdr { color: #0d1b3e; padding: 10px 2px 12px; border-top: 8px solid #0d1b3e; border-bottom: 4px solid #e9b88f; }
-    .hdr .t { font-size: 20pt; font-weight: bold; }
-    .hdr .s { font-size: 12pt; margin-top: 4px; }
-    .hdr .l { font-size: 9pt; color: #5d6577; margin-top: 4px; }
-    h2 { font-size: 13pt; margin: 16px 0 8px; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; color: #1d2433; direction: rtl; }
     table { border-collapse: collapse; width: 100%; }
-    .sum th { background: #eceef4; text-align: right; padding: 6px; font-size: 10pt; border: 1px solid #dfe2ea; }
-    .sum td { padding: 6px; border: 1px solid #dfe2ea; vertical-align: top; font-size: 10pt; }
-    .sum .tot td { background: #f4f5f8; font-weight: bold; }
-    .mono { font-family: "Courier New", monospace; direction: ltr; unicode-bidi: embed; }
+    .top td { vertical-align: bottom; padding: 0 0 8px; }
+    .brand { font-size: 9pt; letter-spacing: 3px; color: #8a6a4f; font-weight: bold; }
+    .ttl { font-size: 20pt; font-weight: bold; color: #0d1b3e; }
+    .ttl .en { font-size: 11pt; color: #6b7385; font-weight: normal; }
+    .l1 { font-size: 11pt; font-weight: bold; color: #0d1b3e; text-align: left; }
+    .l2 { font-size: 9.5pt; color: #6b7385; text-align: left; }
+    .rule { height: 4px; background: #0d1b3e; border-bottom: 2px solid #e9b88f; margin-bottom: 12px; }
+    .en { font-size: 8pt; color: #8a92a3; font-weight: normal; }
+    .kpi { margin: 4px 0 14px; }
+    .kpi td { width: 25%; text-align: center; border: 1px solid #e3e6ee; padding: 9px 4px; background: #f7f8fb; }
+    .kpi .n { font-size: 18pt; font-weight: bold; color: #0d1b3e; }
+    .kpi .k { font-size: 9pt; color: #4d5568; }
+    h2 { font-size: 12pt; color: #0d1b3e; margin: 14px 0 6px; }
+    .sum th { background: #eef0f5; color: #0d1b3e; text-align: right; padding: 6px; font-size: 9pt; border: 1px solid #e3e6ee; }
+    .sum td { padding: 6px; border: 1px solid #e3e6ee; vertical-align: top; font-size: 9.5pt; }
+    .sum .tot td { background: #f7f8fb; font-weight: bold; }
+    tr { page-break-inside: avoid; }
+    .c { text-align: center !important; }
+    .b { font-weight: bold; }
     .big { font-size: 13pt; font-weight: bold; }
-    .foot { font-size: 9pt; color: #5d6577; }
+    .sm { font-size: 8.5pt; }
+    .mono { font-family: "Courier New", monospace; direction: ltr; unicode-bidi: embed; }
+    .foot { font-size: 8pt; color: #8a92a3; margin-top: 6px; }
     .page { page-break-before: always; }
-    .bar td { background: #eceef4; color: #0d1b3e; padding: 8px 10px; border-right: 6px solid #e9b88f; }
-    .grid td { width: 33%; padding: 4px; vertical-align: top; text-align: center; }
-    .grid img { width: 100%; max-height: 230px; border: 1px solid #dfe2ea; }
-    .cap { font-size: 8.5pt; color: #5d6577; margin-top: 2px; }
-    .grid tr, .sum tr, .two, .box, .note { page-break-inside: avoid; }
-    .item-h { font-weight: bold; margin: 10px 0 2px; border-bottom: 2px solid #e9b88f; padding-bottom: 2px; }
-    .item-h span { color: #5d6577; font-weight: normal; }
-    .two td { width: 50%; vertical-align: top; border: 1px solid #dfe2ea; padding: 8px; }
-    .lbl { font-weight: bold; margin-bottom: 6px; }
-    .pill { background: #e9b88f; color: #0d1b3e; padding: 1px 8px; border-radius: 8px; font-size: 9pt; }
-    .note, .box { border: 1px solid #dfe2ea; padding: 8px; margin-top: 8px; }
-    .kpi td { text-align: center; border: 1px solid #dfe2ea; padding: 10px; font-size: 9pt; color: #5d6577; }
-    .kpi .n { font-size: 20pt; font-weight: bold; color: #0d1b3e; }
-    ul { margin: 0; padding-right: 18px; }
+    .uh td { vertical-align: middle; padding: 8px 10px; background: #f3f4f8; border-right: 6px solid #e9b88f; }
+    .uh .ucode { font-size: 15pt; font-weight: bold; color: #0d1b3e; }
+    .uh .sub { font-size: 9pt; color: #6b7385; margin-top: 2px; }
+    .uh .meta { text-align: left; font-size: 9pt; color: #4d5568; }
+    .meta-t { margin: 6px 0 10px; }
+    .meta-t td { border: 1px solid #e3e6ee; padding: 5px 6px; text-align: center; font-size: 8.5pt; color: #6b7385; }
+    .meta-t b { display: block; font-size: 10.5pt; color: #0d1b3e; }
+    .ih { font-weight: bold; font-size: 10pt; color: #0d1b3e; margin: 10px 0 4px; border-bottom: 2px solid #e9b88f; padding-bottom: 2px; }
+    .ih span { color: #8a92a3; font-weight: normal; }
+    .grid td { width: 50%; padding: 4px; vertical-align: top; text-align: center; }
+    .box { height: ${PH_BOX.h}px; background: #f3f4f8; border: 1px solid #e3e6ee; text-align: center; }
+    .cap { font-size: 8.5pt; color: #4d5568; margin-top: 3px; text-align: center; }
+    .cap .t { color: #8a92a3; }
+    .two { margin-top: 10px; }
+    .two td { vertical-align: top; border: 1px solid #e3e6ee; padding: 9px; }
+    .lbl { font-weight: bold; color: #0d1b3e; margin-bottom: 6px; }
+    .crew th { font-size: 8.5pt; color: #6b7385; text-align: right; border-bottom: 1px solid #e3e6ee; padding: 3px; }
+    .crew td { font-size: 9.5pt; padding: 3px; border-bottom: 1px solid #f0f1f5; }
+    .items { margin: 0 0 6px; }
+    .chip { display: inline-block; background: #eef0f5; border: 1px solid #e3e6ee; padding: 2px 8px; font-size: 8.5pt; margin: 2px; }
   </style></head><body>
-  <div class="hdr"><div class="t">${title}</div><div class="s">${sub}</div><div class="l">${line}</div></div>`;
+  <table class="top"><tr>
+    <td><div class="brand">O WEST</div><div class="ttl">${title} <span class="en">${titleEn}</span></div></td>
+    <td><div class="l1">${line1}</div><div class="l2">${line2}</div></td>
+  </tr></table><div class="rule"></div>`;
 }
 
-/** All photos of a visit (or a day), grouped by item, 3 per row. max = 0 means no limit. */
+function kpis_(list) {
+  return '<table class="kpi"><tr>' + list.map(k => `<td><div class="n">${k[0]}</div><div class="k">${k[1]} <span class="en">${k[2]}</span></div></td>`).join('') + '</tr></table>';
+}
+
+function unitHead_(n, v, eng) {
+  const items = v.items ? v.items.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const dur = minutes_(v.started, v.closed);
+  return `<table class="uh"><tr><td><div class="ucode mono">${n} · ${esc_(v.unit)}</div><div class="sub">${esc_(v.project)}${items.length ? ' · ' + items.map(esc_).join(' · ') : ''}</div></td></tr></table>
+    <table class="meta-t"><tr>
+      <td>المهندس<b>${esc_(eng || v.by)}</b></td>
+      <td>بداية<b class="mono">${hm_(v.started) || '—'}</b></td>
+      <td>نهاية<b class="mono">${hm_(v.closed) || '—'}</b></td>
+      <td>المدة<b>${dur != null ? dur + ' د' : '—'}</b></td>
+      <td>صور<b>${v.photos}</b></td>
+      <td>عمالة<b>${v.manpower || 0}</b></td>
+    </tr></table>`;
+}
+
+function workAndCrew_(v, c) {
+  let crewHtml = '<div class="sm">مفيش عمالة.</div>';
+  if (c.length) {
+    crewHtml = '<table class="crew"><tr><th>المقاول</th><th>الحرفة</th><th class="c">العدد</th></tr>' +
+      c.map(m => `<tr><td>${esc_(m.contractor)}</td><td>${esc_(m.trade ? tradeAr_(m.trade) : '—')}</td><td class="c b">${m.count}</td></tr>`).join('') +
+      `<tr><td class="b">الإجمالي</td><td></td><td class="c b">${c.reduce((s, m) => s + m.count, 0)}</td></tr></table>`;
+  }
+  return `<table class="two"><tr>
+    <td style="width:55%"><div class="lbl">الحالة <span class="en">Status / Work done</span></div>${br_(v.workDone)}</td>
+    <td><div class="lbl">العمالة <span class="en">Manpower</span></div>${crewHtml}</td>
+  </tr></table>`;
+}
+
+/** Photos grouped by item, 2 per row, whole photo always visible. max = 0 means all. */
 function photoGrid_(list, max) {
   if (!list.length) return '<p class="foot">مفيش صور.</p>';
   const ph = max ? list.slice(0, max) : list;
@@ -601,13 +710,23 @@ function photoGrid_(list, max) {
   let h = '';
   names.forEach(name => {
     const g = groups[name];
-    if (names.length > 1) h += `<div class="item-h">${esc_(name)} <span>(${g.length})</span></div>`;
+    if (names.length > 1) h += `<div class="ih">${esc_(name)} <span>(${g.length})</span></div>`;
     h += '<table class="grid">';
-    for (let i = 0; i < g.length; i += 3) {
+    for (let i = 0; i < g.length; i += 2) {
       h += '<tr>';
-      for (let j = i; j < i + 3; j++) {
+      for (let j = i; j < i + 2; j++) {
         const p = g[j];
-        h += p ? `<td>${imgs[p.fileId] ? `<img src="${imgs[p.fileId]}">` : ''}<div class="cap">${esc_(p.note || p.item)}</div></td>` : '<td></td>';
+        if (!p) { h += '<td></td>'; continue; }
+        const im = imgs[p.fileId];
+        let tag = '';
+        if (im) {
+          const s = im.w && im.h ? Math.min(PH_BOX.w / im.w, PH_BOX.h / im.h) : 0;
+          const w = s ? Math.round(im.w * s) : PH_BOX.w, hh = s ? Math.round(im.h * s) : 0;
+          const pad = hh ? Math.floor((PH_BOX.h - hh) / 2) : 0;
+          tag = `<div style="height:${pad}px"></div><img src="${im.src}" width="${w}"${hh ? ` height="${hh}"` : ''}>`;
+        }
+        const cap = [p.note || (names.length > 1 ? '' : p.item), p.time ? `<span class="t">${p.time}</span>` : ''].filter(Boolean).join(' · ');
+        h += `<td><div class="box">${tag}</div><div class="cap">${cap ? cap.replace(/^(?!<)/, '') : ''}</div></td>`;
       }
       h += '</tr>';
     }
@@ -617,17 +736,12 @@ function photoGrid_(list, max) {
   return h;
 }
 
-function crewList_(c) {
-  if (!c.length) return '<div>مفيش عمالة.</div>';
-  return '<ul>' + c.map(m => `<li>${esc_(m.contractor)}${m.trade ? ' · ' + esc_(tradeAr_(m.trade)) : ''}: <b>${m.count}</b></li>`).join('') + '</ul>';
-}
-
-/** Small JPEG data URIs for the PDF, fetched in parallel. */
+/** Light JPEG previews (≈800px) with their real size, fetched in parallel. */
 function images_(ids) {
   const out = {};
   if (!ids.length) return out;
   const token = ScriptApp.getOAuthToken();
-  const reqs = ids.map(id => ({ url: 'https://drive.google.com/thumbnail?sz=w600&id=' + id, headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }));
+  const reqs = ids.map(id => ({ url: 'https://drive.google.com/thumbnail?sz=w800&id=' + id, headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }));
   let res = [];
   try { res = UrlFetchApp.fetchAll(reqs); } catch (e) {}
   ids.forEach((id, i) => {
@@ -635,9 +749,36 @@ function images_(ids) {
     let blob = null;
     if (r && r.getResponseCode() === 200 && /^image\//.test(String(r.getHeaders()['Content-Type'] || ''))) blob = r.getBlob();
     if (!blob) { try { blob = DriveApp.getFileById(id).getBlob(); } catch (e) {} }
-    if (blob) out[id] = 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+    if (!blob) return;
+    const bytes = blob.getBytes();
+    const sz = jpegSize_(bytes) || {};
+    out[id] = { src: 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(bytes), w: sz.w, h: sz.h };
   });
   return out;
+}
+
+/** Width/height from a JPEG header (Apps Script bytes are signed). */
+function jpegSize_(b) {
+  const u = i => b[i] & 0xFF;
+  if (u(0) !== 0xFF || u(1) !== 0xD8) return null;
+  let i = 2;
+  while (i < b.length - 9) {
+    if (u(i) !== 0xFF) { i++; continue; }
+    const m = u(i + 1);
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) return { h: (u(i + 5) << 8) | u(i + 6), w: (u(i + 7) << 8) | u(i + 8) };
+    i += 2 + ((u(i + 2) << 8) | u(i + 3));
+  }
+  return null;
+}
+
+function hm_(s) { return str_(s).slice(11, 16); }
+function br_(s) { return esc_(s).replace(/\n/g, '<br>'); }
+function timeRange_(v) { const a = hm_(v.started), b = hm_(v.closed); return a && b ? `${a}–${b}` : (b || a || '—'); }
+function minutes_(a, b) {
+  if (!a || !b) return null;
+  const p = s => { const m = str_(s).match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; };
+  const x = p(a), y = p(b);
+  return x != null && y != null && y >= x ? Math.round((y - x) / 60000) : null;
 }
 
 function savePdf_(html, folder, name) {
@@ -656,7 +797,7 @@ function logReport_(kind, period, forWho, file, sentTo) {
 function closedVisits_(filter) {
   return rows_(T.visits).map(r => ({
     id: str_(r['Visit ID']), date: day_(r['Date']), unit: str_(r['Unit']), project: str_(r['Project']),
-    items: str_(r['Items']), by: str_(r['By']), closed: dt_(r['Closed']), photos: Number(r['Photos']) || 0,
+    items: str_(r['Items']), by: str_(r['By']), started: dt_(r['Started']), closed: dt_(r['Closed']), photos: Number(r['Photos']) || 0,
     status: str_(r['Status']), workDone: str_(r['Work done']), manpower: Number(r['Manpower total']) || 0, notes: str_(r['Notes'])
   })).filter(v => v.id && v.status === 'Closed' && filter(v));
 }
@@ -666,7 +807,7 @@ function photosByVisit_(visits) {
   const out = {};
   rows_(T.photos).forEach(r => {
     if (!ids[r['Visit ID']] || r['Status'] !== 'OK') return;
-    (out[r['Visit ID']] = out[r['Visit ID']] || []).push({ fileId: str_(r['File ID']), item: str_(r['Item']), note: str_(r['Note']) });
+    (out[r['Visit ID']] = out[r['Visit ID']] || []).push({ fileId: str_(r['File ID']), item: str_(r['Item']), note: str_(r['Note']), time: dt_(r['Uploaded at']).slice(11, 16) });
   });
   return out;
 }
