@@ -30,7 +30,7 @@ const T = {                    // tab names
 };
 const PHOTO_HEADERS = ['Photo ID', 'Visit ID', 'Uploaded at', 'Date', 'Unit', 'Project', 'Item', 'Note', 'By', 'File name', 'Photo link', 'File ID', 'Status'];
 const VISIT_HEADERS = ['Visit ID', 'Date', 'Unit', 'Project', 'Items', 'By', 'Started', 'Closed', 'Photos', 'Status', 'Folder link', 'Work done', 'Manpower total', 'Notes'];
-const MP_HEADERS = ['Visit ID', 'Date', 'Unit', 'Project', 'Contractor', 'Trade', 'Count', 'By', 'Status'];
+const MP_HEADERS = ['Visit ID', 'Date', 'Unit', 'Project', 'Contractor', 'Trade', 'Count', 'By', 'Status', 'Item'];
 const REPORT_HEADERS = ['Made at', 'Report', 'Period', 'For', 'PDF link', 'Sent to'];
 const PHOTOS_ROOT = 'O West Site Photos';
 const REPORTS_ROOT = 'O West Reports';
@@ -287,6 +287,7 @@ function closeVisit_(p) {
   const alias = aliases_();
   const crew = (Array.isArray(p.manpower) ? p.manpower : []).map(m => ({
     contractor: (alias[low_(m.contractor)] || str_(m.contractor)).slice(0, 80),
+    item: u.items.indexOf(str_(m.item)) >= 0 ? str_(m.item) : GENERAL,
     trade: str_(m.trade).slice(0, 40),
     count: Math.max(0, Math.min(500, Math.round(Number(m.count) || 0)))
   })).filter(m => m.contractor && m.count > 0);
@@ -320,7 +321,7 @@ function closeVisit_(p) {
 
     if (crew.length) {
       const mp = sheet_(T.manpower, MP_HEADERS);
-      const rows = crew.map(m => [visitId, day, u.unit, u.project, m.contractor, m.trade, m.count, by, 'OK']);
+      const rows = crew.map(m => [visitId, day, u.unit, u.project, m.contractor, m.trade, m.count, by, 'OK', m.item]);
       mp.getRange(mp.getLastRow() + 1, 1, rows.length, MP_HEADERS.length).setValues(rows);
 
       // new contractor names typed in the app join the list
@@ -375,7 +376,7 @@ function unitLog_(u, v) {
   put(`${v.day} · ${hm_(v.started) || '?'}–${hm_(v.closed)} · ${v.by}`, DocumentApp.ParagraphHeading.HEADING2);
   if (v.items.length) put('Items: ' + v.items.join(', '));
   put('Work done: ' + v.workDone);
-  put(`Manpower (${v.total}): ` + (v.crew.length ? v.crew.map(m => `${m.contractor}${m.trade ? ' – ' + m.trade : ''} ${m.count}`).join(' · ') : 'none'));
+  put(`Manpower (${v.total}): ` + (v.crew.length ? v.crew.map(m => `${m.contractor} – ${m.item}${m.trade ? ' – ' + m.trade : ''}: ${m.count}`).join(' · ') : 'none'));
   if (v.notes) put('Notes (internal): ' + v.notes, null, true);
   const ph = put(`Photos (${v.count}): open folder`);
   if (v.link) ph.editAsText().setLinkUrl(v.link);
@@ -690,9 +691,9 @@ function unitHead_(n, v, eng) {
 function workAndCrew_(v, c) {
   let crewHtml = '<div class="sm">مفيش عمالة.</div>';
   if (c.length) {
-    crewHtml = '<table class="crew"><tr><th>المقاول</th><th>الحرفة</th><th class="c">العدد</th></tr>' +
-      c.map(m => `<tr><td>${esc_(m.contractor)}</td><td>${esc_(m.trade ? tradeAr_(m.trade) : '—')}</td><td class="c b">${m.count}</td></tr>`).join('') +
-      `<tr><td class="b">الإجمالي</td><td></td><td class="c b">${c.reduce((s, m) => s + m.count, 0)}</td></tr></table>`;
+    crewHtml = '<table class="crew"><tr><th>المقاول</th><th>البند</th><th>الحرفة</th><th class="c">العدد</th></tr>' +
+      c.map(m => `<tr><td>${esc_(m.contractor)}</td><td class="sm">${esc_(m.item || '—')}</td><td>${esc_(m.trade ? tradeAr_(m.trade) : '—')}</td><td class="c b">${m.count}</td></tr>`).join('') +
+      `<tr><td class="b">الإجمالي</td><td></td><td></td><td class="c b">${c.reduce((s, m) => s + m.count, 0)}</td></tr></table>`;
   }
   return `<table class="two"><tr>
     <td style="width:55%"><div class="lbl">الحالة <span class="en">Status / Work done</span></div>${br_(v.workDone)}</td>
@@ -817,7 +818,7 @@ function crewByVisit_(visits) {
   const out = {};
   rows_(T.manpower).forEach(r => {
     if (!ids[r['Visit ID']] || str_(r['Status']) === 'Deleted') return;
-    (out[r['Visit ID']] = out[r['Visit ID']] || []).push({ contractor: str_(r['Contractor']), trade: str_(r['Trade']), count: Number(r['Count']) || 0 });
+    (out[r['Visit ID']] = out[r['Visit ID']] || []).push({ contractor: str_(r['Contractor']), trade: str_(r['Trade']), count: Number(r['Count']) || 0, item: str_(r['Item']) });
   });
   return out;
 }

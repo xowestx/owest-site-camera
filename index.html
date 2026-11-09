@@ -350,6 +350,11 @@ function addCrewRow(c){
   contractorOptions(csel,c.contractor);
   csel.onchange=()=>{cnew.hidden=csel.value!==NEW;if(!cnew.hidden)cnew.focus();crewChanged()};
   cnew.oninput=crewChanged;
+  const isel=document.createElement("select");isel.className="i";isel.setAttribute("aria-label","Item");
+  const items=[...(unit.items||[]),"General"];
+  const i0=document.createElement("option");i0.value="";i0.textContent="Item it worked on…";isel.append(i0);
+  items.forEach(t=>{const x=document.createElement("option");x.value=x.textContent=t;isel.append(x)});
+  isel.value=c.item&&items.includes(c.item)?c.item:(items.length===2?items[0]:"");isel.onchange=crewChanged;
   const line=document.createElement("div");line.className="line";
   const tsel=document.createElement("select");tsel.className="t";tsel.setAttribute("aria-label","Trade");
   const o=document.createElement("option");o.value="";o.textContent="Trade (optional)";tsel.append(o);
@@ -365,14 +370,14 @@ function addCrewRow(c){
   step.append(minus,num,plus);line.append(tsel,step);
   const rm=document.createElement("button");rm.type="button";rm.className="rm";rm.textContent="Remove";
   rm.onclick=()=>{row.remove();crewChanged()};
-  row.append(csel,cnew,line,rm);$("crew").append(row);
+  row.append(csel,cnew,isel,line,rm);$("crew").append(row);
   if(c.contractorNew){csel.value=NEW;cnew.hidden=false;cnew.value=c.contractorNew}
   return row;
 }
 function readCrew(raw){
   return [...$("crew").children].map(r=>{
     const sel=r.querySelector(".c").value,nw=r.querySelector(".cn").value.trim();
-    const o={contractor:sel===NEW?nw:sel,trade:r.querySelector(".t").value,count:Math.max(0,Math.round(+r.querySelector(".n").value||0))};
+    const o={contractor:sel===NEW?nw:sel,item:r.querySelector(".i").value,trade:r.querySelector(".t").value,count:Math.max(0,Math.round(+r.querySelector(".n").value||0))};
     if(raw&&sel===NEW){o.contractor="";o.contractorNew=nw}
     return o;
   });
@@ -492,6 +497,7 @@ function problems(){
     const c=readCrew();
     if(!c.length)out.push(["crewPanel","Add the manpower, or tick No workers."]);
     else if(c.some(x=>!x.contractor))out.push(["crewPanel","Choose the contractor on every manpower row."]);
+    else if(c.some(x=>!x.item))out.push(["crewPanel","Choose the item on every manpower row."]);
     else if(c.some(x=>x.count<1))out.push(["crewPanel","Workers count must be 1 or more (or remove the row)."]);
   }
   return out;
