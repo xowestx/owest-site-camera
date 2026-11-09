@@ -117,7 +117,7 @@ input[type=file]{display:none}
 </head>
 <body>
 <header><div class="in">
-  <div><div class="brand">O WEST</div><div class="title">Site Camera</div></div>
+  <div id="logo" style="-webkit-user-select:none;user-select:none;-webkit-touch-callout:none"><div class="brand">O WEST</div><div class="title">Site Camera</div></div>
   <div class="hright"><button class="navbtn" id="navBtn" type="button">Reports</button><div class="date" id="today"></div></div>
 </div></header>
 
@@ -185,10 +185,9 @@ input[type=file]{display:none}
   </section>
 
   <section class="panel" id="repLock" hidden>
-    <div class="label"><span>Manager reports</span><span class="ar">تقارير المدير</span></div>
-    <div class="hint">Weekly client reports and manpower totals. Manager only.</div>
-    <input type="password" id="pw" placeholder="Manager password" autocomplete="current-password">
-    <button class="btn btn-sub" id="unlock" type="button">Unlock</button>
+    <div class="label"><span>Extra reports</span></div>
+    <input type="password" id="pw" placeholder="Code" autocomplete="current-password" inputmode="numeric">
+    <button class="btn btn-sub" id="unlock" type="button">Open</button>
     <div class="out" id="lockOut"></div>
   </section>
 
@@ -207,7 +206,7 @@ input[type=file]{display:none}
     <input type="date" id="wkEnd">
     <button class="btn btn-main" id="wkGo" type="button">Open weekly report</button>
     <div class="out" id="wkOut"></div>
-    <div class="lockline"><span>Manager reports unlocked on this phone</span><button class="link" id="lockBtn" type="button">Lock</button></div>
+    <div class="lockline"><span>Extra reports open on this phone</span><button class="link" id="lockBtn" type="button">Lock</button></div>
   </section>
 
   <section class="panel" id="repSync" hidden>
@@ -265,7 +264,7 @@ const REPORT_PANELS=["repDaily","repLock","repMp","repWk","repSync"];
 let view="pick";
 function show(v0){
   view=v0;
-  const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"],reports:["repDaily",...(mgr()?["repMp","repWk","repSync"]:["repLock"])]}[v0];
+  const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"],reports:["repDaily",...(mgr()?["repMp","repWk","repSync"]:(extra?["repLock"]:[]))]}[v0];
   ["namePanel","pickPanel","donePanel",...VISIT_PANELS,...REPORT_PANELS].forEach(id=>$(id).hidden=!v.includes(id));
   $("navBtn").textContent=v0==="reports"?"Camera":"Reports";
   window.scrollTo(0,0);
@@ -543,7 +542,18 @@ api("GET",{action:"units"}).then(j=>{delete j.ok;store.set("boot4",JSON.stringif
     $("units").textContent="";$("unitNote").textContent="";const s=document.createElement("span");s.className="err";s.textContent="Couldn't load the lists. Check your connection and reload.";$("unitNote").append(s)});
 /* ---------- reports ---------- */
 function mgr(){try{const m=JSON.parse(store.get("mgr")||"null");return m&&m.expires>Date.now()?m.token:null}catch(e){return null}}
-let lastView="pick";
+let lastView="pick",extra=/^#extra/.test(location.hash);
+function openExtra(){
+  extra=true;
+  if(view!=="reports"){if(view==="visit"&&(pending()||closing))return;lastView=view==="visit"?"visit":view;fillReports()}
+  show("reports");if(!mgr())setTimeout(()=>$("pw").focus(),50);
+}
+(()=>{let t=null;const L=$("logo"),stop=()=>{clearTimeout(t);t=null};
+  L.addEventListener("pointerdown",()=>{stop();t=setTimeout(()=>{stop();if(navigator.vibrate)navigator.vibrate(30);openExtra()},1500)});
+  ["pointerup","pointerleave","pointercancel"].forEach(e=>L.addEventListener(e,stop));
+  L.addEventListener("contextmenu",e=>e.preventDefault());
+})();
+window.addEventListener("hashchange",()=>{if(/^#extra/.test(location.hash))openExtra()});
 $("navBtn").onclick=()=>{
   if(view==="reports"){show(lastView);return}
   if(view==="visit"&&(pending()||closing)){$("dockHint").textContent="Wait for the photos to finish sending first.";return}
@@ -599,7 +609,7 @@ $("unlock").onclick=async()=>{
   finally{$("unlock").disabled=false}
 };
 $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("unlock").click()});
-$("lockBtn").onclick=()=>{store.del("mgr");show("reports")};
+$("lockBtn").onclick=()=>{store.del("mgr");extra=false;history.replaceState(null,"",location.pathname);show("reports")};
 $("syncGo").onclick=async()=>{
   const box=$("syncOut");box.textContent="";const b=document.createElement("div");b.className="busy";b.textContent="Syncing… up to a minute.";box.append(b);
   $("syncGo").disabled=true;
@@ -610,6 +620,7 @@ $("syncGo").onclick=async()=>{
 };
 
 show("pick");
+if(extra)setTimeout(openExtra,0);
 </script>
 </body>
 </html>
