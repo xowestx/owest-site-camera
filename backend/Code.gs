@@ -6,6 +6,11 @@
  *   POST {action:"upload"}      one photo -> Drive + Photos tab
  *   POST {action:"delete"}      remove a photo of the open visit
  *   POST {action:"close"}       the "Done" button: work done + manpower + notes -> Visits + Manpower tabs
+ *   POST {action:"report"}      a report PDF on demand. Daily per engineer: anyone.
+ *                               Manpower (any date range) and weekly client reports: manager only.
+ *   POST {action:"login"}       manager password -> token valid 30 days on that phone
+ *
+ * Manager password: sheet menu O West Camera > Set manager password.
  *
  * Scheduled (no Claude, no person needed):
  *   dailyJob   every day at "Daily report hour"   -> one PDF per engineer + manpower-by-contractor PDF
@@ -49,8 +54,116 @@ function doPost(e) {
     if (b.action === 'upload') return json_(Object.assign({ ok: true }, upload_(b)));
     if (b.action === 'delete') return json_(Object.assign({ ok: true }, deletePhoto_(b)));
     if (b.action === 'close') return json_(Object.assign({ ok: true }, closeVisit_(b)));
+    if (b.action === 'report') return json_(Object.assign({ ok: true }, report_(b)));
+    if (b.action === 'login') return json_(Object.assign({ ok: true }, login_(b)));
     return json_({ ok: false, error: 'Unknown action.' });
-  } catch (err) { return json_({ ok: false, error: msg_(err) }); }
+  } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
+}
+
+/* =========================== manager access =========================== */
+
+const TOKEN_DAYS = 30;
+
+function login_(b) {
+  const props = PropertiesService.getScriptProperties();
+  const hash = props.getProperty('ADMIN_HASH');
+  if (!hash) throw new Error('No manager password yet. Set it from the sheet menu: O West Camera > Set manager password.');
+  const cache = CacheService.getScriptCache();
+  const fails = Number(cache.get('loginFails') || 0);
+  if (fails >= 5) throw new Error('Too many wrong tries. Wait 10 minutes.');
+  if (sha_(str_(b.password) + props.getProperty('ADMIN_SALT')) !== hash) {
+    cache.put('loginFails', String(fails + 1), 600);
+    throw new Error('Wrong password.');
+  }
+  cache.remove('loginFails');
+  const exp = Date.now() + TOKEN_DAYS * 86400000;
+  return { token: exp + '.' + sign_(String(exp)), expires: exp };
+}
+
+function requireAdmin_(token) {
+  const t = str_(token), i = t.indexOf('.');
+  const exp = Number(t.slice(0, i));
+  if (i < 0 || !exp || exp < Date.now() || sign_(String(exp)) !== t.slice(i + 1)) {
+    const e = new Error('Manager access needed. Unlock with the password.'); e.code = 'auth'; throw e;
+  }
+}
+
+function sign_(v) {
+  const key = PropertiesService.getScriptProperties().getProperty('ADMIN_SECRET') || '';
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(v, key)).replace(/=+$/, '');
+}
+function sha_(v) { return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, v, Utilities.Charset.UTF_8)); }
+
+/** Sheet menu. A new password also logs out every phone that was unlocked before. */
+function menuSetPassword() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Manager password', 'Type the new manager password (at least 6 characters).\nPhones unlocked with the old password will need the new one.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const pw = r.getResponseText().trim();
+  if (pw.length < 6) return ui.alert('Too short. Use at least 6 characters.');
+  const props = PropertiesService.getScriptProperties();
+  const salt = Utilities.getUuid();
+  props.setProperties({ ADMIN_SALT: salt, ADMIN_HASH: sha_(pw + salt), ADMIN_SECRET: Utilities.getUuid() + Utilities.getUuid() });
+  ui.alert('Manager password saved.');
+}
+
+/* =========================== reports on demand (website) =========================== */
+
+function report_(b) {
+  const type = str_(b.type);
+  let file, label, period;
+  if (type === 'daily') {
+    const day = cleanDay_(b.day), eng = str_(b.engineer);
+    if (!eng) throw new Error('Choose the engineer.');
+    file = dailyEngineerPdf_(day, eng);
+    if (!file) throw new Error(`No finished visits for ${eng} on ${day}.`);
+    label = 'Daily engineer'; period = day;
+  } else if (type === 'manpower') {
+    requireAdmin_(b.token);
+    const from = cleanDay_(b.from), to = cleanDay_(b.to || b.from);
+    if (to < from) throw new Error('The end date is before the start date.');
+    if ((parseDay_(to) - parseDay_(from)) / 86400000 > 92) throw new Error('Choose 3 months or less.');
+    file = manpowerPdf_(from, to);
+    if (!file) throw new Error(`No finished visits between ${from} and ${to}.`);
+    label = 'Manpower'; period = from === to ? from : `${from} → ${to}`;
+  } else if (type === 'weekly') {
+    requireAdmin_(b.token);
+    const end = cleanDay_(b.end), u = findUnit_(b.unit).unit;
+    file = weeklyUnitPdf_(u, end);
+    if (!file) throw new Error(`No finished visits on ${u} in the 7 days up to ${end}.`);
+    label = 'Weekly client'; period = `${fmt_(new Date(parseDay_(end).getTime() - 6 * 86400000), 'yyyy-MM-dd')} → ${end}`;
+  } else throw new Error('Unknown report.');
+  logReport_(label, period, b.engineer || b.unit || 'All', file, '(opened on website)');
+  return { name: file.getName(), pdf: Utilities.base64Encode(file.getBlob().getBytes()) };
+}
+
+function dailyEngineerPdf_(day, eng) {
+  const list = closedVisits_(v => v.date === day && v.by.toLowerCase() === eng.toLowerCase()).sort((a, b) => a.closed.localeCompare(b.closed));
+  if (!list.length) return null;
+  const html = dailyHtml_(settings_(), day, list[0].by, list, photosByVisit_(list), crewByVisit_(list));
+  return savePdf_(html, reportsFolder_('Daily', day), `Daily ${day} - ${list[0].by}.pdf`);
+}
+
+function manpowerPdf_(from, to) {
+  const visits = closedVisits_(v => v.date >= from && v.date <= to);
+  if (!visits.length) return null;
+  const html = manpowerHtml_(settings_(), from, to, visits, crewByVisit_(visits));
+  return savePdf_(html, reportsFolder_('Manpower', to), from === to ? `Manpower ${from}.pdf` : `Manpower ${from} to ${to}.pdf`);
+}
+
+function weeklyUnitPdf_(unit, endDay) {
+  const startDay = fmt_(new Date(parseDay_(endDay).getTime() - 6 * 86400000), 'yyyy-MM-dd');
+  const list = closedVisits_(v => v.unit.toLowerCase() === unit.toLowerCase() && v.date >= startDay && v.date <= endDay).sort((a, b) => a.closed.localeCompare(b.closed));
+  if (!list.length) return null;
+  const cl = rows_(T.units).find(r => low_(r['Unit']) === unit.toLowerCase()) || {};
+  const html = weeklyHtml_(settings_(), unit, { name: str_(cl['Client name']) }, startDay, endDay, list, photosByVisit_(list), crewByVisit_(list));
+  return savePdf_(html, reportsFolder_('Weekly', endDay), `Weekly ${endDay} - ${safeUnit_(unit)}.pdf`);
+}
+
+function cleanDay_(v) {
+  const s = str_(v);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error('Choose a date.');
+  return s;
 }
 
 /* =========================== lists for the website =========================== */
@@ -240,7 +353,7 @@ function makeDaily_(day, send) {
   });
 
   // 2) manpower by contractor, everyone together
-  const mpHtml = manpowerHtml_(S, day, visits, crew);
+  const mpHtml = manpowerHtml_(S, day, day, visits, crew);
   const mpPdf = savePdf_(mpHtml, folder, `Manpower ${day}.pdf`);
   made.push({ kind: 'Daily manpower', forWho: 'All contractors', file: mpPdf });
 
@@ -282,7 +395,7 @@ function dailyHtml_(S, day, eng, list, photos, crew) {
   list.forEach((v, i) => {
     h += `<div class="page">`;
     h += `<table class="bar"><tr><td class="mono big">${i + 1} · ${esc_(v.unit)}</td><td style="text-align:left">المعاينة ${v.closed.slice(11, 16)} · ${esc_(v.project)}</td></tr></table>`;
-    h += photoGrid_(photos[v.id] || [], 6);
+    h += photoGrid_(photos[v.id] || [], 0);
     const c = crew[v.id] || [];
     h += `<table class="two"><tr>
       <td><div class="lbl">العمالة (Manpower) <span class="pill">${v.manpower || 0}</span></div>${crewList_(c)}</td>
@@ -293,7 +406,7 @@ function dailyHtml_(S, day, eng, list, photos, crew) {
   return h + '</body></html>';
 }
 
-function manpowerHtml_(S, day, visits, crew) {
+function manpowerHtml_(S, from, to, visits, crew) {
   const byC = {};
   visits.forEach(v => (crew[v.id] || []).forEach(m => {
     const c = byC[m.contractor] = byC[m.contractor] || { total: 0, units: {}, trades: {} };
@@ -306,8 +419,10 @@ function manpowerHtml_(S, day, visits, crew) {
   const grand = names.reduce((s, n) => s + byC[n].total, 0);
   const noCrew = visits.filter(v => !(crew[v.id] || []).length);
 
-  let h = head_('العمالة حسب المقاول', dayAr_(day), `${S['Company name'] || 'O-Plus'} · Manpower by contractor`);
-  h += `<table class="kpi"><tr><td><div class="n">${grand}</div>إجمالي العمالة</td><td><div class="n">${names.length}</div>مقاولين</td><td><div class="n">${visits.length}</div>وحدات</td></tr></table>`;
+  const range = from !== to;
+  const unitsCount = Object.keys(groupBy_(visits, v => v.unit)).length;
+  let h = head_('العمالة حسب المقاول', range ? `${dayAr_(from)} ← ${dayAr_(to)}` : dayAr_(from), `${S['Company name'] || 'O-Plus'} · Manpower by contractor`);
+  h += `<table class="kpi"><tr><td><div class="n">${grand}</div>${range ? 'إجمالي العمالة (عامل × يوم)' : 'إجمالي العمالة'}</td><td><div class="n">${names.length}</div>مقاولين</td><td><div class="n">${unitsCount}</div>وحدات</td>${range ? `<td><div class="n">${Object.keys(groupBy_(visits, v => v.date)).length}</div>أيام شغل</td>` : ''}</tr></table>`;
   h += `<table class="sum"><tr><th>المقاول</th><th style="width:60px">العدد</th><th>حسب الحرفة</th><th>حسب الوحدة</th></tr>`;
   names.forEach(n => {
     const c = byC[n];
@@ -316,7 +431,18 @@ function manpowerHtml_(S, day, visits, crew) {
       <td class="mono">${Object.keys(c.units).sort().map(u => `${esc_(u)}: ${c.units[u]}`).join('<br>')}</td></tr>`;
   });
   h += `<tr class="tot"><td>الإجمالي</td><td class="mono big">${grand}</td><td></td><td></td></tr></table>`;
-  if (noCrew.length) h += `<p class="foot">وحدات من غير عمالة النهارده: ${noCrew.map(v => esc_(v.unit)).join('، ')}</p>`;
+  if (range) {
+    const byDay = groupBy_(visits, v => v.date);
+    h += `<h2>حسب اليوم</h2><table class="sum"><tr><th style="width:150px">اليوم</th><th style="width:60px">العمالة</th><th>المقاولين</th></tr>`;
+    Object.keys(byDay).sort().forEach(d => {
+      const c = {};
+      byDay[d].forEach(v => (crew[v.id] || []).forEach(m => c[m.contractor] = (c[m.contractor] || 0) + m.count));
+      const tot = Object.keys(c).reduce((s, k) => s + c[k], 0);
+      h += `<tr><td>${dayAr_(d)}</td><td class="mono big">${tot}</td><td>${Object.keys(c).sort((a, b) => c[b] - c[a]).map(k => `${esc_(k)} ${c[k]}`).join(' · ')}</td></tr>`;
+    });
+    h += `</table>`;
+  }
+  if (noCrew.length && !range) h += `<p class="foot">وحدات من غير عمالة النهارده: ${noCrew.map(v => esc_(v.unit)).join('، ')}</p>`;
   return h + '</body></html>';
 }
 
@@ -414,7 +540,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
     let ph = [];
     vs.forEach(v => ph = ph.concat(photos[v.id] || []));
     h += `<div class="page"><table class="bar"><tr><td class="big">${dayAr_(d)}</td><td style="text-align:left" class="mono">${esc_(unit)}</td></tr></table>`;
-    h += photoGrid_(ph, 6);
+    h += photoGrid_(ph, 12);
     h += `<div class="box"><div class="lbl">الحالة (Status)</div>${vs.map(v => esc_(v.workDone).replace(/\n/g, '<br>')).join('<br>')}</div>`;
     const tot = vs.reduce((s, v) => s + v.manpower, 0);
     if (tot) h += `<div class="box"><div class="lbl">العمالة في الموقع</div>${tot} فرد</div>`;
@@ -447,6 +573,9 @@ function head_(title, sub, line) {
     .grid td { width: 33%; padding: 4px; vertical-align: top; text-align: center; }
     .grid img { width: 100%; max-height: 230px; border: 1px solid #dfe2ea; }
     .cap { font-size: 8.5pt; color: #5d6577; margin-top: 2px; }
+    .grid tr, .sum tr, .two, .box, .note { page-break-inside: avoid; }
+    .item-h { font-weight: bold; margin: 10px 0 2px; border-bottom: 2px solid #e9b88f; padding-bottom: 2px; }
+    .item-h span { color: #5d6577; font-weight: normal; }
     .two td { width: 50%; vertical-align: top; border: 1px solid #dfe2ea; padding: 8px; }
     .lbl { font-weight: bold; margin-bottom: 6px; }
     .pill { background: #e9b88f; color: #0d1b3e; padding: 1px 8px; border-radius: 8px; font-size: 9pt; }
@@ -458,20 +587,30 @@ function head_(title, sub, line) {
   <div class="hdr"><div class="t">${title}</div><div class="s">${sub}</div><div class="l">${line}</div></div>`;
 }
 
+/** All photos of a visit (or a day), grouped by item, 3 per row. max = 0 means no limit. */
 function photoGrid_(list, max) {
-  const ph = list.slice(0, max);
-  if (!ph.length) return '<p class="foot">مفيش صور.</p>';
+  if (!list.length) return '<p class="foot">مفيش صور.</p>';
+  const ph = max ? list.slice(0, max) : list;
   const imgs = images_(ph.map(p => p.fileId));
-  let h = '<table class="grid">';
-  for (let i = 0; i < ph.length; i += 3) {
-    h += '<tr>';
-    for (let j = i; j < i + 3; j++) {
-      const p = ph[j];
-      h += p ? `<td>${imgs[p.fileId] ? `<img src="${imgs[p.fileId]}">` : ''}<div class="cap">${esc_(p.note || p.item)}</div></td>` : '<td></td>';
+  const groups = groupBy_(ph, p => p.item || GENERAL);
+  const names = Object.keys(groups);
+  let h = '';
+  names.forEach(name => {
+    const g = groups[name];
+    if (names.length > 1) h += `<div class="item-h">${esc_(name)} <span>(${g.length})</span></div>`;
+    h += '<table class="grid">';
+    for (let i = 0; i < g.length; i += 3) {
+      h += '<tr>';
+      for (let j = i; j < i + 3; j++) {
+        const p = g[j];
+        h += p ? `<td>${imgs[p.fileId] ? `<img src="${imgs[p.fileId]}">` : ''}<div class="cap">${esc_(p.note || p.item)}</div></td>` : '<td></td>';
+      }
+      h += '</tr>';
     }
-    h += '</tr>';
-  }
-  return h + '</table>';
+    h += '</table>';
+  });
+  if (max && list.length > max) h += `<p class="foot">+ ${list.length - max} صور تانية في فولدر الوحدة على الدرايف.</p>`;
+  return h;
 }
 
 function crewList_(c) {
@@ -484,7 +623,7 @@ function images_(ids) {
   const out = {};
   if (!ids.length) return out;
   const token = ScriptApp.getOAuthToken();
-  const reqs = ids.map(id => ({ url: 'https://drive.google.com/thumbnail?sz=w700&id=' + id, headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }));
+  const reqs = ids.map(id => ({ url: 'https://drive.google.com/thumbnail?sz=w600&id=' + id, headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }));
   let res = [];
   try { res = UrlFetchApp.fetchAll(reqs); } catch (e) {}
   ids.forEach((id, i) => {
@@ -570,6 +709,7 @@ function onOpen() {
     .addItem('Delete selected photos', 'menuDeletePhotos')
     .addItem('Delete selected visits (photos + manpower)', 'menuDeleteVisits')
     .addSeparator()
+    .addItem('Set manager password', 'menuSetPassword')
     .addItem('Apply schedule from Settings', 'installTriggers')
     .addItem('Refresh lists in the app', 'menuRefresh')
     .addToUi();

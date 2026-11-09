@@ -26,6 +26,7 @@
   --ok:#58c48e; --ok-bg:#16301f; --warn:#e3a54a; --bad:#ff8a80; --bad-bg:#3a1a1a; --head-bg:#070b17; --head-fg:#e9ecf4; --chip:#1c2540; color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{margin:0}
+html{background:var(--bg)}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 header{background:var(--head-bg);color:var(--head-fg);border-bottom:3px solid var(--accent);padding-top:env(safe-area-inset-top,0px)}
@@ -34,6 +35,17 @@ header .in{padding-block:14px;display:flex;justify-content:space-between;align-i
 .brand{font-family:var(--f-display);letter-spacing:.35em;font-size:13px;font-weight:500}
 .title{font-family:var(--f-display);font-size:20px;font-weight:600;margin-top:2px}
 .date{font-family:var(--f-mono);font-size:12px;opacity:.8;white-space:nowrap}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.navbtn{font:inherit;font-size:13px;font-weight:600;color:var(--head-fg);background:none;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:6px 12px;cursor:pointer}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row2>*{min-width:0}
+input[type=date],input[type=password]{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.out{display:flex;flex-direction:column;gap:8px;font-size:14px}
+.out .busy{color:var(--warn)}
+.out .res{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out a{display:flex;align-items:center;justify-content:center;text-decoration:none;font-weight:600;border-radius:10px;padding:14px;background:var(--ink);color:var(--bg)}
+.out a.dl{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+.lockline{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
 .wrap{padding-block:16px 130px;display:flex;flex-direction:column;gap:16px}
 .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;gap:8px}
 .label .ar{text-transform:none;letter-spacing:0;font-size:12px}
@@ -107,7 +119,7 @@ input[type=file]{display:none}
 <body>
 <header><div class="in">
   <div><div class="brand">O WEST</div><div class="title">Site Camera</div></div>
-  <div class="date" id="today"></div>
+  <div class="hright"><button class="navbtn" id="navBtn" type="button">Reports</button><div class="date" id="today"></div></div>
 </div></header>
 
 <main class="wrap">
@@ -165,6 +177,40 @@ input[type=file]{display:none}
     <textarea id="notes" dir="auto" placeholder="Problems, materials missing, client requests…"></textarea>
   </section>
 
+  <!-- reports -->
+  <section class="panel" id="repDaily" hidden>
+    <div class="label"><span>Daily report</span><span class="ar">التقرير اليومي</span></div>
+    <div class="row2"><input type="date" id="rdDay" aria-label="Day"><select id="rdEng" aria-label="Engineer"></select></div>
+    <button class="btn btn-main" id="rdGo" type="button">Open daily report</button>
+    <div class="out" id="rdOut"></div>
+  </section>
+
+  <section class="panel" id="repLock" hidden>
+    <div class="label"><span>Manager reports</span><span class="ar">تقارير المدير</span></div>
+    <div class="hint">Weekly client reports and manpower totals. Manager only.</div>
+    <input type="password" id="pw" placeholder="Manager password" autocomplete="current-password">
+    <button class="btn btn-sub" id="unlock" type="button">Unlock</button>
+    <div class="out" id="lockOut"></div>
+  </section>
+
+  <section class="panel" id="repMp" hidden>
+    <div class="label"><span>Manpower by contractor</span><span class="ar">العمالة حسب المقاول</span></div>
+    <div class="chips" id="mpQuick"></div>
+    <div class="row2"><input type="date" id="mpFrom" aria-label="From"><input type="date" id="mpTo" aria-label="To"></div>
+    <button class="btn btn-main" id="mpGo" type="button">Open manpower report</button>
+    <div class="out" id="mpOut"></div>
+  </section>
+
+  <section class="panel" id="repWk" hidden>
+    <div class="label"><span>Weekly client report</span><span class="ar">تقرير الأسبوع للعميل</span></div>
+    <select id="wkUnit" aria-label="Unit"></select>
+    <label class="hint" for="wkEnd">Week ending (7 days up to this day)</label>
+    <input type="date" id="wkEnd">
+    <button class="btn btn-main" id="wkGo" type="button">Open weekly report</button>
+    <div class="out" id="wkOut"></div>
+    <div class="lockline"><span>Manager reports unlocked on this phone</span><button class="link" id="lockBtn" type="button">Lock</button></div>
+  </section>
+
   <!-- done -->
   <section class="panel done" id="donePanel" hidden>
     <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
@@ -192,16 +238,16 @@ const stamp=d=>`${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pa
 function rnd(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return [...a].map(b=>"abcdefghijkmnpqrstuvwxyz23456789"[b%32]).join("")}
 $("today").textContent=ymd(new Date());
 
-async function api(method,payload){
+async function api(method,payload,ms){
   const opt=method==="GET"?{method:"GET"}:{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)};
   const url=method==="GET"?API_URL+"?action="+encodeURIComponent(payload.action):API_URL;
-  const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),90000);
+  const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms||90000);
   let r;
   try{r=await fetch(url,{...opt,signal:ctl.signal,redirect:"follow",credentials:"omit"})}
   catch(e){throw new Error(e.name==="AbortError"?"Took too long.":"No connection.")}
   finally{clearTimeout(t)}
   let j;try{j=await r.json()}catch(e){throw new Error("Server sent an unexpected reply.")}
-  if(!j.ok)throw new Error(j.error||"Server error.");
+  if(!j.ok){const e=new Error(j.error||"Server error.");e.code=j.code;throw e}
   return j;
 }
 
@@ -209,9 +255,13 @@ async function api(method,payload){
 let data={units:[],engineers:[],contractors:[],trades:[]},unit=null,item="General",visit=null,closing=false;
 const jobs=[];
 const VISIT_PANELS=["sel","shootPanel","workPanel","crewPanel","notesPanel","dock"];
-function show(view){
-  const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"]}[view];
-  ["namePanel","pickPanel","donePanel",...VISIT_PANELS].forEach(id=>$(id).hidden=!v.includes(id));
+const REPORT_PANELS=["repDaily","repLock","repMp","repWk"];
+let view="pick";
+function show(v0){
+  view=v0;
+  const v={pick:["namePanel","pickPanel"],visit:VISIT_PANELS,done:["donePanel"],reports:["repDaily",...(mgr()?["repMp","repWk"]:["repLock"])]}[v0];
+  ["namePanel","pickPanel","donePanel",...VISIT_PANELS,...REPORT_PANELS].forEach(id=>$(id).hidden=!v.includes(id));
+  $("navBtn").textContent=v0==="reports"?"Camera":"Reports";
   window.scrollTo(0,0);
 }
 
@@ -479,6 +529,66 @@ try{const c=JSON.parse(store.get("boot4")||"null");if(c&&c.units)apply(c)}catch(
 api("GET",{action:"units"}).then(j=>{delete j.ok;store.set("boot4",JSON.stringify(j));apply(j)})
   .catch(e=>{if(data.units.length){$("unitNote").textContent=`${data.units.length} units (saved list)`;return}
     $("units").textContent="";$("unitNote").textContent="";const s=document.createElement("span");s.className="err";s.textContent="Couldn't load the lists. Check your connection and reload.";$("unitNote").append(s)});
+/* ---------- reports ---------- */
+function mgr(){try{const m=JSON.parse(store.get("mgr")||"null");return m&&m.expires>Date.now()?m.token:null}catch(e){return null}}
+let lastView="pick";
+$("navBtn").onclick=()=>{
+  if(view==="reports"){show(lastView);return}
+  if(view==="visit"&&(pending()||closing)){$("dockHint").textContent="Wait for the photos to finish sending first.";return}
+  lastView=view==="visit"?"visit":view;fillReports();show("reports");
+};
+function fillReports(){
+  const today=ymd(new Date());
+  if(!$("rdDay").value)$("rdDay").value=today;
+  if(!$("wkEnd").value)$("wkEnd").value=today;
+  if(!$("mpFrom").value){$("mpFrom").value=today;$("mpTo").value=today}
+  const e=$("rdEng"),cur=e.value||byName();e.textContent="";
+  const o0=document.createElement("option");o0.value="";o0.textContent="Engineer…";e.append(o0);
+  const names=[...data.engineers];if(cur&&!names.includes(cur))names.push(cur);
+  names.forEach(n=>{const o=document.createElement("option");o.value=o.textContent=n;e.append(o)});e.value=cur||"";
+  const w=$("wkUnit"),cu=w.value;w.textContent="";
+  const u0=document.createElement("option");u0.value="";u0.textContent="Unit…";w.append(u0);
+  data.units.forEach(u=>{const o=document.createElement("option");o.value=o.textContent=u.unit;w.append(o)});w.value=cu||"";
+}
+const quick=[["Today",0],["Last 7 days",6],["This month",-1]];
+quick.forEach(([t,n])=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
+  b.onclick=()=>{const d=new Date(),to=ymd(d);let from;if(n<0){from=ymd(new Date(d.getFullYear(),d.getMonth(),1))}else{const f=new Date(d);f.setDate(f.getDate()-n);from=ymd(f)}
+    $("mpFrom").value=from;$("mpTo").value=to};$("mpQuick").append(b)});
+
+const urls={};
+async function getReport(out,btn,payload){
+  const box=$(out);box.textContent="";
+  const busy=document.createElement("div");busy.className="busy";busy.textContent="Making the report… this can take up to a minute.";box.append(busy);
+  $(btn).disabled=true;
+  try{
+    const r=await api("POST",Object.assign({action:"report"},payload),300000);
+    const bin=atob(r.pdf),bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    if(urls[out])URL.revokeObjectURL(urls[out]);
+    const url=urls[out]=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+    box.textContent="";
+    const name=document.createElement("div");name.textContent=r.name;
+    const res=document.createElement("div");res.className="res";
+    const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.textContent="Open PDF";
+    const d=document.createElement("a");d.href=url;d.download=r.name;d.className="dl";d.textContent="Download";
+    res.append(a,d);box.append(name,res);
+  }catch(e){
+    box.textContent="";const er=document.createElement("div");er.className="err";er.textContent=e.message;box.append(er);
+    if(e.code==="auth"){store.del("mgr");show("reports")}
+  }finally{$(btn).disabled=false}
+}
+$("rdGo").onclick=()=>{if(!$("rdEng").value){$("rdEng").focus();return}getReport("rdOut","rdGo",{type:"daily",day:$("rdDay").value,engineer:$("rdEng").value})};
+$("mpGo").onclick=()=>getReport("mpOut","mpGo",{type:"manpower",from:$("mpFrom").value,to:$("mpTo").value||$("mpFrom").value,token:mgr()});
+$("wkGo").onclick=()=>{if(!$("wkUnit").value){$("wkUnit").focus();return}getReport("wkOut","wkGo",{type:"weekly",unit:$("wkUnit").value,end:$("wkEnd").value,token:mgr()})};
+$("unlock").onclick=async()=>{
+  const box=$("lockOut");box.textContent="";const pw=$("pw").value;if(!pw){$("pw").focus();return}
+  $("unlock").disabled=true;
+  try{const r=await api("POST",{action:"login",password:pw});store.set("mgr",JSON.stringify({token:r.token,expires:r.expires}));$("pw").value="";show("reports")}
+  catch(e){const er=document.createElement("div");er.className="err";er.textContent=e.message;box.append(er)}
+  finally{$("unlock").disabled=false}
+};
+$("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("unlock").click()});
+$("lockBtn").onclick=()=>{store.del("mgr");show("reports")};
+
 show("pick");
 </script>
 </body>
