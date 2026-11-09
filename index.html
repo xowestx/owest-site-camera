@@ -233,7 +233,7 @@ input[type=file]{display:none}
 
 <script>
 const API_URL="https://script.google.com/macros/s/AKfycbyPqz639Y6R1--7qazMyHZ0-LpQFSX7e_daagYkQgmgUK2TDYilBjrbOwUdojpsIB3_qQ/exec";
-const MAX_SIDE=1280, MAX_BYTES=450000, PARALLEL=3, NEW="__new__";
+const MAX_SIDE=1280, MAX_BYTES=450000, PARALLEL=3, NEW="__new__", OTHER="__other__";
 
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -330,15 +330,21 @@ function renderChips(){
 }
 
 /* ---------- manpower ---------- */
+function unitContractors(){
+  const canon={};data.contractors.forEach(c=>canon[c.toLowerCase()]=c);
+  const out=[];(unit.contractors||[]).forEach(x=>String(x).split("/").forEach(p=>{const c=canon[p.trim().toLowerCase()];if(c&&!out.includes(c))out.push(c)}));
+  return out;
+}
 function contractorOptions(sel,value){
   sel.textContent="";
   const add=(parent,v,t)=>{const o=document.createElement("option");o.value=v;o.textContent=t;parent.append(o);return o};
   add(sel,"","Contractor…");
-  const used=(unit.contractors||[]),all=data.contractors.filter(c=>!used.includes(c));
+  const used=unitContractors(),showAll=!used.length||sel.dataset.all==="1"||(value&&!used.includes(value));
+  const all=data.contractors.filter(c=>!used.includes(c));
   if(used.length){const g=document.createElement("optgroup");g.label="On this unit";used.forEach(c=>add(g,c,c));sel.append(g)}
-  const g2=document.createElement("optgroup");g2.label=used.length?"All contractors":"Contractors";all.forEach(c=>add(g2,c,c));sel.append(g2);
-  add(sel,NEW,"+ New contractor…");
-  if(value&&![...used,...all].includes(value)){add(sel,value,value)}
+  if(showAll){const g2=document.createElement("optgroup");g2.label=used.length?"Other contractors":"Contractors";all.forEach(c=>add(g2,c,c));sel.append(g2);add(sel,NEW,"+ New contractor…")}
+  else add(sel,OTHER,"Other contractor…");
+  if(value&&value!==NEW&&![...used,...all].includes(value)){add(sel,value,value)}
   sel.value=value||"";
 }
 function addCrewRow(c){
@@ -346,8 +352,9 @@ function addCrewRow(c){
   const row=document.createElement("div");row.className="crow";
   const csel=document.createElement("select");csel.className="c";csel.setAttribute("aria-label","Contractor");
   const cnew=document.createElement("input");cnew.type="text";cnew.className="cn";cnew.placeholder="New contractor name";cnew.hidden=true;cnew.dir="auto";
+  if(c.contractorNew)csel.dataset.all="1";
   contractorOptions(csel,c.contractor);
-  csel.onchange=()=>{cnew.hidden=csel.value!==NEW;if(!cnew.hidden)cnew.focus();crewChanged()};
+  csel.onchange=()=>{if(csel.value===OTHER){csel.dataset.all="1";contractorOptions(csel,"");csel.focus();if(csel.showPicker)try{csel.showPicker()}catch(e){}return}cnew.hidden=csel.value!==NEW;if(!cnew.hidden)cnew.focus();crewChanged()};
   cnew.oninput=crewChanged;
   const isel=document.createElement("select");isel.className="i";isel.setAttribute("aria-label","Item");
   const items=[...(unit.items||[]),"General"];
