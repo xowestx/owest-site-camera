@@ -190,6 +190,7 @@ input[type=file]{display:none}
   <section class="panel" id="repDaily" hidden>
     <div class="label"><span>التقرير اليومي</span></div>
     <div class="row2"><input type="date" id="rdDay" aria-label="اليوم"><select id="rdEng" aria-label="المهندس"></select></div>
+    <input type="text" id="rdEngText" dir="auto" placeholder="اكتب اسم المهندس زي ما بيسجله" hidden>
     <button class="btn btn-main" id="rdGo" type="button">افتح التقرير اليومي</button>
     <div class="out" id="rdOut"></div>
   </section>
@@ -583,7 +584,7 @@ let lastView="pick",extra=/^#extra/.test(location.hash);
 function openExtra(){
   extra=true;
   if(view!=="reports"){if(view==="visit"&&(pending()||closing))return;lastView=view==="visit"?"visit":view;fillReports()}
-  show("reports");if(!mgr())setTimeout(()=>$("pw").focus(),50);
+  show("reports");refreshLists();if(!mgr())setTimeout(()=>$("pw").focus(),50);
 }
 (()=>{let t=null;const L=$("logo"),stop=()=>{clearTimeout(t);t=null};
   L.addEventListener("pointerdown",()=>{stop();t=setTimeout(()=>{stop();if(navigator.vibrate)navigator.vibrate(30);openExtra()},1500)});
@@ -594,8 +595,15 @@ window.addEventListener("hashchange",()=>{if(/^#extra/.test(location.hash))openE
 $("navBtn").onclick=()=>{
   if(view==="reports"){show(lastView);return}
   if(view==="visit"&&(pending()||closing)){$("dockHint").textContent="استنى الصور تخلص ترفع الأول.";return}
-  lastView=view==="visit"?"visit":view;fillReports();show("reports");
+  lastView=view==="visit"?"visit":view;fillReports();show("reports");refreshLists();
 };
+let refreshing=null;
+function refreshLists(){
+  if(refreshing)return refreshing;
+  refreshing=api("GET",{action:"units"}).then(j=>{delete j.ok;store.set("boot4",JSON.stringify(j));apply(j);if(view==="reports")fillReports()}).catch(()=>{}).finally(()=>{refreshing=null});
+  return refreshing;
+}
+$("rdEng").addEventListener("change",()=>{const t=$("rdEng").value===TYPE_NAME;$("rdEngText").hidden=!t;if(t)$("rdEngText").focus()});
 function fillReports(){
   const today=ymd(new Date());
   if(!$("rdDay").value)$("rdDay").value=today;
@@ -604,7 +612,9 @@ function fillReports(){
   const e=$("rdEng"),cur=e.value||byName();e.textContent="";
   const o0=document.createElement("option");o0.value="";o0.textContent="اختار المهندس…";e.append(o0);
   const names=[...data.engineers];if(cur&&!names.includes(cur))names.push(cur);
-  names.forEach(n=>{const o=document.createElement("option");o.value=o.textContent=n;e.append(o)});e.value=cur||"";
+  names.forEach(n=>{const o=document.createElement("option");o.value=o.textContent=n;e.append(o)});
+  const ot=document.createElement("option");ot.value=TYPE_NAME;ot.textContent="✎ اسم تاني (اكتب)";e.append(ot);
+  e.value=cur===TYPE_NAME?TYPE_NAME:(cur||"");$("rdEngText").hidden=e.value!==TYPE_NAME;
   e.hidden=!(extra||mgr());
   const w=$("wkUnit"),cu=w.value;w.textContent="";
   const u0=document.createElement("option");u0.value="";u0.textContent="اختار الوحدة…";w.append(u0);
@@ -636,7 +646,10 @@ async function getReport(out,btn,payload){
     if(e.code==="auth"){store.del("mgr");show("reports")}
   }finally{$(btn).disabled=false}
 }
-$("rdGo").onclick=()=>{if(!$("rdEng").value){$("rdEng").focus();return}getReport("rdOut","rdGo",{type:"daily",day:$("rdDay").value,engineer:$("rdEng").value})};
+$("rdGo").onclick=()=>{
+  const typed=$("rdEng").value===TYPE_NAME,eng=(typed?$("rdEngText").value:$("rdEng").value).trim();
+  if(!eng){(typed?$("rdEngText"):$("rdEng")).focus();return}
+  getReport("rdOut","rdGo",{type:"daily",day:$("rdDay").value,engineer:eng})};
 $("mpGo").onclick=()=>getReport("mpOut","mpGo",{type:"manpower",from:$("mpFrom").value,to:$("mpTo").value||$("mpFrom").value,token:mgr()});
 $("wkGo").onclick=()=>{if(!$("wkUnit").value){$("wkUnit").focus();return}getReport("wkOut","wkGo",{type:"weekly",unit:$("wkUnit").value,end:$("wkEnd").value,token:mgr()})};
 $("unlock").onclick=async()=>{
