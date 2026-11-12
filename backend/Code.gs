@@ -637,40 +637,131 @@ function weeklyFinish_(st) {
   return { units: made.length };
 }
 
-/** Client-facing weekly PDF for one unit: summary text + photos by day. No manpower, no internal notes. */
+/** Client-facing weekly PDF for one unit.
+    Page 1: unit, client, period, scope, progress highlights (AI) and the latest site photo.
+    Then a photo log by day (a picked set, spread over the week). No manpower, no internal notes. */
+const WK_MAX_PHOTOS = 14, WK_MAX_PER_DAY = 6;
+
 function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   const days = groupBy_(list, v => v.date);
   const dayKeys = Object.keys(days).sort();
   const items = [];
   list.forEach(v => v.items.split(',').map(s => s.trim()).filter(Boolean).forEach(i => items.indexOf(i) < 0 && items.push(i)));
-  const nPh = list.reduce((s, v) => s + (photos[v.id] || []).length, 0);
   const ai = polishWeek_(unit, items, dayKeys.map(d => ({ date: d, notes: days[d].map(v => v.workDone).filter(Boolean) })));
 
-  let h = head_('تقرير التقدم الأسبوعي', 'Weekly Progress Report', `<span class="mono">${startDay} → ${endDay}</span>`, `<span class="mono">${esc_(unit)}</span>${cl.name ? ' · ' + esc_(cl.name) : ''}`);
-  h += kpis_([[dayKeys.length, 'زيارات الموقع', 'Site visit days'], [nPh, 'صور', 'Photos'], [items.length || '—', 'بنود', 'Scope items']]);
-  if (items.length) h += `<p class="items">${items.map(i => `<span class="chip">${esc_(i)}</span>`).join(' ')}</p>`;
+  // pick photos: spread evenly through each day, at most WK_MAX_PER_DAY a day and WK_MAX_PHOTOS a week
+  const perDay = {};
+  const quota = Math.max(2, Math.min(WK_MAX_PER_DAY, Math.floor(WK_MAX_PHOTOS / Math.max(1, dayKeys.length))));
+  let total = 0;
+  dayKeys.forEach(d => {
+    let ph = [];
+    days[d].forEach(v => ph = ph.concat(photos[v.id] || []));
+    perDay[d] = { all: ph.length, pick: spread_(ph, quota) };
+    total += ph.length;
+  });
+  const lastDay = dayKeys[dayKeys.length - 1];
+  const allPicked = [].concat(...dayKeys.map(d => perDay[d].pick));
+  const latest = (perDay[lastDay] && perDay[lastDay].pick.slice(-1)[0]) || allPicked.slice(-1)[0];
+  const imgs = images_(allPicked.map(p => p.fileId));
+  const img = (p, W, H) => {
+    const im = p && imgs[p.fileId];
+    if (!im) return '';
+    const s = im.w && im.h ? Math.min(W / im.w, H / im.h) : 0;
+    const w = s ? Math.round(im.w * s) : W, h = s ? Math.round(im.h * s) : 0;
+    const pad = h ? Math.floor((H - h) / 2) : 0;
+    return `<div style="height:${pad}px"></div><img src="${im.src}" width="${w}"${h ? ` height="${h}"` : ''}>`;
+  };
+  // hero: the latest landscape photo if there is one
+  let hero = latest;
+  for (let i = allPicked.length - 1; i >= 0; i--) { const im = imgs[allPicked[i].fileId]; if (im && im.w > im.h) { hero = allPicked[i]; break; } }
+  const co = S['Company name'] || 'O-Plus';
+
+  let h = `<html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
+    @page { size: A4; margin: 13mm 12mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; color: #1d2433; direction: rtl; }
+    table { border-collapse: collapse; width: 100%; }
+    tr, .keep { page-break-inside: avoid; }
+    .ltr { direction: ltr; unicode-bidi: embed; }
+    .brand { font-size: 9pt; letter-spacing: 4px; color: #8a6a4f; font-weight: bold; }
+    .t1 { font-size: 21pt; font-weight: bold; color: #0d1b3e; }
+    .t2 { font-size: 11pt; color: #6b7385; }
+    .rule { height: 3px; background: #0d1b3e; border-bottom: 2px solid #e9b88f; margin: 8px 0 14px; }
+    .info td { border: 1px solid #e3e6ee; background: #f7f8fb; padding: 10px 12px; vertical-align: top; }
+    .lab { font-size: 8pt; color: #8a92a3; }
+    .val { font-size: 11.5pt; font-weight: bold; color: #0d1b3e; margin-top: 3px; }
+    .unit { font-size: 17pt; font-weight: bold; color: #0d1b3e; margin-top: 2px; }
+    .chip { display: inline-block; border: 1px solid #d9c3ae; color: #6b4f37; background: #fbf5ef; padding: 3px 10px; font-size: 9pt; margin: 2px; }
+    h2 { font-size: 12.5pt; color: #0d1b3e; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #e9b88f; }
+    h2 .en { font-size: 9pt; color: #8a92a3; font-weight: normal; }
+    .hl td { vertical-align: top; padding: 2px 6px; font-size: 10.5pt; line-height: 1.7; }
+    .hl ul { margin: 0; }
+    .hero { text-align: center; height: 380px; background: #f3f4f8; border: 1px solid #e3e6ee; }
+    .cap { font-size: 8pt; color: #8a92a3; margin-top: 3px; text-align: center; }
+    .day td { background: #f3f4f8; border-right: 5px solid #e9b88f; padding: 7px 10px; }
+    .day .d { font-size: 11.5pt; font-weight: bold; color: #0d1b3e; }
+    .day .n { text-align: left; font-size: 8.5pt; color: #6b7385; }
+    .line td { padding: 6px 10px 8px; font-size: 9.5pt; color: #33405a; line-height: 1.6; vertical-align: top; }
+    .grid td { width: 50%; padding: 5px; vertical-align: top; text-align: center; }
+    .box { height: 265px; background: #f3f4f8; border: 1px solid #e3e6ee; text-align: center; }
+    .page { page-break-before: always; }
+    .foot { font-size: 8pt; color: #8a92a3; margin-top: 14px; text-align: center; }
+  </style></head><body>
+  <table><tr>
+    <td><div class="brand">O WEST</div><div class="t1">تقرير التقدم الأسبوعي</div><div class="t2">Weekly Progress Report</div></td>
+    <td style="text-align:left;vertical-align:bottom"><div class="lab">${esc_(co)}</div><div class="val ltr">${startDay} → ${endDay}</div></td>
+  </tr></table><div class="rule"></div>
+  <table class="info"><tr>
+    <td style="width:38%"><div class="lab">الوحدة · Unit</div><div class="unit ltr">${esc_(unit)}</div></td>
+    <td style="width:37%"><div class="lab">العميل · Client</div><div class="val">${esc_(cl.name || '—')}</div></td>
+    <td><div class="lab">زيارات الموقع · Site visits</div><div class="val">${dayKeys.length} أيام · ${total} صورة</div></td>
+  </tr></table>`;
+  if (items.length) h += `<div style="margin-top:8px">${items.map(i => `<span class="chip">${esc_(i)}</span>`).join(' ')}</div>`;
   if (ai && (ai.ar.length || ai.en.length)) {
-    h += `<h2>ملخص التقدم <span class="en">Progress summary</span></h2>
-      <table class="two"><tr>
-        <td style="width:50%">${ai.ar.length ? '<ul style="margin:0;padding-right:16px">' + ai.ar.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
-        <td dir="ltr" style="text-align:left">${ai.en.length ? '<ul style="margin:0;padding-left:16px">' + ai.en.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
+    h += `<h2>أبرز ما تم هذا الأسبوع <span class="en">Progress highlights</span></h2>
+      <table class="hl"><tr>
+        <td style="width:50%">${ai.ar.length ? '<ul style="padding-right:18px">' + ai.ar.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
+        <td class="ltr" style="text-align:left">${ai.en.length ? '<ul style="padding-left:18px">' + ai.en.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
       </tr></table>`;
   }
+  if (hero) {
+    h += `<h2>آخر صورة من الموقع <span class="en">Latest site photo</span></h2>
+      <div class="hero keep">${img(hero, 660, 378)}</div><div class="cap">${esc_(dayAr_(lastDay))}${hero.note ? ' · ' + esc_(hero.note) : ''}</div>`;
+  }
+
+  // photo log
+  h += `<div class="page"></div><h2 style="margin-top:0">سجل الصور <span class="en">Photo log</span></h2>`;
   dayKeys.forEach(d => {
-    const vs = days[d];
-    let ph = [];
-    vs.forEach(v => ph = ph.concat(photos[v.id] || []));
-    h += `<div class="page"><table class="uh"><tr><td><div class="ucode">${dayAr_(d)}</div><div class="sub mono">${esc_(unit)}</div></td>
-      <td class="meta"><b>${ph.length}</b> صور</td></tr></table>`;
+    const pd = perDay[d];
+    if (!pd.pick.length) return;
     const line = ai && ai.days[d];
-    if (line && (line.ar || line.en)) {
-      h += `<table class="two" style="margin:0 0 8px"><tr><td style="width:50%">${esc_(line.ar || '')}</td><td dir="ltr" style="text-align:left">${esc_(line.en || '')}</td></tr></table>`;
+    const dayItems = [];
+    pd.pick.forEach(p => p.item && dayItems.indexOf(p.item) < 0 && dayItems.push(p.item));
+    h += `<table class="day keep"><tr><td><span class="d">${esc_(dayAr_(d))}</span></td><td class="n">${dayItems.map(esc_).join(' · ')}</td></tr></table>`;
+    if (line && (line.ar || line.en)) h += `<table class="line"><tr><td style="width:50%">${esc_(line.ar || '')}</td><td class="ltr" style="text-align:left">${esc_(line.en || '')}</td></tr></table>`;
+    h += '<table class="grid">';
+    for (let i = 0; i < pd.pick.length; i += 2) {
+      h += '<tr>';
+      for (let j = i; j < i + 2; j++) {
+        const p = pd.pick[j];
+        if (!p) { h += '<td></td>'; continue; }
+        const cap = [dayItems.length > 1 ? p.item : '', p.note].filter(Boolean).map(esc_).join(' · ');
+        h += `<td><div class="box">${img(p, 325, 263)}</div>${cap ? `<div class="cap">${cap}</div>` : ''}</td>`;
+      }
+      h += '</tr>';
     }
-    if (ph.length) h += photoGrid_(ph.slice(0, 8), 0);
-    h += `</div>`;
+    h += '</table>';
   });
-  h += `<p class="foot">${esc_(S['Company name'] || 'O-Plus')} · O West</p>`;
+  h += `<div class="foot">${esc_(co)} · Extra Works · O West</div>`;
   return h + '</body></html>';
+}
+
+/** n items spread evenly through a list (keeps first and last). */
+function spread_(list, n) {
+  if (list.length <= n) return list.slice();
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(list[Math.round(i * (list.length - 1) / (n - 1))]);
+  return out;
 }
 
 /* =========================== AI writer (Gemini) =========================== */
@@ -710,6 +801,7 @@ function polishWeek_(unit, items, days) {
 
   const S = settings_();
   const models = [S['AI model'] || 'gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
+  let lastErr = '';
   for (const model of models) {
     try {
       const call = () => UrlFetchApp.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
@@ -718,7 +810,7 @@ function polishWeek_(unit, items, days) {
       });
       let res = call(), code = res.getResponseCode();
       if (code === 429 || code === 503) { Utilities.sleep(4000); res = call(); code = res.getResponseCode(); }   // busy: one quick retry
-      if (code !== 200) { console.error('AI ' + model + ' ' + code + ': ' + res.getContentText().slice(0, 300)); continue; }   // try the next model
+      if (code !== 200) { lastErr = model + ' ' + code + ': ' + res.getContentText().replace(/\s+/g, ' ').slice(0, 250); console.error('AI ' + lastErr); continue; }   // try the next model
       const j = JSON.parse(res.getContentText());
       const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
       const t = (txt || []).map(p => p.text || '').join('').replace(/^```(json)?|```$/g, '').trim();
@@ -727,12 +819,16 @@ function polishWeek_(unit, items, days) {
       const out = { ar: clean(o.summary && o.summary.ar), en: clean(o.summary && o.summary.en), days: {} };
       (o.days || []).forEach(d => { const k = str_(d.date); if (k) out.days[k] = { ar: str_(d.ar), en: str_(d.en) }; });
       try { cache.put(ck, JSON.stringify(out), 21600); } catch (e) {}
+      aiStatus_('OK · ' + model);
       return out;
-    } catch (e) { console.error('AI: ' + msg_(e)); }
+    } catch (e) { lastErr = model + ': ' + msg_(e); console.error('AI: ' + lastErr); }
   }
   AI_DOWN = true;
+  aiStatus_('Error · ' + lastErr);
   return null;
 }
+
+function aiStatus_(text) { try { setSetting_('AI status', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ' · ' + text); } catch (e) {} }
 
 function menuSetAiKey() {
   const ui = SpreadsheetApp.getUi();
