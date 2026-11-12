@@ -21,6 +21,11 @@ Engineers on site open a website on their phone, pick a unit, take photos, and f
 
 ClickUp custom field IDs: Request Type `8f185b3c-db17-4dac-b577-d377a949db9f` (gives the items per unit), Contractor `8d4a9069-1ade-4b4e-9702-ef05ff3ecf97`, Description `af390993-91be-4db5-b8d9-c4a2dca60ce8`, Client Name `75747da4-250c-42e7-8d65-98d9d503060f`, Email `ecdc4bdb-8444-4074-b32c-cd4c36274f25`.
 
+## Weekly client report (redesigned 12 Nov 2026)
+One A4 page per unit: header with date, unit and client; stage tracker; 2 site photos; progress ring with On track / Behind plan badge; elapsed vs planned days; payment date, mobilization, contract start/finish, expected finish; scope, quotation ref and amount; latest updates (AI); project manager.
+Data is read live from the unit's ClickUp tasks when the PDF is made (`cuReportInfo_`): Actual POC %, Payment Date, Site In (contract start), Site Due Date (contract finish and expected finish), Request Type, Quotation No., Amount, PM, task status (stage) and Construction Status = Completed (Quality Inspection). Mobilization = days from Payment Date to Site In. "On track" means actual % is at most 10 points under planned % (ON_TRACK_SLACK).
+The WhatsApp button flow in ClickUp is unchanged.
+
 ## Sheet tabs
 - **Units**: Unit, Active, Project, Client name, Client email, Source (ClickUp or Manual). 15 Authority units are Manual; ClickUp rows are rebuilt by sync.
 - **Scope**: Unit → Item (the products each villa bought). These are the photo chips.

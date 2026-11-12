@@ -157,7 +157,9 @@ function weeklyUnitPdf_(unit, endDay) {
   const list = closedVisits_(v => v.unit.toLowerCase() === unit.toLowerCase() && v.date >= startDay && v.date <= endDay).sort((a, b) => a.closed.localeCompare(b.closed));
   if (!list.length) return null;
   const cl = rows_(T.units).find(r => low_(r['Unit']) === unit.toLowerCase()) || {};
-  const html = weeklyHtml_(settings_(), unit, { name: str_(cl['Client name']) }, startDay, endDay, list, photosByVisit_(list), crewByVisit_(list));
+  let info = null;
+  try { info = cuReportInfo_(unit); } catch (e) { console.error('clickup info ' + unit + ': ' + msg_(e)); }
+  const html = weeklyHtml_(settings_(), unit, { name: str_(cl['Client name']) }, startDay, endDay, list, photosByVisit_(list), crewByVisit_(list), info);
   return savePdf_(html, reportsFolder_('Weekly', endDay), `Weekly Progress Report - ${safeUnit_(unit)} - ${dateEn_(endDay)}.pdf`);
 }
 
@@ -647,139 +649,328 @@ function weeklyFinish_(st) {
   return { units: made.length };
 }
 
-/** Client-facing weekly PDF for one unit, in the O West brand (navy band, logos, peach labels).
-    Page 1: unit, client, period, scope, progress highlights (AI) and the latest site photo.
-    Then a photo log by day (a picked set, spread over the week). No manpower, no internal notes. */
-const WK_MAX_PHOTOS = 8, WK_MAX_PER_DAY = 4;
+/** Client-facing weekly PDF for one unit: one A4 page in the O West brand.
+    Header (logo, date, unit, client), stage tracker, 2 site photos, progress ring with on-track badge,
+    elapsed vs planned days, contract dates, scope and quotation, latest updates (AI) and the project manager.
+    Contract figures come live from the unit's ClickUp tasks (cuReportInfo_). No manpower, no internal notes. */
 const BRAND = { navy: '#001641', peach: '#e9b88f', ink: '#1d2433', soft: '#fbf3ec', line: '#e2dcd5', mute: '#7a8194' };
+const WK = { gold: '#f0b323', halo: '#fbe6b0', card: '#f2f4f8', photo: '#fbefe6', track: '#dfe3ea', grey: '#8a90a0' };
+const STAGES = ['Initiation', 'Design', 'Quotation', 'Construction', 'Quality Inspection', 'Hand Over'];
+const ON_TRACK_SLACK = 10;   // actual % may be this many points under planned % and still read "On track"
 
-function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
+function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
+  info = info || {};
+  const C = BRAND;
   const days = groupBy_(list, v => v.date);
   const dayKeys = Object.keys(days).sort();
   // scope = what the client bought (ClickUp), never the engineers' photo tags
-  const items = rows_(T.scope).filter(r => low_(r['Unit']) === unit.toLowerCase()).map(r => str_(r['Item'])).filter(Boolean)
+  const items = info.scope && info.scope.length ? info.scope : rows_(T.scope).filter(r => low_(r['Unit']) === unit.toLowerCase()).map(r => str_(r['Item'])).filter(Boolean)
     .filter((x, i, a) => a.indexOf(x) === i && !/^others?$|^general$/i.test(x));
   const ai = polishWeek_(unit, items, dayKeys.map(d => ({ date: d, notes: days[d].map(v => v.workDone).filter(Boolean) })));
 
-  // pick photos: spread evenly through each day, at most WK_MAX_PER_DAY a day and WK_MAX_PHOTOS a week
-  const perDay = {};
-  const quota = Math.max(1, Math.min(WK_MAX_PER_DAY, Math.floor(WK_MAX_PHOTOS / Math.max(1, dayKeys.length))));
-  let total = 0;
-  dayKeys.forEach(d => {
-    let ph = [];
-    days[d].forEach(v => ph = ph.concat(photos[v.id] || []));
-    perDay[d] = { pick: spread_(ph, quota) };
-    total += ph.length;
-  });
-  const lastDay = dayKeys[dayKeys.length - 1];
-  const allPicked = [].concat(...dayKeys.map(d => perDay[d].pick));
-  const imgs = images_(allPicked.map(p => p.fileId));
-  const img = (p, W, H) => {
-    const im = p && imgs[p.fileId];
-    if (!im) return '';
-    const s = im.w && im.h ? Math.min(W / im.w, H / im.h) : 0;
-    const w = s ? Math.round(im.w * s) : W, h = s ? Math.round(im.h * s) : 0;
-    const pad = h ? Math.floor((H - h) / 2) : 0;
+  // 2 site photos: the newest landscape ones of the week (portrait only if there is nothing else)
+  let all = [];
+  dayKeys.forEach(d => days[d].forEach(v => (photos[v.id] || []).forEach(p => all.push({ p: p, day: d }))));
+  const recent = all.slice(-8);
+  const imgs = images_(recent.map(x => x.p.fileId));
+  const ok = recent.filter(x => imgs[x.p.fileId]);
+  const wide = ok.filter(x => { const im = imgs[x.p.fileId]; return im.w && im.h && im.w >= im.h; });
+  let two = wide.slice(-2);
+  if (two.length < 2) two = two.concat(ok.filter(x => two.indexOf(x) < 0).slice(-(2 - two.length)));
+  two.sort((a, b) => ok.indexOf(a) - ok.indexOf(b));
+  const photoDay = two.length ? two[two.length - 1].day : endDay;
+  const PW = 322, PH = 196;
+  const img = x => {
+    const im = x && imgs[x.p.fileId];
+    if (!im) return '<div class="ph-empty">Site photo</div>';
+    const s = im.w && im.h ? Math.min(PW / im.w, PH / im.h) : 0;
+    const w = s ? Math.round(im.w * s) : PW, h = s ? Math.round(im.h * s) : 0;
+    const pad = h ? Math.floor((PH - h) / 2) : 0;
     return `<div style="height:${pad}px"></div><img src="${im.src}" width="${w}"${h ? ` height="${h}"` : ''}>`;
   };
-  let hero = allPicked.slice(-1)[0], heroDay = lastDay;
-  dayKeys.forEach(d => perDay[d].pick.forEach(p => { const im = imgs[p.fileId]; if (im && im.w > im.h) { hero = p; heroDay = d; } }));
-  const co = S['Company name'] || 'O-Plus';
-  const C = BRAND;
+
+  // stage tracker
+  const stage = Math.max(0, STAGES.indexOf(info.stage || 'Construction'));
+  const stageCells = STAGES.map((name, i) => {
+    const kind = i < stage ? 'done' : i === stage ? (stage === STAGES.length - 1 ? 'done' : 'now') : 'next';
+    const lineL = i === 0 ? '' : `<div class="ln" style="border-color:${i <= stage ? C.navy : WK.track}"></div>`;
+    const lineR = i === STAGES.length - 1 ? '' : `<div class="ln" style="border-color:${i < stage ? C.navy : WK.track}"></div>`;
+    return `<td class="st"><table class="stt"><tr><td class="side">${lineL}</td><td class="ico"><img src="${stageIcon_(kind)}" width="44" height="44"></td><td class="side">${lineR}</td></tr></table>
+      <div class="stn" style="color:${kind === 'next' ? WK.grey : C.navy};font-weight:${kind === 'now' ? 700 : 500}">${esc_(name)}</div></td>`;
+  }).join('');
+
+  // progress and time
+  const actual = info.poc == null ? null : Math.max(0, Math.min(100, Math.round(info.poc)));
+  const t0 = info.start ? parseDay_(info.start).getTime() : null, t1 = info.finish ? parseDay_(info.finish).getTime() : null;
+  const now = parseDay_(endDay).getTime();
+  const planned = t0 && t1 && t1 > t0 ? Math.round((t1 - t0) / 86400000) : null;
+  const elapsed = t0 ? Math.max(0, Math.round((now - t0) / 86400000)) : null;
+  const plannedPct = planned ? Math.max(0, Math.min(100, elapsed / planned * 100)) : null;
+  let badge = '';
+  if (actual != null) badge = actual >= 100 ? 'Completed' : plannedPct == null || actual >= plannedPct - ON_TRACK_SLACK ? 'On track' : 'Behind plan';
+  const barPct = planned ? Math.max(0, Math.min(100, Math.round(elapsed / planned * 100))) : 0;
+  const mob = info.payment && info.start ? Math.round((parseDay_(info.start) - parseDay_(info.payment)) / 86400000) : null;
+
+  const d_ = s => s ? esc_(dateEn_(s)) : '—';
+  const updates = ai && ai.en.length ? ai.en.slice(0, 4).map(x => /[.!?]$/.test(x) ? x : x + '.').join(' ') : '';
+  const money = n => n ? 'EGP ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
+  const unitName = info.unitName || unit;
+  const client = info.client || cl.name || '';
 
   let h = `<html lang="en"><head><meta charset="utf-8"><style>
     ${fontsCss_()}
-    @page { size: A4; margin: 16mm 15mm 16mm; }
+    @page { size: A4; margin: 10mm 12mm 10mm; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; }
-    body { font-family: 'Poppins', Arial, sans-serif; font-size: 9.5pt; line-height: 1.6; color: ${C.ink}; }
+    body { font-family: 'Poppins', Arial, sans-serif; font-size: 9.5pt; line-height: 1.5; color: ${C.ink}; }
     table { border-collapse: collapse; width: 100%; }
-    tr, .keep { page-break-inside: avoid; }
-    .ar { direction: rtl; text-align: right; font-family: Arial, sans-serif; }
-    .serif { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; }
-    .band td { background: ${C.navy}; color: #ffffff; padding: 22px 26px 26px; vertical-align: top; }
-    .kick { font-size: 7.5pt; letter-spacing: 2.5px; color: ${C.peach}; text-transform: uppercase; font-weight: 500; }
-    .unit { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; font-size: 28pt; line-height: 1.15; color: #ffffff; margin-top: 10px; }
-    .client { font-size: 13pt; color: #dfe3ec; margin-top: 6px; }
-    .rev { font-size: 7.5pt; letter-spacing: 2px; color: #c9cfdd; text-align: right; }
-    .meta td { padding: 18px 4px 16px 0; vertical-align: top; border-bottom: 1px solid ${C.line}; }
+    td { vertical-align: top; padding: 0; }
+    .sheet { position: relative; height: 275mm; overflow: hidden; }
+    .band td.b { background: ${C.navy}; color: #ffffff; padding: 22px 28px 22px; }
+    .kick { font-size: 7pt; letter-spacing: 2.2px; color: ${WK.gold}; text-transform: uppercase; font-weight: 500; text-align: right; }
+    .hdate { font-size: 12.5pt; color: #ffffff; text-align: right; font-weight: 500; margin-top: 2px; }
+    .rule { border-top: 1px solid #2b3b63; margin: 16px 0 14px; height: 0; }
+    .blab { font-size: 7pt; letter-spacing: 2.2px; color: #c9cfdd; text-transform: uppercase; font-weight: 500; }
+    .unit { font-size: 25pt; font-weight: 700; color: #ffffff; line-height: 1.15; margin-top: 4px; letter-spacing: 0.5px; }
+    .client { font-size: 12.5pt; color: #ffffff; font-weight: 500; text-align: right; margin-top: 8px; }
+    .body { padding: 0 28px; }
+    .stages { margin-top: 18px; table-layout: fixed; }
+    .st { text-align: center; }
+    .stt td { vertical-align: middle; }
+    .stt .side { width: 50%; }
+    .stt .ico { width: 44px; }
+    .ln { border-top: 3px solid; height: 0; }
+    .stn { font-size: 8pt; margin-top: 6px; white-space: nowrap; }
     .lab { font-size: 6.8pt; letter-spacing: 2px; color: ${C.mute}; text-transform: uppercase; font-weight: 500; }
-    .val { font-size: 9.5pt; color: ${C.navy}; margin-top: 4px; }
-    .sec { margin-top: 30px; }
-    .sec td { border-bottom: 1.5px solid ${C.navy}; padding-bottom: 6px; vertical-align: bottom; }
-    .sec h2 { font-family: 'Liberation Serif', 'Times New Roman', serif; font-size: 15pt; color: ${C.navy}; margin: 0; }
-    .sec .r { font-size: 10pt; color: ${C.mute}; text-align: right; }
-    .chip { display: inline-block; border: 1px solid ${C.peach}; color: #8a5a35; padding: 3px 12px; font-size: 8pt; margin: 4px 6px 0 0; }
-    .hl td { vertical-align: top; padding: 14px 10px 0 0; font-size: 10pt; line-height: 1.8; }
-    .hl ul { margin: 0; }
-    .hl li { margin-bottom: 6px; }
-    .hero { text-align: center; height: 300px; background: ${C.soft}; margin-top: 14px; }
-    .day { margin-top: 20px; }
-    .day td { padding: 0 0 6px; border-bottom: 1px solid ${C.line}; }
-    .day .d { font-weight: 500; color: ${C.navy}; font-size: 10.5pt; }
-    .day .n { font-size: 9pt; color: ${C.mute}; }
-    .line td { padding: 10px 10px 4px 0; font-size: 9.5pt; line-height: 1.7; vertical-align: top; color: #33405a; }
-    .grid { margin-top: 6px; }
-    .grid td { width: 33.3%; padding: 5px; vertical-align: top; text-align: center; }
-    .box { height: 196px; background: ${C.soft}; text-align: center; }
-    .page { page-break-before: always; }
-    .sheet { position: relative; height: 262mm; overflow: hidden; page-break-after: always; }
-    .sheet.last { page-break-after: auto; }
-    .foot { position: absolute; left: 0; right: 0; bottom: 0; }
-    .foot td { font-size: 7pt; letter-spacing: 1px; color: ${C.mute}; border-top: 1px solid ${C.line}; padding-top: 6px; }
-  </style></head><body><div class="sheet" id="p1">
-  <table class="band"><tr><td>
+    .val { font-size: 11pt; color: ${C.navy}; margin-top: 3px; font-weight: 500; }
+    .photos { margin-top: 6px; }
+    .photos td.p { width: 50%; text-align: center; }
+    .pbox { height: ${PH}px; background: ${WK.photo}; border-radius: 8px; overflow: hidden; text-align: center; }
+    .ph-empty { padding-top: ${Math.round(PH / 2) - 10}px; color: ${C.mute}; font-size: 10pt; }
+    .card { background: ${WK.card}; border-radius: 8px; padding: 18px 22px; height: 118px; }
+    .ring { position: relative; width: 112px; height: 112px; }
+    .ring .pct { position: absolute; left: 0; right: 0; top: 36px; text-align: center; font-size: 19pt; font-weight: 700; color: ${C.navy}; line-height: 1.2; }
+    .badge { display: inline-block; background: #ffffff; color: ${C.navy}; font-weight: 700; font-size: 9pt; padding: 5px 14px; border-radius: 14px; margin-top: 8px; }
+    .big { font-size: 26pt; font-weight: 700; color: ${C.navy}; line-height: 1.1; }
+    .of { font-size: 10.5pt; color: #4a5268; }
+    .bar { background: ${WK.track}; height: 9px; border-radius: 5px; margin: 10px 0 8px; overflow: hidden; }
+    .bar div { background: ${C.navy}; height: 9px; border-radius: 5px; }
+    .small { font-size: 8pt; color: ${C.mute}; }
+    .sv { font-size: 9pt; color: ${C.navy}; font-weight: 500; }
+    .facts { margin-top: 16px; border-top: 1px solid #dfe2e8; }
+    .facts td { padding: 12px 8px 12px 0; border-bottom: 1px solid #dfe2e8; }
+    .upd { margin-top: 14px; }
+    .upd h2 { font-size: 13pt; color: ${C.navy}; margin: 0; font-weight: 700; }
+    .uline { width: 40px; border-top: 3px solid ${WK.gold}; height: 0; margin: 4px 0 10px; }
+    .utext { font-size: 10pt; line-height: 1.75; color: #2a3348; }
+    .pm { margin-top: 16px; background: ${WK.photo}; border-radius: 8px; }
+    .pm td { padding: 12px 22px; vertical-align: middle; }
+    .foot { position: absolute; left: 28px; right: 28px; bottom: 0; }
+    .foot td { font-size: 8pt; color: ${C.mute}; border-top: 1px solid #dfe2e8; padding-top: 8px; }
+  </style></head><body><div class="sheet">
+  <table class="band"><tr><td class="b">
     <table><tr>
-      <td style="padding:0;background:${C.navy}"><img src="data:image/png;base64,${LOGO_OWEST}" height="24"> &nbsp;&nbsp; <img src="data:image/png;base64,${LOGO_OPLUS}" height="24"></td>
-      <td class="rev" style="padding:0;background:${C.navy}">WEEK ENDING ${esc_(dateEn_(endDay)).toUpperCase()}</td>
+      <td style="vertical-align:middle"><img src="data:image/png;base64,${LOGO_OWEST}" height="40"></td>
+      <td><div class="kick">Weekly Report</div><div class="hdate">${d_(endDay)}</div></td>
     </tr></table>
-    <div style="height:34px"></div>
-    <div class="kick">Weekly Progress Report</div>
-    <div class="unit">${esc_(unit)}</div>
-    ${cl.name ? `<div class="client">${esc_(cl.name)}</div>` : ''}
+    <div class="rule"></div>
+    <table><tr>
+      <td><div class="blab">Unit</div><div class="unit">${esc_(unitName)}</div></td>
+      <td style="text-align:right"><div class="blab" style="text-align:right">Client</div><div class="client">${esc_(client || '—')}</div></td>
+    </tr></table>
   </td></tr></table>
-  <table class="meta"><tr>
-    <td style="width:30%"><div class="lab">Client</div><div class="val">${esc_(cl.name || '—')}</div></td>
-    <td style="width:24%"><div class="lab">Unit</div><div class="val">${esc_(unit)}</div></td>
-    <td style="width:26%"><div class="lab">Period</div><div class="val">${esc_(dateEn_(startDay))} – ${esc_(dateEn_(endDay))}</div></td>
-    <td><div class="lab">Prepared by</div><div class="val">${esc_(co)} Extra Works</div></td>
+  <div class="body">
+  <table class="stages"><tr>${stageCells}</tr></table>
+  <div class="lab" style="margin-top:16px">Site photos · ${d_(photoDay).toUpperCase()}</div>
+  <table class="photos"><tr>
+    <td class="p" style="padding-right:8px"><div class="pbox">${img(two[0])}</div></td>
+    <td class="p" style="padding-left:8px"><div class="pbox">${img(two[1])}</div></td>
   </tr></table>
-`;
-  if (ai && ai.en.length) {
-    h += `<table class="sec"><tr><td><h2>Progress highlights</h2></td><td class="r">This week</td></tr></table>
-      <table class="hl"><tr><td><ul style="padding-left:16px">${ai.en.map(x => `<li>${esc_(x)}</li>`).join('')}</ul></td></tr></table>`;
-  }
-  if (hero) {
-    h += `<table class="sec"><tr><td><h2>Latest site photo</h2></td><td class="r">${esc_(dateEn_(heroDay))}</td></tr></table>
-      <div class="hero keep">${img(hero, 650, 298)}</div>`;
-  }
+  <table style="margin-top:14px"><tr>
+    <td style="width:50%;padding-right:8px"><div class="card"><table><tr>
+      <td style="width:130px;vertical-align:middle"><div class="ring"><img src="${ringPng_(actual || 0)}" width="112" height="112"><div class="pct">${actual == null ? '—' : actual + '%'}</div></div></td>
+      <td style="vertical-align:middle;padding-left:10px"><div class="lab">Actual progress</div>${badge ? `<div class="badge">${badge}</div>` : ''}</td>
+    </tr></table></div></td>
+    <td style="width:50%;padding-left:8px"><div class="card">
+      <div class="lab">Elapsed duration</div>
+      <div style="margin-top:4px"><span class="big">${elapsed == null ? '—' : elapsed}</span> <span class="of">${planned ? `of ${planned} planned days` : 'days'}</span></div>
+      <div class="bar"><div style="width:${barPct}%"></div></div>
+      <table><tr>
+        <td><div class="small">Start</div><div class="sv">${d_(info.start)}</div></td>
+        <td style="text-align:right"><div class="small">Contract finish</div><div class="sv">${d_(info.finish)}</div></td>
+      </tr></table>
+    </div></td>
+  </tr></table>
+  <table class="facts"><tr>
+    <td style="width:20%"><div class="lab">Payment date</div><div class="val">${d_(info.payment)}</div></td>
+    <td style="width:20%"><div class="lab">Mobilization</div><div class="val">${mob == null ? '—' : mob + ' days'}</div></td>
+    <td style="width:20%"><div class="lab">Contract start</div><div class="val">${d_(info.start)}</div></td>
+    <td style="width:20%"><div class="lab">Contract finish</div><div class="val">${d_(info.finish)}</div></td>
+    <td style="width:20%"><div class="lab">Expected finish</div><div class="val" style="font-weight:700">${d_(info.expected || info.finish)}</div></td>
+  </tr><tr>
+    <td colspan="2"><div class="lab">Scope of work</div><div class="val">${esc_(items.join(', ') || '—')}</div></td>
+    <td><div class="lab">Quotation ref.</div><div class="val">${esc_((info.quotes || []).join(', ') || '—')}</div></td>
+    <td colspan="2"><div class="lab">Quotation amount</div><div class="val">${money(info.amount)}</div></td>
+  </tr></table>
+  ${updates ? `<div class="upd"><h2>Latest updates</h2><div class="uline"></div><div class="utext">${esc_(updates)}</div></div>` : ''}
+  <table class="pm"><tr>
+    <td><span style="color:${C.mute};font-size:10pt">Your project manager</span> &nbsp; <span style="color:${C.navy};font-weight:700;font-size:11pt">${esc_((info.pm || []).join(' & ') || '—')}</span></td>
+    <td style="text-align:right;font-size:10pt;color:${C.ink}">Questions? Reply to this message.</td>
+  </tr></table>
+  </div>
+  <div class="foot"><table><tr><td>O West · Extra Works</td><td style="text-align:right">Page 1 of 1</td></tr></table></div>
+  </div></body></html>`;
+  return h;
+}
 
-  // photo pages: laid out by hand so the footer always sits at the bottom of each page
-  const foot = `<table class="foot"><tr><td>O West by Orascom Development · ${esc_(unit)}</td><td style="text-align:right">${esc_(co)} Extra Works · Week ending ${esc_(dateEn_(endDay))}</td></tr></table>`;
-  const CAP = 250, HEAD = 18, LINE = 9, ROW = 56, TITLE = 14;   // mm
-  const pages = [];
-  let cur = '', used = 0;
-  const newPage = () => { if (cur) pages.push(cur); cur = `<table class="sec" style="margin-top:0"><tr><td><h2>Site progress photos</h2></td><td class="r">Newest first</td></tr></table>`; used = TITLE; };
-  newPage();
-  dayKeys.slice().reverse().forEach(d => {              // newest day first
-    const pd = perDay[d];
-    if (!pd.pick.length) return;
-    const line = ai && ai.days[d];
-    const head = (cont) => `<table class="day"><tr><td><span class="d">${esc_(dateEn_(d, true))}</span>${cont ? ' <span class="n">(continued)</span>' : ''}</td></tr></table>` +
-      (!cont && line && line.en ? `<table class="line"><tr><td>${esc_(line.en)}</td></tr></table>` : '');
-    const headH = HEAD + (line && line.en ? LINE : 0);
-    if (used + headH + ROW > CAP) newPage();
-    cur += head(false); used += headH;
-    for (let i = 0; i < pd.pick.length; i += 3) {
-      if (used + ROW > CAP) { newPage(); cur += head(true); used += HEAD; }
-      cur += '<table class="grid"><tr>' + [pd.pick[i], pd.pick[i + 1], pd.pick[i + 2]].map(p => p ? `<td><div class="box">${img(p, 208, 194)}</div></td>` : '<td></td>').join('') + '</tr></table>';
-      used += ROW;
-    }
+/* ---------- report data from ClickUp ---------- */
+// field IDs on the Main Tracking Sheet / Construction Team tasks
+const CU_RPT = {
+  poc: '640aa77a-6d8d-4b4d-b8a6-b4dfd74baa9f', payment: 'b2c472de-5d86-4e50-ad17-571055eb20e0',
+  siteIn: 'e099ba01-7bd4-402b-9d0f-2263884b39b0', siteDue: '192b3218-0025-48f1-a418-488d0e87e5ee',
+  quote: '432de28e-bb8f-4595-92ba-d2f8bd564df8', amount: 'f480622e-13eb-43c9-a141-f74a78d866e9',
+  pm: 'f91d9a67-0ed7-4e6a-81c3-1b7bf673546f', cstatus: 'eb44d8ec-34af-462d-b01e-87f84b918f55',
+  unitCode: '536dcc2d-7696-4813-88ed-e3f4966f793e'
+};
+// ClickUp task status -> stage on the tracker
+const CU_STAGE = {
+  'new case': 0, 'on hold': 0, 'client feedback': 1, 'design revision': 1, 'design execution': 1,
+  'quotation issued': 2, 'cost revision': 2, 'site execution': 3, 'handed over': 5
+};
+
+/** Everything the client report needs from the unit's ClickUp tasks, read live (one small call per task).
+    Several tasks for one unit (for example a finishing package and a pergola) are combined:
+    scopes listed, amounts added, progress weighted by amount, earliest start and latest finish. */
+function cuReportInfo_(unit) {
+  const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
+  if (!token) return null;
+  const k = unit.toLowerCase();
+  let ids = rows_(CU_TAB).filter(r => low_(normUnit_(r['Unit'])) === k && ['deleted', 'declined'].indexOf(low_(r['Status'])) < 0).map(r => str_(r['Task ID'])).filter(Boolean);
+  if (!ids.length) ids = cuTaskIdsForUnit_(unit, token);
+  if (!ids.length) return null;
+  const got = UrlFetchApp.fetchAll(ids.map(id => ({ url: `https://api.clickup.com/api/v2/task/${id}`, headers: { Authorization: token }, muteHttpExceptions: true })));
+  const tasks = [];
+  got.forEach(r => {
+    if (r.getResponseCode() !== 200) return;
+    let t; try { t = JSON.parse(r.getContentText()); } catch (e) { return; }
+    const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
+    const v = id => str_(f[id] && f[id].value);
+    const day = id => { const x = Number(v(id)); return x ? fmt_(new Date(x), 'yyyy-MM-dd') : ''; };
+    const num = id => { const x = parseFloat(v(id)); return isNaN(x) ? null : x; };
+    tasks.push({
+      status: low_(t.status && t.status.status), unitCode: v(CU_RPT.unitCode), client: v(CU.f.client),
+      type: dropName_(f[CU.f.requestType]), poc: num(CU_RPT.poc), amount: num(CU_RPT.amount) || 0,
+      payment: day(CU_RPT.payment), start: day(CU_RPT.siteIn), finish: day(CU_RPT.siteDue),
+      quote: v(CU_RPT.quote), pm: dropName_(f[CU_RPT.pm]), cstatus: low_(dropName_(f[CU_RPT.cstatus]))
+    });
   });
-  if (cur) pages.push(cur);
-  h += foot + '</div>';
-  pages.forEach((pg, i) => h += `<div class="sheet${i === pages.length - 1 ? ' last' : ''}">${pg}${foot}</div>`);
-  return h + '</body></html>';
+  const live = tasks.filter(t => t.status !== 'declined');
+  if (!live.length) return null;
+  const site = live.filter(t => t.status === 'site execution');
+  const main = site.length ? site : live;
+
+  let stage;
+  if (site.length) stage = site.every(t => t.cstatus === 'completed' || t.cstatus === 'handedover') ? 4 : 3;
+  else if (live.every(t => t.status === 'handed over')) stage = 5;
+  else stage = Math.max.apply(null, live.filter(t => t.status !== 'handed over').map(t => CU_STAGE[t.status] == null ? 0 : CU_STAGE[t.status]));
+
+  const uniq = a => a.filter((x, i) => x && a.indexOf(x) === i);
+  const withPoc = main.filter(t => t.poc != null);
+  const wSum = withPoc.reduce((s, t) => s + (t.amount || 0), 0);
+  const poc = !withPoc.length ? null : wSum > 0
+    ? withPoc.reduce((s, t) => s + t.poc * (t.amount || 0), 0) / wSum
+    : withPoc.reduce((s, t) => s + t.poc, 0) / withPoc.length;
+  const min = a => a.filter(Boolean).sort()[0] || '', max = a => a.filter(Boolean).sort().slice(-1)[0] || '';
+  return {
+    unitName: (main.find(t => t.unitCode) || {}).unitCode || '',
+    client: (main.find(t => t.client) || live.find(t => t.client) || {}).client || '',
+    stage: STAGES[stage], poc: poc,
+    scope: uniq(main.map(t => t.type).filter(x => CU.skipTypes.indexOf(low_(x)) < 0)),
+    quotes: uniq(main.map(t => t.quote)), amount: main.reduce((s, t) => s + (t.amount || 0), 0),
+    payment: min(main.map(t => t.payment)), start: min(main.map(t => t.start)), finish: max(main.map(t => t.finish)),
+    pm: uniq(main.map(t => t.pm))
+  };
+}
+
+/* ---------- small PNG images drawn in code (the PDF maker has no SVG or canvas) ---------- */
+const PNG_CACHE = {};
+function hex_(c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; }
+
+/** Progress ring, 0..100 %, navy arc on a light track, clockwise from 12 o'clock. */
+function ringPng_(pct) {
+  const key = 'ring' + Math.round(pct);
+  if (PNG_CACHE[key]) return PNG_CACHE[key];
+  const S = 224, c = S / 2, ro = 108, ri = 84, end = Math.max(0, Math.min(100, pct)) / 100 * 2 * Math.PI;
+  const navy = hex_(BRAND.navy), track = hex_(WK.track);
+  return (PNG_CACHE[key] = rasterPng_(S, (x, y) => {
+    const dx = x - c, dy = y - c, r = Math.sqrt(dx * dx + dy * dy);
+    if (r < ri || r > ro) return null;
+    let a = Math.atan2(dx, -dy); if (a < 0) a += 2 * Math.PI;
+    return a <= end ? navy : track;
+  }));
+}
+
+/** Stage tracker icon: done (navy with white tick), now (gold with halo and navy dot), next (white with grey ring). */
+function stageIcon_(kind) {
+  const key = 'st' + kind;
+  if (PNG_CACHE[key]) return PNG_CACHE[key];
+  const S = 88, c = S / 2;
+  const navy = hex_(BRAND.navy), gold = hex_(WK.gold), halo = hex_(WK.halo), grey = hex_('#d5d9e2'), white = [255, 255, 255];
+  const seg = (px, py, ax, ay, bx, by) => {   // distance from a point to a line segment
+    const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy)));
+    const qx = ax + t * vx - px, qy = ay + t * vy - py;
+    return Math.sqrt(qx * qx + qy * qy);
+  };
+  return (PNG_CACHE[key] = rasterPng_(S, (x, y) => {
+    const r = Math.sqrt((x - c) * (x - c) + (y - c) * (y - c));
+    if (kind === 'done') {
+      if (r > 30) return null;
+      return Math.min(seg(x, y, 30, 45, 39, 54), seg(x, y, 39, 54, 57, 35)) < 3.6 ? white : navy;
+    }
+    if (kind === 'now') {
+      if (r > 42) return null;
+      if (r > 32) return halo;
+      return r < 9 ? navy : gold;
+    }
+    if (r > 30) return null;
+    return r > 26 ? grey : white;
+  }));
+}
+
+/** Draws an S x S image from fn(x, y) -> [r, g, b] or null (transparent), 4x4 samples per pixel, as a PNG data URL. */
+function rasterPng_(S, fn) {
+  const px = new Array(S * S * 4);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let sy = 0; sy < 4; sy++) for (let sx = 0; sx < 4; sx++) {
+      const col = fn(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4);
+      if (col) { r += col[0]; g += col[1]; b += col[2]; n++; }
+    }
+    const i = (y * S + x) * 4;
+    px[i] = n ? Math.round(r / n) : 0; px[i + 1] = n ? Math.round(g / n) : 0; px[i + 2] = n ? Math.round(b / n) : 0; px[i + 3] = Math.round(n / 16 * 255);
+  }
+  return 'data:image/png;base64,' + Utilities.base64Encode(pngBytes_(S, S, px).map(b => b > 127 ? b - 256 : b));
+}
+
+let CRC_T = null;
+/** Minimal RGBA PNG encoder (uncompressed deflate blocks; the images are small). Returns bytes 0..255. */
+function pngBytes_(w, h, px) {
+  if (!CRC_T) { CRC_T = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_T[n] = c >>> 0; } }
+  const crc = a => { let c = 0xFFFFFFFF; for (let i = 0; i < a.length; i++) c = CRC_T[(c ^ a[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const chunk = (type, data) => { const td = type.split('').map(ch => ch.charCodeAt(0)).concat(data); return u32(data.length).concat(td, u32(crc(td))); };
+  const raw = [];
+  for (let y = 0; y < h; y++) { raw.push(0); for (let x = 0; x < w * 4; x++) raw.push(px[y * w * 4 + x]); }
+  const z = [0x78, 0x01];
+  for (let i = 0; i < raw.length; i += 65535) {
+    const n = Math.min(65535, raw.length - i);
+    z.push(i + n >= raw.length ? 1 : 0, n & 255, n >>> 8, ~n & 255, (~n >>> 8) & 255);
+    for (let j = 0; j < n; j++) z.push(raw[i + j]);
+  }
+  let a = 1, b = 0;
+  for (let i = 0; i < raw.length; i++) { a = (a + raw[i]) % 65521; b = (b + a) % 65521; }
+  z.push.apply(z, u32(((b << 16) | a) >>> 0));
+  return [137, 80, 78, 71, 13, 10, 26, 10].concat(chunk('IHDR', u32(w).concat(u32(h), [8, 6, 0, 0, 0])), chunk('IDAT', z), chunk('IEND', []));
 }
 
 /* =========================== WEEKLY → CLICKUP (WhatsApp button) =========================== */
