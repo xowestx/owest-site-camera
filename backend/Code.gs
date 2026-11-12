@@ -898,9 +898,9 @@ function cuReportInfo_(unit) {
   const min = a => a.filter(Boolean).sort()[0] || '', max = a => a.filter(Boolean).sort().slice(-1)[0] || '';
   return {
     unitName: (main.find(t => t.unitCode) || {}).unitCode || '',
-    client: (main.find(t => t.client) || live.find(t => t.client) || {}).client || '',
+    client: ((main.find(t => t.client) || live.find(t => t.client) || {}).client || '').replace(/\b[a-z]/g, c => c.toUpperCase()),
     stage: STAGES[stage], poc: poc,
-    scope: uniq(main.map(t => t.type).filter(x => CU.skipTypes.indexOf(low_(x)) < 0)),
+    scope: (s => s.length > 1 ? s.filter(x => !/^others?$/i.test(x)) : s)(uniq(main.map(t => t.type).filter(x => CU.skipTypes.indexOf(low_(x)) < 0))),
     quotes: uniq(main.map(t => t.quote)), amount: main.reduce((s, t) => s + (t.amount || 0), 0),
     payment: min(main.map(t => t.payment)), start: min(main.map(t => t.start)), finish: max(main.map(t => t.finish)),
     pm: uniq(main.map(t => t.pm))
