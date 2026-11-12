@@ -724,7 +724,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   const mob = info.payment && info.start ? Math.round((parseDay_(info.start) - parseDay_(info.payment)) / 86400000) : null;
 
   const d_ = s => s ? esc_(dateEn_(s)) : '—';
-  const updates = ai && ai.en.length ? ai.en.slice(0, 5).map(x => /[.!?]$/.test(x) ? x : x + '.') : [];
+  const updates = ai && ai.en.length ? ai.en.slice(0, 4).map(x => /[.!?]$/.test(x) ? x : x + '.') : [];
   const money = n => n ? 'EGP ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
   const unitName = info.unitName || unit;
   const client = info.client || cl.name || '';
