@@ -815,7 +815,6 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
       </tr></table>
     </div></td>
   </tr></table>
-  ${pick.length ? `<table class="shead"><tr><td><h2>Site photos</h2></td><td class="r">${d_(photoDay).toUpperCase()}</td></tr></table>${photoRows}` : ''}
   <table class="facts"><tr>
     <td style="width:20%"><div class="lab">Payment date</div><div class="val">${d_(info.payment)}</div></td>
     <td style="width:20%"><div class="lab">Mobilization</div><div class="val">${mob == null ? '—' : mob + ' days'}</div></td>
@@ -827,6 +826,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     <td><div class="lab">Quotation ref.</div><div class="val">${esc_((info.quotes || []).join(', ') || '—')}</div></td>
     <td colspan="2"><div class="lab">Quotation amount</div><div class="val">${money(info.amount)}</div></td>
   </tr></table>
+  ${pick.length ? `<table class="shead"><tr><td><h2>Site photos</h2></td><td class="r">${d_(photoDay).toUpperCase()}</td></tr></table>${photoRows}` : ''}
   ${updates ? `<table class="shead"><tr><td><h2>Latest updates</h2></td><td class="r">This week</td></tr></table><div class="utext">${esc_(updates)}</div>` : ''}
   <table class="pm"><tr>
     <td><span style="color:${MUTE}">Your project manager</span> &nbsp; <span style="color:${INK};font-weight:700;font-size:9.5pt">${esc_((info.pm || []).join(' & ') || '—')}</span></td>
