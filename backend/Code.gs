@@ -650,12 +650,13 @@ function weeklyFinish_(st) {
 }
 
 /** Client-facing weekly PDF for one unit: one A4 page in the O West brand.
-    Header (logo, date, unit, client), stage tracker, 2 site photos, progress ring with on-track badge,
+    Header (logo, date, unit, client), stage tracker, progress ring with on-track badge, up to 3 site photos,
     elapsed vs planned days, contract dates, scope and quotation, latest updates (AI) and the project manager.
     Contract figures come live from the unit's ClickUp tasks (cuReportInfo_). No manpower, no internal notes. */
 const BRAND = { navy: '#001641', peach: '#e9b88f', ink: '#1d2433', soft: '#fbf3ec', line: '#e2dcd5', mute: '#7a8194' };
 const WK = { gold: '#f0b323', halo: '#fbe6b0', track: '#dfe3ea', grey: '#8a90a0' };
 const STAGES = ['Initiation', 'Design', 'Quotation', 'Construction', 'Quality Inspection', 'Hand Over'];
+const WK_PHOTOS = 3;          // site photos on the client report (newest of the week); 4 also works (2 rows of 2, smaller)
 const ON_TRACK_SLACK = 10;   // actual % may be this many points under planned % and still read "On track"
 
 function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
@@ -668,26 +669,36 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .filter((x, i, a) => a.indexOf(x) === i && !/^others?$|^general$/i.test(x));
   const ai = polishWeek_(unit, items, dayKeys.map(d => ({ date: d, notes: days[d].map(v => v.workDone).filter(Boolean) })));
 
-  // 2 site photos: the newest landscape ones of the week (portrait only if there is nothing else)
+  // up to WK_PHOTOS site photos: the newest landscape ones of the week (portrait only if there are not enough)
   let all = [];
   dayKeys.forEach(d => days[d].forEach(v => (photos[v.id] || []).forEach(p => all.push({ p: p, day: d }))));
-  const recent = all.slice(-8);
+  const recent = all.slice(-12);
   const imgs = images_(recent.map(x => x.p.fileId));
   const ok = recent.filter(x => imgs[x.p.fileId]);
   const wide = ok.filter(x => { const im = imgs[x.p.fileId]; return im.w && im.h && im.w >= im.h; });
-  let two = wide.slice(-2);
-  if (two.length < 2) two = two.concat(ok.filter(x => two.indexOf(x) < 0).slice(-(2 - two.length)));
-  two.sort((a, b) => ok.indexOf(a) - ok.indexOf(b));
-  const photoDay = two.length ? two[two.length - 1].day : endDay;
-  const PW = 328, PH = 200;
+  let pick = wide.slice(-WK_PHOTOS);
+  if (pick.length < WK_PHOTOS) pick = pick.concat(ok.filter(x => pick.indexOf(x) < 0).slice(-(WK_PHOTOS - pick.length)));
+  pick.sort((a, b) => ok.indexOf(a) - ok.indexOf(b));
+  const photoDay = pick.length ? pick[pick.length - 1].day : endDay;
+  // 1-2 photos: one row of 2; 3: one row of 3; 4: two rows of 2
+  const cols = pick.length === 3 ? 3 : 2, FULL = 668, GAP = 12;
+  const PW = Math.floor((FULL - GAP * (cols - 1)) / cols), PH = pick.length === 3 ? 160 : pick.length > 3 ? 128 : 190;
   const img = x => {
     const im = x && imgs[x.p.fileId];
-    if (!im) return '<div class="ph-empty">Site photo</div>';
+    if (!im) return '';
     const s = im.w && im.h ? Math.min(PW / im.w, PH / im.h) : 0;
     const w = s ? Math.round(im.w * s) : PW, h = s ? Math.round(im.h * s) : 0;
     const pad = h ? Math.floor((PH - h) / 2) : 0;
     return `<div style="height:${pad}px"></div><img src="${im.src}" width="${w}"${h ? ` height="${h}"` : ''}>`;
   };
+  let photoRows = '';
+  for (let i = 0; i < pick.length; i += cols) {
+    photoRows += `<table class="photos"><tr>` + Array.from({ length: cols }, (_, j) => {
+      const x = pick[i + j];
+      const pad = `padding-left:${j ? GAP / 2 : 0}px;padding-right:${j < cols - 1 ? GAP / 2 : 0}px`;
+      return `<td class="p" style="width:${Math.round(100 / cols)}%;${pad}">${x ? `<div class="pbox">${img(x)}</div>` : ''}</td>`;
+    }).join('') + '</tr></table>';
+  }
 
   // stage tracker
   const stage = Math.max(0, STAGES.indexOf(info.stage || 'Construction'));
@@ -729,9 +740,9 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     td { vertical-align: top; padding: 0; }
     .serif { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; }
     .sheet { position: relative; height: 296mm; overflow: hidden; }
-    .band td.b { background: ${NAVY}; color: #ffffff; padding: 14pt 34pt 18pt; }
+    .band td.b { background: ${NAVY}; color: #ffffff; padding: 12pt 34pt 14pt; }
     .kick { font-size: 7.5pt; letter-spacing: 2.2px; color: ${PEACH}; text-transform: uppercase; font-weight: 500; }
-    .rule { border-top: 1px solid #2b3b63; margin: 14pt 0 12pt; height: 0; }
+    .rule { border-top: 1px solid #2b3b63; margin: 12pt 0 10pt; height: 0; }
     .blab { font-size: 7pt; letter-spacing: 2px; color: ${PEACH}; text-transform: uppercase; }
     .unit { font-weight: 700; font-size: 25pt; letter-spacing: 0.5px; color: #ffffff; line-height: 1.15; margin-top: 4px; }
     .client { font-size: 10pt; color: #ffffff; font-weight: 500; text-align: right; margin-top: 6px; }
@@ -747,12 +758,12 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .stn { font-size: 7.6pt; margin-top: 5px; white-space: nowrap; }
     .lab { font-size: 7pt; letter-spacing: 1.8px; color: ${MUTE}; text-transform: uppercase; font-weight: 500; }
     .val { font-size: 9.5pt; color: ${INK}; margin-top: 3px; font-weight: 500; }
-    .shead { margin-top: 16pt; }
+    .shead { margin-top: 13pt; }
     .shead td { border-bottom: 1.5px solid ${NAVY}; padding-bottom: 4px; vertical-align: bottom; }
     .shead h2 { font-size: 12.5pt; font-weight: 700; color: ${INK}; margin: 0; }
     .shead .r { font-size: 7.5pt; letter-spacing: 1.8px; color: ${MUTE}; text-transform: uppercase; font-weight: 500; text-align: right; }
-    .photos { margin-top: 8pt; }
-    .photos td.p { width: 50%; text-align: center; }
+    .photos { margin-top: 7pt; }
+    .photos td.p { text-align: center; }
     .pbox { height: ${PH}px; background: #faf2ec; overflow: hidden; text-align: center; }
     .ph-empty { padding-top: ${Math.round(PH / 2) - 10}px; color: ${MUTE}; font-size: 9pt; }
     .card { background: #f4f5f8; border: 1px solid #e6e8ee; padding: 14pt 18pt; height: 104px; }
@@ -767,9 +778,9 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .small { font-size: 7pt; color: ${MUTE}; }
     .sv { font-size: 8.6pt; color: ${INK}; font-weight: 500; }
     .facts { margin-top: 12pt; border-top: 1px solid ${LINE}; }
-    .facts td { padding: 9pt 8px 9pt 0; border-bottom: 1px solid ${LINE}; }
+    .facts td { padding: 7pt 8px 7pt 0; border-bottom: 1px solid ${LINE}; }
     .utext { font-size: 9pt; line-height: 1.75; color: ${INK}; margin-top: 8pt; }
-    .pm { margin-top: 14pt; background: #faf2ec; border-left: 3px solid ${PEACH}; }
+    .pm { margin-top: 12pt; background: #faf2ec; border-left: 3px solid ${PEACH}; }
     .pm td { padding: 10pt 16pt; vertical-align: middle; font-size: 8.6pt; }
     .foot { position: absolute; left: 34pt; right: 34pt; bottom: 12pt; }
     .foot td { font-size: 7.5pt; color: ${MUTE}; border-top: 1px solid ${LINE}; padding-top: 6pt; }
@@ -787,11 +798,6 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   </td></tr></table>
   <div class="body">
   <table class="stages"><tr>${stageCells}</tr></table>
-  <table class="shead"><tr><td><h2>Site photos</h2></td><td class="r">${d_(photoDay).toUpperCase()}</td></tr></table>
-  <table class="photos"><tr>
-    <td class="p" style="padding-right:6px"><div class="pbox">${img(two[0])}</div></td>
-    <td class="p" style="padding-left:6px"><div class="pbox">${img(two[1])}</div></td>
-  </tr></table>
   <table class="shead"><tr><td><h2>Progress</h2></td><td class="r">As of ${d_(endDay).toUpperCase()}</td></tr></table>
   <table style="margin-top:8pt"><tr>
     <td style="width:50%;padding-right:6px"><div class="card"><table><tr>
@@ -808,6 +814,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
       </tr></table>
     </div></td>
   </tr></table>
+  ${pick.length ? `<table class="shead"><tr><td><h2>Site photos</h2></td><td class="r">${d_(photoDay).toUpperCase()}</td></tr></table>${photoRows}` : ''}
   <table class="facts"><tr>
     <td style="width:20%"><div class="lab">Payment date</div><div class="val">${d_(info.payment)}</div></td>
     <td style="width:20%"><div class="lab">Mobilization</div><div class="val">${mob == null ? '—' : mob + ' days'}</div></td>
