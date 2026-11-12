@@ -646,7 +646,7 @@ function weeklyFinish_(st) {
 /** Client-facing weekly PDF for one unit, in the O West brand (navy band, logos, peach labels).
     Page 1: unit, client, period, scope, progress highlights (AI) and the latest site photo.
     Then a photo log by day (a picked set, spread over the week). No manpower, no internal notes. */
-const WK_MAX_PHOTOS = 14, WK_MAX_PER_DAY = 6;
+const WK_MAX_PHOTOS = 8, WK_MAX_PER_DAY = 4;
 const BRAND = { navy: '#001641', peach: '#e9b88f', ink: '#1d2433', soft: '#fbf3ec', line: '#e2dcd5', mute: '#7a8194' };
 
 function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
@@ -659,7 +659,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
 
   // pick photos: spread evenly through each day, at most WK_MAX_PER_DAY a day and WK_MAX_PHOTOS a week
   const perDay = {};
-  const quota = Math.max(2, Math.min(WK_MAX_PER_DAY, Math.floor(WK_MAX_PHOTOS / Math.max(1, dayKeys.length))));
+  const quota = Math.max(1, Math.min(WK_MAX_PER_DAY, Math.floor(WK_MAX_PHOTOS / Math.max(1, dayKeys.length))));
   let total = 0;
   dayKeys.forEach(d => {
     let ph = [];
@@ -736,13 +736,10 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
     <td style="width:26%"><div class="lab">Period</div><div class="val">${esc_(dateEn_(startDay))} – ${esc_(dateEn_(endDay))}</div></td>
     <td><div class="lab">Prepared by</div><div class="val">${esc_(co)} Extra Works</div></td>
   </tr></table>
-  ${items.length ? `<div style="margin-top:16px"><div class="lab">Scope of works</div><div>${items.map(i => `<span class="chip">${esc_(i)}</span>`).join('')}</div></div>` : ''}`;
-  if (ai && (ai.ar.length || ai.en.length)) {
-    h += `<table class="sec"><tr><td><h2>Progress highlights</h2></td><td class="r ar">أبرز ما تم هذا الأسبوع</td></tr></table>
-      <table class="hl"><tr>
-        <td style="width:52%">${ai.en.length ? '<ul style="padding-left:16px">' + ai.en.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
-        <td class="ar">${ai.ar.length ? '<ul style="padding-right:16px" dir="rtl">' + ai.ar.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
-      </tr></table>`;
+`;
+  if (ai && ai.en.length) {
+    h += `<table class="sec"><tr><td><h2>Progress highlights</h2></td><td class="r">This week</td></tr></table>
+      <table class="hl"><tr><td><ul style="padding-left:16px">${ai.en.map(x => `<li>${esc_(x)}</li>`).join('')}</ul></td></tr></table>`;
   }
   if (hero) {
     h += `<table class="sec"><tr><td><h2>Latest site photo</h2></td><td class="r">${esc_(dateEn_(heroDay))}</td></tr></table>
@@ -750,13 +747,13 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   }
 
   // photo log
-  h += `<div class="page"></div><table class="sec" style="margin-top:0"><tr><td><h2>Site progress photos</h2></td><td class="r ar">صور تقدم الأعمال</td></tr></table>`;
-  dayKeys.forEach(d => {
+  h += `<div class="page"></div><table class="sec" style="margin-top:0"><tr><td><h2>Site progress photos</h2></td><td class="r">By day</td></tr></table>`;
+  dayKeys.slice().reverse().forEach(d => {              // newest day first
     const pd = perDay[d];
     if (!pd.pick.length) return;
     const line = ai && ai.days[d];
-    h += `<table class="day keep"><tr><td><span class="d">${esc_(dateEn_(d, true))}</span></td><td class="ar n">${esc_(dayAr_(d))}</td></tr></table>`;
-    if (line && (line.ar || line.en)) h += `<table class="line"><tr><td style="width:50%">${esc_(line.en || '')}</td><td class="ar">${esc_(line.ar || '')}</td></tr></table>`;
+    h += `<table class="day keep"><tr><td><span class="d">${esc_(dateEn_(d, true))}</span></td></tr></table>`;
+    if (line && line.en) h += `<table class="line"><tr><td>${esc_(line.en)}</td></tr></table>`;
     h += '<table class="grid">';
     for (let i = 0; i < pd.pick.length; i += 2) {
       h += '<tr>';
@@ -909,17 +906,17 @@ function polishWeek_(unit, items, days) {
   const prompt = [
     'You write the weekly site progress report that a real-estate developer (Orascom, O West project) sends to a villa owner.',
     'Below are the site engineer\'s quick daily notes for one unit (often informal Egyptian Arabic, with typos).',
-    'Rewrite them as clear, professional, polite client-facing text.',
+    'Rewrite them as clear, professional, polite client-facing text in English.',
     'Rules:',
     '- Use ONLY facts that are in the notes. Never add work, dates, percentages or promises that are not written.',
     '- Do not mention worker counts, contractor or subcontractor names, people\'s names, problems, delays or internal issues.',
     '- Leave out anything negative: "no work today", work stopped, waiting, no workers, missing or late materials, complaints. Do not soften it, just drop it.',
     '- If a day has only negative notes (for example "مفيش شغل النهارده"), leave that date out of "days" completely.',
     '- If the whole week has nothing positive to report, return empty lists.',
-    '- Arabic must be clear Modern Standard Arabic suitable for a client. English must be natural professional English.',
+    '- Natural, confident professional English, like a project manager writing to a valued client. Past tense for completed work, present continuous for ongoing work.',
     '- summary: 2 to 5 short bullet points for the whole week, most important progress first.',
     '- days: one short sentence per date that has notes.',
-    'Return JSON only, exactly: {"summary":{"ar":["..."],"en":["..."]},"days":[{"date":"YYYY-MM-DD","ar":"...","en":"..."}]}',
+    'Return JSON only, exactly: {"summary":{"en":["..."]},"days":[{"date":"YYYY-MM-DD","en":"..."}]}',
     '',
     'Data: ' + input
   ].join('\n');
