@@ -687,6 +687,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
     ${fontsCss_()}
     @page { size: A4; margin: 16mm 15mm 16mm; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; }
     body { font-family: 'Poppins', Arial, sans-serif; font-size: 9.5pt; line-height: 1.6; color: ${C.ink}; }
     table { border-collapse: collapse; width: 100%; }
     tr, .keep { page-break-inside: avoid; }
@@ -708,15 +709,15 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
     .hl td { vertical-align: top; padding: 14px 10px 0 0; font-size: 10pt; line-height: 1.8; }
     .hl ul { margin: 0; }
     .hl li { margin-bottom: 6px; }
-    .hero { text-align: center; height: 330px; background: ${C.soft}; margin-top: 14px; }
-    .day { margin-top: 26px; }
+    .hero { text-align: center; height: 300px; background: ${C.soft}; margin-top: 14px; }
+    .day { margin-top: 20px; }
     .day td { padding: 0 0 6px; border-bottom: 1px solid ${C.line}; }
     .day .d { font-weight: 500; color: ${C.navy}; font-size: 10.5pt; }
     .day .n { font-size: 9pt; color: ${C.mute}; }
     .line td { padding: 10px 10px 4px 0; font-size: 9.5pt; line-height: 1.7; vertical-align: top; color: #33405a; }
     .grid { margin-top: 6px; }
-    .grid td { width: 50%; padding: 6px; vertical-align: top; text-align: center; }
-    .box { height: 250px; background: ${C.soft}; text-align: center; }
+    .grid td { width: 33.3%; padding: 5px; vertical-align: top; text-align: center; }
+    .box { height: 196px; background: ${C.soft}; text-align: center; }
     .page { page-break-before: always; }
     .sheet { position: relative; height: 262mm; overflow: hidden; page-break-after: always; }
     .sheet.last { page-break-after: auto; }
@@ -746,12 +747,12 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   }
   if (hero) {
     h += `<table class="sec"><tr><td><h2>Latest site photo</h2></td><td class="r">${esc_(dateEn_(heroDay))}</td></tr></table>
-      <div class="hero keep">${img(hero, 650, 328)}</div>`;
+      <div class="hero keep">${img(hero, 650, 298)}</div>`;
   }
 
   // photo pages: laid out by hand so the footer always sits at the bottom of each page
   const foot = `<table class="foot"><tr><td>O West by Orascom Development · ${esc_(unit)}</td><td style="text-align:right">${esc_(co)} Extra Works · Week ending ${esc_(dateEn_(endDay))}</td></tr></table>`;
-  const CAP = 248, HEAD = 26, LINE = 12, ROW = 72, TITLE = 16;   // mm
+  const CAP = 250, HEAD = 18, LINE = 9, ROW = 56, TITLE = 14;   // mm
   const pages = [];
   let cur = '', used = 0;
   const newPage = () => { if (cur) pages.push(cur); cur = `<table class="sec" style="margin-top:0"><tr><td><h2>Site progress photos</h2></td><td class="r">Newest first</td></tr></table>`; used = TITLE; };
@@ -765,9 +766,9 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
     const headH = HEAD + (line && line.en ? LINE : 0);
     if (used + headH + ROW > CAP) newPage();
     cur += head(false); used += headH;
-    for (let i = 0; i < pd.pick.length; i += 2) {
+    for (let i = 0; i < pd.pick.length; i += 3) {
       if (used + ROW > CAP) { newPage(); cur += head(true); used += HEAD; }
-      cur += '<table class="grid"><tr>' + [pd.pick[i], pd.pick[i + 1]].map(p => p ? `<td><div class="box">${img(p, 318, 248)}</div></td>` : '<td></td>').join('') + '</tr></table>';
+      cur += '<table class="grid"><tr>' + [pd.pick[i], pd.pick[i + 1], pd.pick[i + 2]].map(p => p ? `<td><div class="box">${img(p, 208, 194)}</div></td>` : '<td></td>').join('') + '</tr></table>';
       used += ROW;
     }
   });
