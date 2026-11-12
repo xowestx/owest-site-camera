@@ -724,7 +724,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   const mob = info.payment && info.start ? Math.round((parseDay_(info.start) - parseDay_(info.payment)) / 86400000) : null;
 
   const d_ = s => s ? esc_(dateEn_(s)) : '—';
-  const updates = ai && ai.en.length ? ai.en.slice(0, 4).map(x => /[.!?]$/.test(x) ? x : x + '.').join(' ') : '';
+  const updates = ai && ai.en.length ? ai.en.slice(0, 5).map(x => /[.!?]$/.test(x) ? x : x + '.') : [];
   const money = n => n ? 'EGP ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
   const unitName = info.unitName || unit;
   const client = info.client || cl.name || '';
@@ -780,7 +780,8 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .sv { font-size: 8.6pt; color: ${INK}; font-weight: 500; }
     .facts { margin-top: 12pt; border-top: 1px solid ${LINE}; }
     .facts td { padding: 7pt 8px 7pt 0; border-bottom: 1px solid ${LINE}; }
-    .utext { font-size: 9pt; line-height: 1.75; color: ${INK}; margin-top: 8pt; }
+    .utext { font-size: 9pt; line-height: 1.6; color: ${INK}; margin: 8pt 0 0; padding-left: 16px; }
+    .utext li { margin-bottom: 3pt; }
     .pm { margin-top: 12pt; background: #faf2ec; border-left: 3px solid ${PEACH}; }
     .pm td { padding: 10pt 16pt; vertical-align: middle; font-size: 8.6pt; }
     .foot { position: absolute; left: 34pt; right: 34pt; bottom: 12pt; }
@@ -827,7 +828,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     <td colspan="2"><div class="lab">Quotation amount</div><div class="val">${money(info.amount)}</div></td>
   </tr></table>
   ${pick.length ? `<table class="shead"><tr><td><h2>Site photos</h2></td><td class="r">${d_(photoDay).toUpperCase()}</td></tr></table>${photoRows}` : ''}
-  ${updates ? `<table class="shead"><tr><td><h2>Latest updates</h2></td><td class="r">This week</td></tr></table><div class="utext">${esc_(updates)}</div>` : ''}
+  ${updates.length ? `<table class="shead"><tr><td><h2>Latest updates</h2></td><td class="r">This week</td></tr></table><ul class="utext">${updates.map(x => `<li>${esc_(x)}</li>`).join('')}</ul>` : ''}
   <table class="pm"><tr>
     <td><span style="color:${MUTE}">Your project manager</span> &nbsp; <span style="color:${INK};font-weight:700;font-size:9.5pt">${esc_((info.pm || []).join(' & ') || '—')}</span></td>
     <td style="text-align:right;color:${INK}">Questions? Reply to this message.</td>
