@@ -654,7 +654,7 @@ function weeklyFinish_(st) {
     elapsed vs planned days, contract dates, scope and quotation, latest updates (AI) and the project manager.
     Contract figures come live from the unit's ClickUp tasks (cuReportInfo_). No manpower, no internal notes. */
 const BRAND = { navy: '#001641', peach: '#e9b88f', ink: '#1d2433', soft: '#fbf3ec', line: '#e2dcd5', mute: '#7a8194' };
-const WK = { gold: '#f0b323', halo: '#fbe6b0', card: '#f2f4f8', photo: '#fbefe6', track: '#dfe3ea', grey: '#8a90a0' };
+const WK = { gold: '#f0b323', halo: '#fbe6b0', track: '#dfe3ea', grey: '#8a90a0' };
 const STAGES = ['Initiation', 'Design', 'Quotation', 'Construction', 'Quality Inspection', 'Hand Over'];
 const ON_TRACK_SLACK = 10;   // actual % may be this many points under planned % and still read "On track"
 
@@ -679,7 +679,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   if (two.length < 2) two = two.concat(ok.filter(x => two.indexOf(x) < 0).slice(-(2 - two.length)));
   two.sort((a, b) => ok.indexOf(a) - ok.indexOf(b));
   const photoDay = two.length ? two[two.length - 1].day : endDay;
-  const PW = 322, PH = 196;
+  const PW = 328, PH = 200;
   const img = x => {
     const im = x && imgs[x.p.fileId];
     if (!im) return '<div class="ph-empty">Site photo</div>';
@@ -695,7 +695,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     const kind = i < stage ? 'done' : i === stage ? (stage === STAGES.length - 1 ? 'done' : 'now') : 'next';
     const lineL = i === 0 ? '' : `<div class="ln" style="border-color:${i <= stage ? C.navy : WK.track}"></div>`;
     const lineR = i === STAGES.length - 1 ? '' : `<div class="ln" style="border-color:${i < stage ? C.navy : WK.track}"></div>`;
-    return `<td class="st"><table class="stt"><tr><td class="side">${lineL}</td><td class="ico"><img src="${stageIcon_(kind)}" width="44" height="44"></td><td class="side">${lineR}</td></tr></table>
+    return `<td class="st"><table class="stt"><tr><td class="side">${lineL}</td><td class="ico"><img src="${stageIcon_(kind)}" width="40" height="40"></td><td class="side">${lineR}</td></tr></table>
       <div class="stn" style="color:${kind === 'next' ? WK.grey : C.navy};font-weight:${kind === 'now' ? 700 : 500}">${esc_(name)}</div></td>`;
   }).join('');
 
@@ -717,81 +717,88 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   const unitName = info.unitName || unit;
   const client = info.client || cl.name || '';
 
+  // type and sizes follow the O West action plan: Poppins body, Liberation Serif titles, peach kickers on navy
+  const INK = '#0b1a3a', MUTE = '#5a6378', PEACH = '#f3cfb3', LINE = '#e2dbd5', NAVY = '#001640';
   let h = `<html lang="en"><head><meta charset="utf-8"><style>
     ${fontsCss_()}
-    @page { size: A4; margin: 10mm 12mm 10mm; }
+    @page { size: A4; margin: 0; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; }
-    body { font-family: 'Poppins', Arial, sans-serif; font-size: 9.5pt; line-height: 1.5; color: ${C.ink}; }
+    body { font-family: 'Poppins', Arial, sans-serif; font-size: 8.6pt; line-height: 1.5; color: ${INK}; }
     table { border-collapse: collapse; width: 100%; }
     td { vertical-align: top; padding: 0; }
-    .sheet { position: relative; height: 275mm; overflow: hidden; }
-    .band td.b { background: ${C.navy}; color: #ffffff; padding: 22px 28px 22px; }
-    .kick { font-size: 7pt; letter-spacing: 2.2px; color: ${WK.gold}; text-transform: uppercase; font-weight: 500; text-align: right; }
-    .hdate { font-size: 12.5pt; color: #ffffff; text-align: right; font-weight: 500; margin-top: 2px; }
-    .rule { border-top: 1px solid #2b3b63; margin: 16px 0 14px; height: 0; }
-    .blab { font-size: 7pt; letter-spacing: 2.2px; color: #c9cfdd; text-transform: uppercase; font-weight: 500; }
-    .unit { font-size: 25pt; font-weight: 700; color: #ffffff; line-height: 1.15; margin-top: 4px; letter-spacing: 0.5px; }
-    .client { font-size: 12.5pt; color: #ffffff; font-weight: 500; text-align: right; margin-top: 8px; }
-    .body { padding: 0 28px; }
-    .stages { margin-top: 18px; table-layout: fixed; }
+    .serif { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; }
+    .sheet { position: relative; height: 296mm; overflow: hidden; }
+    .band td.b { background: ${NAVY}; color: #ffffff; padding: 14pt 34pt 18pt; }
+    .kick { font-size: 7.5pt; letter-spacing: 2.2px; color: ${PEACH}; text-transform: uppercase; font-weight: 500; }
+    .rule { border-top: 1px solid #2b3b63; margin: 14pt 0 12pt; height: 0; }
+    .blab { font-size: 7pt; letter-spacing: 2px; color: ${PEACH}; text-transform: uppercase; }
+    .unit { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; font-size: 24pt; color: #ffffff; line-height: 1.15; margin-top: 4px; }
+    .client { font-size: 10pt; color: #ffffff; font-weight: 500; text-align: right; margin-top: 6px; }
+    .sub { font-size: 8.3pt; color: #d5d9e3; margin-top: 6px; }
+    .sub b { color: #ffffff; font-weight: 500; }
+    .body { padding: 0 34pt; }
+    .stages { margin-top: 16pt; table-layout: fixed; }
     .st { text-align: center; }
     .stt td { vertical-align: middle; }
     .stt .side { width: 50%; }
-    .stt .ico { width: 44px; }
+    .stt .ico { width: 40px; }
     .ln { border-top: 3px solid; height: 0; }
-    .stn { font-size: 8pt; margin-top: 6px; white-space: nowrap; }
-    .lab { font-size: 6.8pt; letter-spacing: 2px; color: ${C.mute}; text-transform: uppercase; font-weight: 500; }
-    .val { font-size: 11pt; color: ${C.navy}; margin-top: 3px; font-weight: 500; }
-    .photos { margin-top: 6px; }
+    .stn { font-size: 7.6pt; margin-top: 5px; white-space: nowrap; }
+    .lab { font-size: 7pt; letter-spacing: 1.8px; color: ${MUTE}; text-transform: uppercase; font-weight: 500; }
+    .val { font-size: 9.5pt; color: ${INK}; margin-top: 3px; font-weight: 500; }
+    .shead { margin-top: 16pt; }
+    .shead td { border-bottom: 1.5px solid ${NAVY}; padding-bottom: 4px; vertical-align: bottom; }
+    .shead h2 { font-family: 'Liberation Serif', 'Times New Roman', serif; font-size: 13.5pt; color: ${INK}; margin: 0; }
+    .shead .r { font-size: 7.5pt; letter-spacing: 1.8px; color: ${MUTE}; text-transform: uppercase; font-weight: 500; text-align: right; }
+    .photos { margin-top: 8pt; }
     .photos td.p { width: 50%; text-align: center; }
-    .pbox { height: ${PH}px; background: ${WK.photo}; border-radius: 8px; overflow: hidden; text-align: center; }
-    .ph-empty { padding-top: ${Math.round(PH / 2) - 10}px; color: ${C.mute}; font-size: 10pt; }
-    .card { background: ${WK.card}; border-radius: 8px; padding: 18px 22px; height: 118px; }
-    .ring { position: relative; width: 112px; height: 112px; }
-    .ring .pct { position: absolute; left: 0; right: 0; top: 36px; text-align: center; font-size: 19pt; font-weight: 700; color: ${C.navy}; line-height: 1.2; }
-    .badge { display: inline-block; background: #ffffff; color: ${C.navy}; font-weight: 700; font-size: 9pt; padding: 5px 14px; border-radius: 14px; margin-top: 8px; }
-    .big { font-size: 26pt; font-weight: 700; color: ${C.navy}; line-height: 1.1; }
-    .of { font-size: 10.5pt; color: #4a5268; }
-    .bar { background: ${WK.track}; height: 9px; border-radius: 5px; margin: 10px 0 8px; overflow: hidden; }
-    .bar div { background: ${C.navy}; height: 9px; border-radius: 5px; }
-    .small { font-size: 8pt; color: ${C.mute}; }
-    .sv { font-size: 9pt; color: ${C.navy}; font-weight: 500; }
-    .facts { margin-top: 16px; border-top: 1px solid #dfe2e8; }
-    .facts td { padding: 12px 8px 12px 0; border-bottom: 1px solid #dfe2e8; }
-    .upd { margin-top: 14px; }
-    .upd h2 { font-size: 13pt; color: ${C.navy}; margin: 0; font-weight: 700; }
-    .uline { width: 40px; border-top: 3px solid ${WK.gold}; height: 0; margin: 4px 0 10px; }
-    .utext { font-size: 10pt; line-height: 1.75; color: #2a3348; }
-    .pm { margin-top: 16px; background: ${WK.photo}; border-radius: 8px; }
-    .pm td { padding: 12px 22px; vertical-align: middle; }
-    .foot { position: absolute; left: 28px; right: 28px; bottom: 0; }
-    .foot td { font-size: 8pt; color: ${C.mute}; border-top: 1px solid #dfe2e8; padding-top: 8px; }
+    .pbox { height: ${PH}px; background: #faf2ec; overflow: hidden; text-align: center; }
+    .ph-empty { padding-top: ${Math.round(PH / 2) - 10}px; color: ${MUTE}; font-size: 9pt; }
+    .card { background: #f4f5f8; border: 1px solid #e6e8ee; padding: 14pt 18pt; height: 104px; }
+    .ring { position: relative; width: 104px; height: 104px; }
+    .ring .pct { position: absolute; left: 0; right: 0; top: 33px; text-align: center; font-size: 17pt; color: ${INK}; line-height: 1.2; }
+    .badge { display: inline-block; border: 1px solid ${C.navy}; color: ${INK}; font-weight: 500; font-size: 7.6pt; padding: 2px 12px; border-radius: 10px; margin-top: 8px; background: #ffffff; }
+    .badge.late { border-color: #c23a28; color: #c23a28; }
+    .big { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; font-size: 24pt; color: ${INK}; line-height: 1.1; }
+    .of { font-size: 8.6pt; color: ${MUTE}; }
+    .bar { background: ${WK.track}; height: 7px; margin: 9px 0 7px; overflow: hidden; }
+    .bar div { background: ${NAVY}; height: 7px; }
+    .small { font-size: 7pt; color: ${MUTE}; }
+    .sv { font-size: 8.6pt; color: ${INK}; font-weight: 500; }
+    .facts { margin-top: 12pt; border-top: 1px solid ${LINE}; }
+    .facts td { padding: 9pt 8px 9pt 0; border-bottom: 1px solid ${LINE}; }
+    .utext { font-size: 9pt; line-height: 1.75; color: ${INK}; margin-top: 8pt; }
+    .pm { margin-top: 14pt; background: #faf2ec; border-left: 3px solid ${PEACH}; }
+    .pm td { padding: 10pt 16pt; vertical-align: middle; font-size: 8.6pt; }
+    .foot { position: absolute; left: 34pt; right: 34pt; bottom: 12pt; }
+    .foot td { font-size: 7.5pt; color: ${MUTE}; border-top: 1px solid ${LINE}; padding-top: 6pt; }
   </style></head><body><div class="sheet">
   <table class="band"><tr><td class="b">
     <table><tr>
-      <td style="vertical-align:middle"><img src="data:image/png;base64,${LOGO_OWEST}" height="40"></td>
-      <td><div class="kick">Weekly Report</div><div class="hdate">${d_(endDay)}</div></td>
+      <td style="vertical-align:middle"><img src="data:image/png;base64,${LOGO_OWEST}" height="24"><span style="display:inline-block;width:1px;height:24px;background:#5a6a90;margin:0 14px;vertical-align:top"></span><img src="data:image/png;base64,${LOGO_OPLUS}" height="24"></td>
+      <td style="vertical-align:middle;text-align:right"><div class="kick" style="text-align:right">Weekly report · ${d_(endDay).toUpperCase()}</div></td>
     </tr></table>
     <div class="rule"></div>
     <table><tr>
       <td><div class="blab">Unit</div><div class="unit">${esc_(unitName)}</div></td>
-      <td style="text-align:right"><div class="blab" style="text-align:right">Client</div><div class="client">${esc_(client || '—')}</div></td>
+      <td style="text-align:right;vertical-align:bottom"><div class="blab" style="text-align:right">Client</div><div class="client">${esc_(client || '—')}</div></td>
     </tr></table>
   </td></tr></table>
   <div class="body">
   <table class="stages"><tr>${stageCells}</tr></table>
-  <div class="lab" style="margin-top:16px">Site photos · ${d_(photoDay).toUpperCase()}</div>
+  <table class="shead"><tr><td><h2>Site photos</h2></td><td class="r">${d_(photoDay).toUpperCase()}</td></tr></table>
   <table class="photos"><tr>
-    <td class="p" style="padding-right:8px"><div class="pbox">${img(two[0])}</div></td>
-    <td class="p" style="padding-left:8px"><div class="pbox">${img(two[1])}</div></td>
+    <td class="p" style="padding-right:6px"><div class="pbox">${img(two[0])}</div></td>
+    <td class="p" style="padding-left:6px"><div class="pbox">${img(two[1])}</div></td>
   </tr></table>
-  <table style="margin-top:14px"><tr>
-    <td style="width:50%;padding-right:8px"><div class="card"><table><tr>
-      <td style="width:130px;vertical-align:middle"><div class="ring"><img src="${ringPng_(actual || 0)}" width="112" height="112"><div class="pct">${actual == null ? '—' : actual + '%'}</div></div></td>
-      <td style="vertical-align:middle;padding-left:10px"><div class="lab">Actual progress</div>${badge ? `<div class="badge">${badge}</div>` : ''}</td>
+  <table class="shead"><tr><td><h2>Progress</h2></td><td class="r">As of ${d_(endDay).toUpperCase()}</td></tr></table>
+  <table style="margin-top:8pt"><tr>
+    <td style="width:50%;padding-right:6px"><div class="card"><table><tr>
+      <td style="width:118px;vertical-align:middle"><div class="ring"><img src="${ringPng_(actual || 0)}" width="104" height="104"><div class="pct serif">${actual == null ? '—' : actual + '%'}</div></div></td>
+      <td style="vertical-align:middle;padding-left:8px"><div class="lab">Actual progress</div>${badge ? `<div class="badge${badge === 'Behind plan' ? ' late' : ''}">${badge}</div>` : ''}</td>
     </tr></table></div></td>
-    <td style="width:50%;padding-left:8px"><div class="card">
+    <td style="width:50%;padding-left:6px"><div class="card">
       <div class="lab">Elapsed duration</div>
       <div style="margin-top:4px"><span class="big">${elapsed == null ? '—' : elapsed}</span> <span class="of">${planned ? `of ${planned} planned days` : 'days'}</span></div>
       <div class="bar"><div style="width:${barPct}%"></div></div>
@@ -812,13 +819,13 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     <td><div class="lab">Quotation ref.</div><div class="val">${esc_((info.quotes || []).join(', ') || '—')}</div></td>
     <td colspan="2"><div class="lab">Quotation amount</div><div class="val">${money(info.amount)}</div></td>
   </tr></table>
-  ${updates ? `<div class="upd"><h2>Latest updates</h2><div class="uline"></div><div class="utext">${esc_(updates)}</div></div>` : ''}
+  ${updates ? `<table class="shead"><tr><td><h2>Latest updates</h2></td><td class="r">This week</td></tr></table><div class="utext">${esc_(updates)}</div>` : ''}
   <table class="pm"><tr>
-    <td><span style="color:${C.mute};font-size:10pt">Your project manager</span> &nbsp; <span style="color:${C.navy};font-weight:700;font-size:11pt">${esc_((info.pm || []).join(' & ') || '—')}</span></td>
-    <td style="text-align:right;font-size:10pt;color:${C.ink}">Questions? Reply to this message.</td>
+    <td><span style="color:${MUTE}">Your project manager</span> &nbsp; <span style="color:${INK};font-weight:700;font-size:9.5pt">${esc_((info.pm || []).join(' & ') || '—')}</span></td>
+    <td style="text-align:right;color:${INK}">Questions? Reply to this message.</td>
   </tr></table>
   </div>
-  <div class="foot"><table><tr><td>O West · Extra Works</td><td style="text-align:right">Page 1 of 1</td></tr></table></div>
+  <div class="foot"><table><tr><td>O West by Orascom Development · ${esc_(unitName)}</td><td style="text-align:right">Weekly report · Page 1 of 1</td></tr></table></div>
   </div></body></html>`;
   return h;
 }
