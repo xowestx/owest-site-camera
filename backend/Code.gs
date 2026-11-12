@@ -794,8 +794,8 @@ function cuUnitTasks_() {
   if (CU_UNITS) return CU_UNITS;
   const out = {};
   rows_('ClickUp Tasks').forEach(r => {
-    const u = normUnit_(r['Unit']), id = str_(r['Task ID']);
-    if (u && id) (out[u.toLowerCase()] = out[u.toLowerCase()] || []).push(id);
+    const u = normUnit_(r['Unit']), id = str_(r['Task ID']), st = low_(r['Status']);
+    if (u && id && (!st || st === CU.status)) (out[u.toLowerCase()] = out[u.toLowerCase()] || []).push(id);
   });
   return (CU_UNITS = out);
 }
@@ -810,8 +810,8 @@ function cuTaskIdsForUnit_(unit, token) {
   if (res.getResponseCode() !== 200) return [];
   const ids = (JSON.parse(res.getContentText()).tasks || []).filter(t => normUnit_(t.name).toLowerCase() === k).map(t => t.id);
   if (ids.length) {
-    const sh = sheet_('ClickUp Tasks', ['Unit', 'Task ID']);
-    ids.forEach(id => sh.appendRow([unit, id]));
+    const sh = sheet_('ClickUp Tasks', CU_COLS);
+    ids.forEach(id => sh.appendRow([unit, id, CU.status]));
     map[k] = ids;
   }
   return ids;
@@ -1598,6 +1598,7 @@ function syncJob() { try { syncClickUp_(); } catch (e) { console.error(e); } }
 
 function menuSync() {
   const r = syncClickUp_();
+  if (r.pending) return SpreadsheetApp.getUi().alert(`Reading ClickUp tasks one by one: ${r.pending} left. Run "Sync from ClickUp now" again in a minute until it says done.`);
   SpreadsheetApp.getUi().alert(`ClickUp sync done: ${r.units} units, ${r.items} items, ${r.contractors} unit-contractor links. ${r.newContractors ? r.newContractors + ' new contractor name(s) added to Contractors.' : ''}`);
 }
 
@@ -1618,16 +1619,15 @@ function syncClickUp_() {
   const lock = LockService.getScriptLock();
   lock.waitLock(60000);
   try {
-    // 1) read every task in site execution
-    const tasks = [];
-    for (let page = 0; page < 30; page++) {
-      const url = `https://api.clickup.com/api/v2/list/${CU.list}/task?statuses[]=${encodeURIComponent(CU.status)}&subtasks=true&include_closed=true&page=${page}`;
-      const res = UrlFetchApp.fetch(url, { headers: { Authorization: token }, muteHttpExceptions: true });
-      if (res.getResponseCode() !== 200) throw new Error('ClickUp answered ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
-      const j = JSON.parse(res.getContentText());
-      (j.tasks || []).forEach(t => tasks.push(t));
-      if (j.last_page || !(j.tasks || []).length) break;
+    // 1) bring the "ClickUp Tasks" tab up to date (the full list answer is over 50 MB, so we never ask for it):
+    //    a) tasks changed since the last sync (small answer), b) a few stale rows re-read one by one
+    const all = cuSyncTasks_(token);
+    const pending = all.filter(t => !t.status).length;
+    if (pending) {   // first fill of the task store: keep the current lists until every task has been read once
+      setSetting_('Last ClickUp sync', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ` · reading tasks, ${pending} left (runs again in 30 min, or run Sync again)`);
+      return { units: 0, items: 0, contractors: 0, newContractors: 0, pending: pending };
     }
+    const tasks = all.filter(t => low_(t.status) === CU.status);
 
     // 2) turn tasks into units / items / contractors
     const alias = aliases_();
@@ -1635,23 +1635,22 @@ function syncClickUp_() {
     rows_(T.contractors).forEach(r => knownC[low_(r['Contractor'])] = 1);
     const units = {}, scope = {}, uc = {}, freshC = [];
     tasks.forEach(t => {
-      const unit = normUnit_(t.name);
+      const unit = normUnit_(t.unit);
       if (!unit) return;
       const k = unit.toLowerCase();
-      const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
       const u = units[k] = units[k] || { unit: unit, client: '', email: '' };
-      u.client = u.client || str_(f[CU.f.client] && f[CU.f.client].value);
-      u.email = u.email || str_(f[CU.f.email] && f[CU.f.email].value);
+      u.client = u.client || t.client;
+      u.email = u.email || t.email;
 
-      const type = dropName_(f[CU.f.requestType]);
+      const type = t.type;
       if (type && CU.skipTypes.indexOf(type.toLowerCase()) < 0) {
         let item = CU.typeNames[type.toLowerCase().trim()] || type.trim();
         if (item.toLowerCase() === 'others') {
-          item = str_(f[CU.f.description] && f[CU.f.description].value).split('\n')[0].trim().slice(0, 40) || 'Other works';
+          item = str_(t.desc).split('\n')[0].trim().slice(0, 40) || 'Other works';
         }
         (scope[k] = scope[k] || []).indexOf(item) < 0 && scope[k].push(item);
       }
-      str_(f[CU.f.contractor] && f[CU.f.contractor].value).split(',').forEach(c => {
+      str_(t.contractor).split(/[,\/]/).forEach(c => {
         c = c.trim().replace(/\s+/g, ' ');
         if (CU.skipContractors.indexOf(c.toLowerCase()) >= 0) return;
         const name = alias[c.toLowerCase()] || c;
@@ -1695,6 +1694,66 @@ function syncClickUp_() {
     clearBoot_();
     return { units: Object.keys(units).length, items: sRows.length, contractors: cRows.length, newContractors: freshC.length };
   } finally { lock.releaseLock(); }
+}
+
+/* ---------- ClickUp task store ("ClickUp Tasks" tab) ---------- */
+const CU_TAB = 'ClickUp Tasks';
+const CU_COLS = ['Unit', 'Task ID', 'Status', 'Client', 'Email', 'Mobile', 'Type', 'Description', 'Contractor', 'Updated', 'Checked'];
+
+/** Compact row from a full ClickUp task object. */
+function cuCompact_(t) {
+  const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
+  const v = id => str_(f[id] && f[id].value);
+  return {
+    unit: normUnit_(t.name) || str_(t.name), id: str_(t.id), status: str_(t.status && t.status.status),
+    client: v(CU.f.client), email: v(CU.f.email), mobile: v(CU.f.mobile), type: dropName_(f[CU.f.requestType]),
+    desc: v(CU.f.description).slice(0, 200), contractor: v(CU.f.contractor), updated: str_(t.date_updated), checked: String(Date.now())
+  };
+}
+
+/** Updates the tab and returns every stored task (all statuses). Safe to run often. */
+function cuSyncTasks_(token) {
+  const sh = sheet_(CU_TAB, CU_COLS);
+  if (sh.getRange(1, 1, 1, CU_COLS.length).getValues()[0].join('|') !== CU_COLS.join('|')) sh.getRange(1, 1, 1, CU_COLS.length).setValues([CU_COLS]).setFontWeight('bold');
+  const byId = {};
+  rows_(CU_TAB).forEach(r => {
+    const id = str_(r['Task ID']); if (!id) return;
+    byId[id] = { unit: str_(r['Unit']), id: id, status: str_(r['Status']), client: str_(r['Client']), email: str_(r['Email']), mobile: str_(r['Mobile']),
+      type: str_(r['Type']), desc: str_(r['Description']), contractor: str_(r['Contractor']), updated: str_(r['Updated']), checked: str_(r['Checked']) };
+  });
+  const H = { Authorization: token };
+  const props = PropertiesService.getScriptProperties();
+  const started = Date.now();
+  // a) changed since last sync (any status, so tasks that left "site execution" are caught too)
+  const since = Number(props.getProperty('CU_LAST')) || (started - 3 * 86400000);
+  let incOk = true;
+  for (let page = 0; page < 20; page++) {
+    const res = UrlFetchApp.fetch(`https://api.clickup.com/api/v2/list/${CU.list}/task?include_closed=true&subtasks=true&date_updated_gt=${since - 60000}&page=${page}`, { headers: H, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) { incOk = false; console.error('clickup changes: ' + res.getResponseCode()); break; }
+    let j; try { j = JSON.parse(res.getContentText()); } catch (e) { incOk = false; console.error('clickup changes: answer too big'); break; }
+    (j.tasks || []).forEach(t => { byId[t.id] = cuCompact_(t); });
+    if (j.last_page || !(j.tasks || []).length) break;
+  }
+  // b) re-read rows never read or not read for 24 h, one task per call, for at most ~2.5 minutes
+  const stale = Object.keys(byId).filter(id => !byId[id].checked || started - Number(byId[id].checked) > 86400000)
+    .sort((a, b) => Number(byId[a].checked || 0) - Number(byId[b].checked || 0));
+  for (let i = 0; i < stale.length && Date.now() - started < 150000; i += 25) {
+    const ids = stale.slice(i, i + 25);
+    const res = UrlFetchApp.fetchAll(ids.map(id => ({ url: `https://api.clickup.com/api/v2/task/${id}`, headers: H, muteHttpExceptions: true })));
+    let limited = false;
+    res.forEach((x, n) => {
+      const code = x.getResponseCode();
+      if (code === 200) { try { byId[ids[n]] = cuCompact_(JSON.parse(x.getContentText())); } catch (e) {} }
+      else if (code === 404) { byId[ids[n]].status = 'deleted'; byId[ids[n]].checked = String(Date.now()); }
+      else if (code === 429) limited = true;
+    });
+    if (limited) Utilities.sleep(20000);
+  }
+  if (incOk) props.setProperty('CU_LAST', String(started));
+  const list = Object.keys(byId).map(id => byId[id]).sort((a, b) => (a.unit + a.id).localeCompare(b.unit + b.id));
+  rewrite_(sh, CU_COLS, list.map(t => [t.unit, t.id, t.status, t.client, t.email, t.mobile, t.type, t.desc, t.contractor, t.updated, t.checked]));
+  CU_UNITS = null;
+  return list;
 }
 
 function normUnit_(name) {

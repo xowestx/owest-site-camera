@@ -664,7 +664,7 @@ $("lockBtn").onclick=()=>{store.del("mgr");extra=false;history.replaceState(null
 $("syncGo").onclick=async()=>{
   const box=$("syncOut");box.textContent="";const b=document.createElement("div");b.className="busy";b.textContent="بيتحدّث… ممكن ياخد دقيقة.";box.append(b);
   $("syncGo").disabled=true;
-  try{const r=await api("POST",{action:"sync",token:mgr()},300000);box.textContent=`تم: ${r.units} وحدة، ${r.contractors} ربط مقاول${r.newContractors?`، ${r.newContractors} مقاول جديد`:""}.`;
+  try{const r=await api("POST",{action:"sync",token:mgr()},300000);if(r.pending){box.textContent=`بيقرأ تاسكات ClickUp: فاضل ${r.pending}. دوس تاني بعد دقيقة.`;return}box.textContent=`تم: ${r.units} وحدة، ${r.contractors} ربط مقاول${r.newContractors?`، ${r.newContractors} مقاول جديد`:""}.`;
     const j=await api("GET",{action:"units"});delete j.ok;store.set("boot4",JSON.stringify(j));apply(j)}
   catch(e){box.textContent="";const er=document.createElement("div");er.className="err";er.textContent=e.message;box.append(er);if(e.code==="auth"){store.del("mgr");show("reports")}}
   finally{$("syncGo").disabled=false}
