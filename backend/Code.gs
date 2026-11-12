@@ -515,46 +515,99 @@ function dailyEmailBody_(day, visits, crew, made) {
 }
 
 /* =========================== WEEKLY CLIENT REPORTS =========================== */
+/* Every Thursday: one PDF per unit with that unit's photos of the last 7 days and a short, professional
+   progress text (rewritten by AI from what the engineers typed). Emailed to "Weekly report to", CC "Weekly report cc".
+   Big weeks are made in several rounds (Apps Script stops a run after 6 minutes), then one email batch goes out. */
 
-/** Scheduled on the weekly day. Also on the sheet menu. */
-function weeklyJob() { makeWeekly_(fmt_(new Date(), 'yyyy-MM-dd'), true); }
+const WEEK_KEY = 'WEEKLY_RUN';
+const WEEK_BUDGET_MS = 270000;          // stop a round at 4.5 min and continue 1 min later
+const MAIL_MAX_BYTES = 15 * 1024 * 1024; // attachments per email
 
-function makeWeekly_(endDay, send) {
+/** Scheduled on the weekly day. */
+function weeklyJob() { weeklyStart_(fmt_(new Date(), 'yyyy-MM-dd'), true); }
+
+/** Continues a weekly run that did not finish in one round (set by weeklyWork_). */
+function weeklyContinue() {
+  ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'weeklyContinue') ScriptApp.deleteTrigger(t); });
+  weeklyWork_();
+}
+
+function weeklyStart_(endDay, send) {
+  const startDay = fmt_(new Date(parseDay_(endDay).getTime() - 6 * 86400000), 'yyyy-MM-dd');
+  const units = [];
+  closedVisits_(v => v.date >= startDay && v.date <= endDay).forEach(v => { if (units.indexOf(v.unit) < 0) units.push(v.unit); });
+  units.sort();
+  if (!units.length) return { units: 0 };
+  PropertiesService.getScriptProperties().setProperty(WEEK_KEY, JSON.stringify({ end: endDay, start: startDay, send: !!send, units: units, files: {} }));
+  return weeklyWork_();
+}
+
+function weeklyWork_() {
+  const props = PropertiesService.getScriptProperties();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { busy: true };
+  try {
+    const raw = props.getProperty(WEEK_KEY);
+    if (!raw) return { units: 0 };
+    const st = JSON.parse(raw);
+    const t0 = Date.now();
+    for (const u of st.units) {
+      if (st.files[u]) continue;
+      if (Date.now() - t0 > WEEK_BUDGET_MS) {
+        props.setProperty(WEEK_KEY, JSON.stringify(st));
+        ScriptApp.newTrigger('weeklyContinue').timeBased().after(60 * 1000).create();
+        return { units: Object.keys(st.files).length, pending: true };
+      }
+      let f = null;
+      try { f = weeklyUnitPdf_(u, st.end); } catch (e) { console.error('weekly ' + u + ': ' + msg_(e)); }
+      st.files[u] = f ? f.getId() : '-';
+      props.setProperty(WEEK_KEY, JSON.stringify(st));
+    }
+    props.deleteProperty(WEEK_KEY);
+    return weeklyFinish_(st);
+  } finally { lock.releaseLock(); }
+}
+
+function weeklyFinish_(st) {
   const S = settings_();
-  const end = parseDay_(endDay);
-  const start = new Date(end.getTime() - 6 * 86400000);
-  const startDay = fmt_(start, 'yyyy-MM-dd');
-  const period = `${startDay} → ${endDay}`;
-  const visits = closedVisits_(v => v.date >= startDay && v.date <= endDay);
-  if (!visits.length) return { units: 0 };
-  const photos = photosByVisit_(visits);
-  const crew = crewByVisit_(visits);
+  const period = `${st.start} → ${st.end}`;
   const clients = {};
   rows_(T.units).forEach(r => clients[low_(r['Unit'])] = { name: str_(r['Client name']), email: str_(r['Client email']) });
-  const folder = reportsFolder_('Weekly', endDay);
   const made = [];
-
-  const byUnit = groupBy_(visits, v => v.unit);
-  Object.keys(byUnit).sort().forEach(unit => {
-    const list = byUnit[unit].sort((a, b) => a.closed.localeCompare(b.closed));
-    const cl = clients[unit.toLowerCase()] || {};
-    const html = weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew);
-    const pdf = savePdf_(html, folder, `Weekly ${endDay} - ${safeUnit_(unit)}.pdf`);
-    made.push({ unit: unit, client: cl, file: pdf });
+  st.units.forEach(u => {
+    const id = st.files[u];
+    if (!id || id === '-') return;
+    try { made.push({ unit: u, client: clients[u.toLowerCase()] || {}, file: DriveApp.getFileById(id) }); } catch (e) {}
   });
-
   const sentTo = {};
-  if (send) {
-    const copy = S['Weekly report copy to'];
-    if (copy) {
-      const links = made.map(m => `<li>${esc_(m.unit)} · ${esc_(m.client.name || '')} · <a href="${m.file.getUrl()}">PDF</a></li>`).join('');
-      MailApp.sendEmail({
-        to: copy,
-        subject: `${S['Company name'] || 'O-Plus'} · Weekly client reports · ${period} · ${made.length} units`,
-        htmlBody: `<div style="font-family:Arial,sans-serif;font-size:14px"><p><b>Weekly client reports · ${period}</b></p><ul>${links}</ul>
-          <p>Send to clients is <b>${yes_(S['Send weekly to clients']) ? 'ON' : 'OFF'}</b> (Settings tab).</p></div>`
+  if (st.send && made.length) {
+    const to = S['Weekly report to'] || S['Weekly report copy to'];
+    const cc = [S['Weekly report cc'], S['Weekly report to'] ? S['Weekly report copy to'] : ''].filter(Boolean).join(', ');
+    if (to) {
+      // split into emails of up to ~15 MB of PDFs
+      const batches = [];
+      let cur = [], size = 0;
+      made.forEach(m => {
+        const b = m.file.getSize();
+        if (cur.length && size + b > MAIL_MAX_BYTES) { batches.push(cur); cur = []; size = 0; }
+        cur.push(m); size += b;
       });
-      made.forEach(m => sentTo[m.unit] = copy);
+      if (cur.length) batches.push(cur);
+      batches.forEach((list, i) => {
+        const part = batches.length > 1 ? ` (${i + 1}/${batches.length})` : '';
+        const rowsH = list.map(m => `<tr><td style="padding:4px 10px;font-family:monospace">${esc_(m.unit)}</td><td style="padding:4px 10px">${esc_(m.client.name || '')}</td></tr>`).join('');
+        MailApp.sendEmail({
+          to: to, cc: cc,
+          subject: `${S['Company name'] || 'O-Plus'} · Weekly progress reports · ${period} · ${made.length} units${part}`,
+          htmlBody: `<div style="font-family:Arial,sans-serif;font-size:14px">
+            <p><b>Weekly progress reports · ${period}</b>${part}</p>
+            <p>${list.length} unit report(s) attached, one PDF per unit, ready to send to the client.</p>
+            <table style="border-collapse:collapse;border:1px solid #ddd">${rowsH}</table>
+            <p style="color:#666">All PDFs are also in Drive: ${REPORTS_ROOT} / Weekly / ${st.end}.</p></div>`,
+          attachments: list.map(m => m.file.getBlob())
+        });
+        list.forEach(m => sentTo[m.unit] = [to, cc].filter(Boolean).join(', '));
+      });
     }
     if (yes_(S['Send weekly to clients'])) {
       made.forEach(m => {
@@ -571,40 +624,112 @@ function makeWeekly_(endDay, send) {
       });
     }
   }
-  made.forEach(m => logReport_('Weekly client', period, m.unit, m.file, send ? (sentTo[m.unit] || '') : '(made from menu, not emailed)'));
-  return { units: made.length, folder: folder.getUrl() };
+  made.forEach(m => logReport_('Weekly client', period, m.unit, m.file, st.send ? (sentTo[m.unit] || '') : '(made from menu, not emailed)'));
+  return { units: made.length };
 }
 
+/** Client-facing weekly PDF for one unit: summary text + photos by day. No manpower, no internal notes. */
 function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   const days = groupBy_(list, v => v.date);
   const dayKeys = Object.keys(days).sort();
   const items = [];
   list.forEach(v => v.items.split(',').map(s => s.trim()).filter(Boolean).forEach(i => items.indexOf(i) < 0 && items.push(i)));
-  const workerDays = list.reduce((s, v) => s + v.manpower, 0);
   const nPh = list.reduce((s, v) => s + (photos[v.id] || []).length, 0);
+  const ai = polishWeek_(unit, items, dayKeys.map(d => ({ date: d, notes: days[d].map(v => v.workDone).filter(Boolean) })));
 
-  let h = head_('تقرير الأسبوع', 'Weekly Progress Report', `${startDay} → ${endDay}`, `<span class="mono">${esc_(unit)}</span>${cl.name ? ' · ' + esc_(cl.name) : ''}`);
-  h += kpis_([[dayKeys.length, 'أيام شغل', 'Working days'], [workerDays, 'عامل × يوم', 'Worker-days'], [nPh, 'صور', 'Photos']]);
+  let h = head_('تقرير التقدم الأسبوعي', 'Weekly Progress Report', `<span class="mono">${startDay} → ${endDay}</span>`, `<span class="mono">${esc_(unit)}</span>${cl.name ? ' · ' + esc_(cl.name) : ''}`);
+  h += kpis_([[dayKeys.length, 'زيارات الموقع', 'Site visit days'], [nPh, 'صور', 'Photos'], [items.length || '—', 'بنود', 'Scope items']]);
   if (items.length) h += `<p class="items">${items.map(i => `<span class="chip">${esc_(i)}</span>`).join(' ')}</p>`;
-  h += `<h2>ملخص الأسبوع <span class="en">This week</span></h2><table class="sum">
-    <tr><th style="width:130px">اليوم <span class="en">Day</span></th><th class="c" style="width:56px">العمالة</th><th>الشغل اللي اتعمل <span class="en">Work done</span></th></tr>`;
-  dayKeys.forEach(d => {
-    const vs = days[d];
-    h += `<tr><td>${dayAr_(d)}</td><td class="c b">${vs.reduce((s, v) => s + v.manpower, 0) || '—'}</td><td>${vs.map(v => br_(v.workDone)).join('<br>')}</td></tr>`;
-  });
-  h += `</table>`;
+  if (ai && (ai.ar.length || ai.en.length)) {
+    h += `<h2>ملخص التقدم <span class="en">Progress summary</span></h2>
+      <table class="two"><tr>
+        <td style="width:50%">${ai.ar.length ? '<ul style="margin:0;padding-right:16px">' + ai.ar.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
+        <td dir="ltr" style="text-align:left">${ai.en.length ? '<ul style="margin:0;padding-left:16px">' + ai.en.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
+      </tr></table>`;
+  }
   dayKeys.forEach(d => {
     const vs = days[d];
     let ph = [];
     vs.forEach(v => ph = ph.concat(photos[v.id] || []));
-    const tot = vs.reduce((s, v) => s + v.manpower, 0);
     h += `<div class="page"><table class="uh"><tr><td><div class="ucode">${dayAr_(d)}</div><div class="sub mono">${esc_(unit)}</div></td>
-      <td class="meta">${tot ? `<b>${tot}</b> عامل · ` : ''}<b>${ph.length}</b> صور</td></tr></table>`;
-    h += photoGrid_(ph, 8);
-    h += `<table class="two"><tr><td><div class="lbl">الحالة <span class="en">Status</span></div>${vs.map(v => br_(v.workDone)).join('<br>')}</td></tr></table>`;
+      <td class="meta"><b>${ph.length}</b> صور</td></tr></table>`;
+    const line = ai && ai.days[d];
+    if (line && (line.ar || line.en)) {
+      h += `<table class="two" style="margin:0 0 8px"><tr><td style="width:50%">${esc_(line.ar || '')}</td><td dir="ltr" style="text-align:left">${esc_(line.en || '')}</td></tr></table>`;
+    }
+    if (ph.length) h += photoGrid_(ph.slice(0, 8), 0);
     h += `</div>`;
   });
+  h += `<p class="foot">${esc_(S['Company name'] || 'O-Plus')} · O West</p>`;
   return h + '</body></html>';
+}
+
+/* =========================== AI writer (Gemini) =========================== */
+/* Turns the engineers' quick notes into short professional client text, in Arabic and English.
+   Needs a free Gemini API key (Script Property GEMINI_KEY). Without a key, or if the AI fails,
+   the weekly PDF simply has photos only. */
+
+function polishWeek_(unit, items, days) {
+  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
+  if (!key) return null;
+  const notes = days.filter(d => d.notes.length);
+  if (!notes.length) return null;
+  const input = JSON.stringify({ unit: unit, scope: items, days: notes });
+  const cache = CacheService.getScriptCache();
+  const ck = 'ai:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, input, Utilities.Charset.UTF_8));
+  const hit = cache.get(ck);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+
+  const prompt = [
+    'You write the weekly site progress report that a real-estate developer (Orascom, O West project) sends to a villa owner.',
+    'Below are the site engineer\'s quick daily notes for one unit (often informal Egyptian Arabic, with typos).',
+    'Rewrite them as clear, professional, polite client-facing text.',
+    'Rules:',
+    '- Use ONLY facts that are in the notes. Never add work, dates, percentages or promises that are not written.',
+    '- Do not mention worker counts, contractor or subcontractor names, people\'s names, problems, delays or internal issues.',
+    '- Arabic must be clear Modern Standard Arabic suitable for a client. English must be natural professional English.',
+    '- summary: 2 to 5 short bullet points for the whole week, most important progress first.',
+    '- days: one short sentence per date that has notes.',
+    'Return JSON only, exactly: {"summary":{"ar":["..."],"en":["..."]},"days":[{"date":"YYYY-MM-DD","ar":"...","en":"..."}]}',
+    '',
+    'Data: ' + input
+  ].join('\n');
+
+  const S = settings_();
+  const models = [S['AI model'] || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'].filter((m, i, a) => m && a.indexOf(m) === i);
+  for (const model of models) {
+    try {
+      const call = () => UrlFetchApp.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        payload: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } })
+      });
+      let res = call(), code = res.getResponseCode();
+      for (let k = 0; k < 2 && (code === 429 || code === 503); k++) { Utilities.sleep(15000); res = call(); code = res.getResponseCode(); }   // free tier busy
+      if (code === 404) continue;                       // model name not available, try the next
+      if (code !== 200) { console.error('AI ' + code + ': ' + res.getContentText().slice(0, 300)); return null; }
+      const j = JSON.parse(res.getContentText());
+      const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
+      const t = (txt || []).map(p => p.text || '').join('').replace(/^```(json)?|```$/g, '').trim();
+      const o = JSON.parse(t);
+      const clean = a => (Array.isArray(a) ? a : []).map(x => str_(x)).filter(Boolean).slice(0, 6);
+      const out = { ar: clean(o.summary && o.summary.ar), en: clean(o.summary && o.summary.en), days: {} };
+      (o.days || []).forEach(d => { const k = str_(d.date); if (k) out.days[k] = { ar: str_(d.ar), en: str_(d.en) }; });
+      try { cache.put(ck, JSON.stringify(out), 21600); } catch (e) {}
+      return out;
+    } catch (e) { console.error('AI: ' + msg_(e)); return null; }
+  }
+  return null;
+}
+
+function menuSetAiKey() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Connect AI writer', 'Paste your Gemini API key (from aistudio.google.com > Get API key).', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const k = r.getResponseText().trim();
+  if (k.length < 20) return ui.alert('That does not look like an API key.');
+  PropertiesService.getScriptProperties().setProperty('GEMINI_KEY', k);
+  const t = polishWeek_('TEST', ['Landscape'], [{ date: '2026-01-01', notes: ['تم الردم بالكامل'] }]);
+  ui.alert(t ? 'AI writer connected. Test: ' + (t.en[0] || t.ar[0] || 'OK') : 'Key saved, but the test failed. Check the key.');
 }
 
 /* =========================== shared report pieces =========================== */
@@ -851,12 +976,14 @@ function onOpen() {
     .addItem("Make today's daily reports (no email)", 'menuDailyToday')
     .addItem("Send today's daily reports now", 'menuDailySend')
     .addItem('Make weekly client reports, week to date (no email)', 'menuWeekly')
+    .addItem('Send weekly client reports now', 'menuSendWeekly')
     .addSeparator()
     .addItem('Delete selected photos', 'menuDeletePhotos')
     .addItem('Delete selected visits (photos + manpower)', 'menuDeleteVisits')
     .addSeparator()
     .addItem('Set manager password', 'menuSetPassword')
     .addItem('Connect ClickUp (API token)', 'menuSetClickUpToken')
+    .addItem('Connect AI writer (Gemini key)', 'menuSetAiKey')
     .addItem('Sync from ClickUp now', 'menuSync')
     .addItem('Apply schedule from Settings', 'installTriggers')
     .addItem('Refresh lists in the app', 'menuRefresh')
@@ -865,7 +992,19 @@ function onOpen() {
 
 function menuDailyToday() { reportAlert_(makeDaily_(fmt_(new Date(), 'yyyy-MM-dd'), false), 'visits'); }
 function menuDailySend() { reportAlert_(makeDaily_(fmt_(new Date(), 'yyyy-MM-dd'), true), 'visits'); }
-function menuWeekly() { reportAlert_(makeWeekly_(fmt_(new Date(), 'yyyy-MM-dd'), false), 'units'); }
+function menuWeekly() {
+  const r = weeklyStart_(fmt_(new Date(), 'yyyy-MM-dd'), false);
+  const ui = SpreadsheetApp.getUi();
+  if (!r.units && !r.pending) return ui.alert('No closed visits in the last 7 days.');
+  ui.alert(r.pending ? `Started: ${r.units} unit PDFs made so far. The rest are made in the background in the next few minutes (Drive > ${REPORTS_ROOT} > Weekly).` : `Done. ${r.units} unit PDFs in Drive > ${REPORTS_ROOT} > Weekly.`);
+}
+function menuSendWeekly() {
+  const ui = SpreadsheetApp.getUi();
+  if (ui.alert('Make this week\'s unit reports and email them now (Weekly report to / cc in Settings)?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  const r = weeklyStart_(fmt_(new Date(), 'yyyy-MM-dd'), true);
+  if (!r.units && !r.pending) return ui.alert('No closed visits in the last 7 days.');
+  ui.alert(r.pending ? `Started: ${r.units} unit PDFs made so far. The rest are made in the background, then the email goes out (5–15 minutes).` : `Done. ${r.units} unit reports emailed.`);
+}
 function reportAlert_(r, key) {
   const ui = SpreadsheetApp.getUi();
   if (!r[key]) return ui.alert('No closed visits in this period yet.');
