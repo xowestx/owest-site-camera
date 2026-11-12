@@ -443,18 +443,21 @@ function dailyHtml_(S, day, eng, list, photos, crew) {
   const first = list.map(v => v.started || v.closed).sort()[0] || '', last = list.map(v => v.closed).sort().slice(-1)[0] || '';
   let h = head_('تقرير الموقع اليومي', 'Daily Site Report', `${dayAr_(day)} · ${day}`, `${esc_(eng)} · ${esc_(S['Company name'] || 'O-Plus')}`);
   h += kpis_([[list.length, 'وحدات', 'Units'], [total, 'عمالة', 'Workers'], [nPh, 'صور', 'Photos'], [`<span class="mono">${hm_(first)}–${hm_(last)}</span>`, 'الوقت', 'Time on site']]);
-  h += `<h2>ملخص اليوم <span class="en">Summary</span></h2><table class="sum">
-    <tr><th class="c" style="width:22px">#</th><th style="width:118px">الوحدة <span class="en">Unit</span></th><th style="width:78px">الوقت <span class="en">Time</span></th>
-    <th style="width:120px">البنود <span class="en">Items</span></th><th class="c" style="width:46px">العمالة</th><th>الشغل <span class="en">Work done</span></th></tr>`;
+  const clean = polishDay_(list);   // AI: one clean line + short bullets per visit (internal, nothing hidden)
+  h += `<h2>ملخص اليوم <span class="en">Summary · ${list.length} units</span></h2><table class="sum">
+    <tr><th class="c" style="width:22px">#</th><th style="width:118px">الوحدة <span class="en">Unit</span></th><th style="width:52px">الوقت <span class="en">Time</span></th>
+    <th>الشغل <span class="en">Work</span></th><th class="c" style="width:52px">العمالة</th></tr>`;
   list.forEach((v, i) => {
-    h += `<tr><td class="c">${i + 1}</td><td class="mono b">${esc_(v.unit)}</td><td class="mono">${timeRange_(v)}</td>
-      <td class="sm">${esc_(v.items)}</td><td class="c b">${v.manpower || '—'}</td><td>${br_(v.workDone)}</td></tr>`;
+    const c = clean[v.id];
+    h += `<tr><td class="c">${i + 1}</td><td class="mono b">${esc_(v.unit)}</td><td class="mono">${hm_(v.started) || hm_(v.closed) || '—'}</td>
+      <td>${c && c.line ? esc_(c.line) : br_(v.workDone)}</td><td class="c b">${v.manpower || '—'}</td></tr>`;
   });
+  h += `<tr class="tot"><td></td><td colspan="3">إجمالي العمالة <span class="en">Total workers</span></td><td class="c">${total}</td></tr>`;
   h += `</table><p class="foot">الأوقات بتوقيت القاهرة · Cairo time</p>`;
   list.forEach((v, i) => {
     h += `<div class="page">${unitHead_(i + 1, v, eng)}`;
     h += photoGrid_(photos[v.id] || [], 0);
-    h += workAndCrew_(v, crew[v.id] || []);
+    h += workAndCrew_(v, crew[v.id] || [], clean[v.id]);
     h += `</div>`;
   });
   return h + '</body></html>';
@@ -960,6 +963,60 @@ function polishWeek_(unit, items, days) {
 
 function aiStatus_(text) { try { setSetting_('AI status', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ' · ' + text); } catch (e) {} }
 
+/** Daily (internal): tidy each visit's note into one short line + 2-4 bullets, same language, nothing hidden. */
+function polishDay_(list) {
+  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
+  const notes = list.filter(v => v.workDone).map(v => ({ id: v.id, unit: v.unit, note: v.workDone }));
+  if (!key || AI_DOWN || !notes.length) return {};
+  const input = JSON.stringify(notes);
+  const cache = CacheService.getScriptCache();
+  const ck = 'aid:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, input, Utilities.Charset.UTF_8));
+  const hit = cache.get(ck);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  const prompt = [
+    'These are site engineers\' quick notes for construction site visits (Egyptian Arabic, typos, informal).',
+    'For each visit, tidy the note for an INTERNAL daily report read by managers:',
+    '- Keep every fact, including problems, stoppages and missing items. Do not add anything that is not written.',
+    '- Write clear, short Arabic (simple Modern Standard Arabic), keep technical English words as they are (SOG, sandwich panel...).',
+    '- "line": one short line summarising the visit (max 12 words).',
+    '- "bullets": 1 to 4 short bullet points.',
+    'Return JSON only: {"visits":[{"id":"...","line":"...","bullets":["..."]}]}',
+    '', 'Data: ' + input
+  ].join('\n');
+  const o = aiJson_(key, prompt);
+  if (!o) return {};
+  const out = {};
+  (o.visits || []).forEach(x => { if (x && x.id) out[str_(x.id)] = { line: str_(x.line), bullets: (Array.isArray(x.bullets) ? x.bullets : []).map(str_).filter(Boolean).slice(0, 4) }; });
+  try { cache.put(ck, JSON.stringify(out), 21600); } catch (e) {}
+  return out;
+}
+
+/** Calls Gemini with a prompt that must answer JSON; tries the models in order. null on failure. */
+function aiJson_(key, prompt) {
+  const S = settings_();
+  const models = [S['AI model'] || 'gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
+  let lastErr = '';
+  for (const model of models) {
+    try {
+      const call = () => UrlFetchApp.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        payload: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } })
+      });
+      let res = call(), code = res.getResponseCode();
+      if (code === 429 || code === 503) { Utilities.sleep(4000); res = call(); code = res.getResponseCode(); }
+      if (code !== 200) { lastErr = model + ' ' + code + ': ' + res.getContentText().replace(/\s+/g, ' ').slice(0, 250); continue; }
+      const j = JSON.parse(res.getContentText());
+      const t = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('').replace(/^```(json)?|```$/g, '').trim();
+      const o = JSON.parse(t);
+      aiStatus_('OK · ' + model);
+      return o;
+    } catch (e) { lastErr = model + ': ' + msg_(e); }
+  }
+  AI_DOWN = true;
+  aiStatus_('Error · ' + lastErr);
+  return null;
+}
+
 function menuSetAiKey() {
   const ui = SpreadsheetApp.getUi();
   const r = ui.prompt('Connect AI writer', 'Paste your Gemini API key (from aistudio.google.com > Get API key).', ui.ButtonSet.OK_CANCEL);
@@ -1052,15 +1109,22 @@ function unitHead_(n, v, eng) {
     </tr></table>`;
 }
 
-function workAndCrew_(v, c) {
+function workAndCrew_(v, c, cl) {
   let crewHtml = '<div class="sm">مفيش عمالة.</div>';
   if (c.length) {
-    crewHtml = '<table class="crew"><tr><th>المقاول</th><th>البند</th><th>الحرفة</th><th class="c">العدد</th></tr>' +
-      c.map(m => `<tr><td>${esc_(m.contractor)}</td><td class="sm">${esc_(m.item || '—')}</td><td>${esc_(m.trade ? tradeAr_(m.trade) : '—')}</td><td class="c b">${m.count}</td></tr>`).join('') +
-      `<tr><td class="b">الإجمالي</td><td></td><td></td><td class="c b">${c.reduce((s, m) => s + m.count, 0)}</td></tr></table>`;
+    // one readable line per contractor: "Arch for Construction: كهربائي 1 + مساعد 3"
+    const byC = groupBy_(c, m => m.contractor);
+    crewHtml = '<ul style="margin:0;padding-right:16px">' + Object.keys(byC).map(k => {
+      const parts = byC[k].map(m => `${m.trade ? esc_(tradeAr_(m.trade)) + ' ' : ''}${m.count}`).join(' + ');
+      const n = byC[k].reduce((s, m) => s + m.count, 0);
+      return `<li><b>${esc_(k)}</b>: ${parts}${byC[k].length > 1 ? ` <span class="sm">(= ${n})</span>` : ''}</li>`;
+    }).join('') + `</ul><div class="sm" style="margin-top:4px">الإجمالي: <b>${c.reduce((s, m) => s + m.count, 0)}</b></div>`;
   }
+  const status = cl && cl.bullets && cl.bullets.length
+    ? '<ul style="margin:0;padding-right:16px">' + cl.bullets.map(b => `<li>${esc_(b)}</li>`).join('') + '</ul>'
+    : br_(v.workDone);
   return `<table class="two"><tr>
-    <td style="width:55%"><div class="lbl">الحالة <span class="en">Status / Work done</span></div>${br_(v.workDone)}</td>
+    <td style="width:55%"><div class="lbl">الحالة <span class="en">Status</span></div>${status}</td>
     <td><div class="lbl">العمالة <span class="en">Manpower</span></div>${crewHtml}</td>
   </tr></table>`;
 }
