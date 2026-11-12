@@ -158,7 +158,7 @@ function weeklyUnitPdf_(unit, endDay) {
   if (!list.length) return null;
   const cl = rows_(T.units).find(r => low_(r['Unit']) === unit.toLowerCase()) || {};
   const html = weeklyHtml_(settings_(), unit, { name: str_(cl['Client name']) }, startDay, endDay, list, photosByVisit_(list), crewByVisit_(list));
-  return savePdf_(html, reportsFolder_('Weekly', endDay), `Weekly ${endDay} - ${safeUnit_(unit)}.pdf`);
+  return savePdf_(html, reportsFolder_('Weekly', endDay), `Weekly Progress Report - ${safeUnit_(unit)} - ${dateEn_(endDay)}.pdf`);
 }
 
 function cleanDay_(v) {
@@ -570,6 +570,7 @@ function weeklyWork_() {
       const t1 = Date.now();
       let f = null;
       try { f = weeklyUnitPdf_(u, st.end); } catch (e) { console.error('weekly ' + u + ': ' + msg_(e)); }
+      if (f) { try { publishWeeklyToClickUp_(u, f, st.end); } catch (e) { console.error('clickup ' + u + ': ' + msg_(e)); } }
       console.log(`weekly ${u}: ${f ? 'ok' : 'failed'} in ${Math.round((Date.now() - t1) / 1000)}s`);
       st.files[u] = f ? f.getId() : '-';
       props.setProperty(WEEK_KEY, JSON.stringify(st));
@@ -779,6 +780,86 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   h += foot + '</div>';
   pages.forEach((pg, i) => h += `<div class="sheet${i === pages.length - 1 ? ' last' : ''}">${pg}${foot}</div>`);
   return h + '</body></html>';
+}
+
+/* =========================== WEEKLY → CLICKUP (WhatsApp button) =========================== */
+/* For each unit: share its weekly PDF (anyone with the link can view), then on every site-execution task of the unit
+   (added to the private Construction Team list if missing) fill "Weekly Report" = PDF link and
+   "WhatsApp Client" = wa.me link to the client's Mobile with the message ready. */
+
+let CU_UNITS = null;
+function cuUnitTasks_() {
+  if (CU_UNITS) return CU_UNITS;
+  const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
+  if (!token) return (CU_UNITS = {});
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('cu:unitTasks');
+  if (hit) { try { return (CU_UNITS = JSON.parse(hit)); } catch (e) {} }
+  const out = {};
+  for (let page = 0; page < 30; page++) {
+    const res = UrlFetchApp.fetch(`https://api.clickup.com/api/v2/list/${CU.list}/task?statuses[]=${encodeURIComponent(CU.status)}&subtasks=true&page=${page}`, { headers: { Authorization: token }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) break;
+    const j = JSON.parse(res.getContentText());
+    (j.tasks || []).forEach(t => {
+      const unit = normUnit_(t.name);
+      if (!unit) return;
+      const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
+      (out[unit.toLowerCase()] = out[unit.toLowerCase()] || []).push({
+        id: t.id, client: str_(f[CU.f.client] && f[CU.f.client].value), mobile: str_(f[CU.f.mobile] && f[CU.f.mobile].value)
+      });
+    });
+    if (j.last_page || !(j.tasks || []).length) break;
+  }
+  try { cache.put('cu:unitTasks', JSON.stringify(out), 1800); } catch (e) {}
+  return (CU_UNITS = out);
+}
+
+/** "+20 12 75024002" / "01275024002" -> "201275024002" (WhatsApp format). */
+function waNumber_(m) {
+  let d = str_(m).replace(/\D/g, '');
+  if (!d) return '';
+  if (d.indexOf('00') === 0) d = d.slice(2);
+  if (/^01\d{9}$/.test(d)) d = '2' + d;           // Egyptian local mobile
+  else if (/^1\d{9}$/.test(d)) d = '20' + d;
+  return d.length >= 10 ? d : '';
+}
+
+function publishWeeklyToClickUp_(unit, file, endDay) {
+  const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
+  if (!token) return;
+  const tasks = cuUnitTasks_()[unit.toLowerCase()] || [];
+  if (!tasks.length) return;
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const link = `https://drive.google.com/file/d/${file.getId()}/view`;
+  const t0 = tasks.find(t => t.mobile) || tasks[0];
+  const client = (tasks.find(t => t.client) || {}).client || '';
+  const text = `Dear ${client || 'Client'},\nPlease find this week's progress report for your unit ${unit} (week ending ${dateEn_(endDay)}):\n${link}\n\nBest regards,\nO-Plus Extra Works · O West`;
+  const num = waNumber_(t0.mobile);
+  const wa = `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
+  const H = { Authorization: token, 'Content-Type': 'application/json' };
+  const reqs = [];
+  tasks.forEach(t => {
+    reqs.push({ url: `https://api.clickup.com/api/v2/list/${CU.team.list}/task/${t.id}`, method: 'post', headers: H, muteHttpExceptions: true });
+  });
+  UrlFetchApp.fetchAll(reqs);   // add to Construction Team (already there = harmless error)
+  const sets = [];
+  tasks.forEach(t => {
+    sets.push({ url: `https://api.clickup.com/api/v2/task/${t.id}/field/${CU.team.report}`, method: 'post', headers: H, payload: JSON.stringify({ value: link }), muteHttpExceptions: true });
+    sets.push({ url: `https://api.clickup.com/api/v2/task/${t.id}/field/${CU.team.whatsapp}`, method: 'post', headers: H, payload: JSON.stringify({ value: wa }), muteHttpExceptions: true });
+  });
+  const res = UrlFetchApp.fetchAll(sets);
+  const bad = res.filter(x => x.getResponseCode() !== 200);
+  if (bad.length) console.error(`clickup ${unit}: ${bad.length} field updates failed: ${bad[0].getResponseCode()} ${bad[0].getContentText().slice(0, 200)}`);
+}
+
+/** Run from the editor to test one unit end to end: makes its weekly PDF and fills the ClickUp button. */
+function testWeeklyOneUnit() {
+  const unit = 'OW/RV6-11-VF', end = fmt_(new Date(), 'yyyy-MM-dd');
+  const f = weeklyUnitPdf_(unit, end);
+  if (!f) { Logger.log('No visits for ' + unit + ' in the last 7 days'); return; }
+  publishWeeklyToClickUp_(unit, f, end);
+  Logger.log('PDF: https://drive.google.com/file/d/' + f.getId() + '/view');
+  Logger.log('ClickUp tasks updated: ' + (cuUnitTasks_()[unit.toLowerCase()] || []).length);
 }
 
 /* =========================== MANAGERS WEEKLY (internal) =========================== */
@@ -1485,8 +1566,11 @@ const CU = {
     description: 'af390993-91be-4db5-b8d9-c4a2dca60ce8',
     contractor: '8d4a9069-1ade-4b4e-9702-ef05ff3ecf97',
     client: '75747da4-250c-42e7-8d65-98d9d503060f',
-    email: 'ecdc4bdb-8444-4074-b32c-cd4c36274f25'
+    email: 'ecdc4bdb-8444-4074-b32c-cd4c36274f25',
+    mobile: '1707ad3e-025b-457f-a4f3-cf1d7b6b1a7e'
   },
+  // weekly report button lives only on the private Construction Team list
+  team: { list: '901525752325', report: 'dfe137c2-147d-4810-8af3-439514d62fe4', whatsapp: '4180e90a-f5f6-4a54-b010-1aceb35fbd02' },
   skipTypes: ['design fees'],
   skipContractors: ['', 'pending', 'design team', '-', 'n/a', 'tbd'],
   typeNames: {
