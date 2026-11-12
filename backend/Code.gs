@@ -520,7 +520,7 @@ function dailyEmailBody_(day, visits, crew, made) {
    Big weeks are made in several rounds (Apps Script stops a run after 6 minutes), then one email batch goes out. */
 
 const WEEK_KEY = 'WEEKLY_RUN';
-const WEEK_BUDGET_MS = 270000;          // stop a round at 4.5 min and continue 1 min later
+const WEEK_BUDGET_MS = 200000;          // stop a round at ~3.5 min and continue 1 min later
 const MAIL_MAX_BYTES = 15 * 1024 * 1024; // attachments per email
 
 /** Scheduled on the weekly day. */
@@ -551,19 +551,28 @@ function weeklyWork_() {
     if (!raw) return { units: 0 };
     const st = JSON.parse(raw);
     const t0 = Date.now();
+    // safety net: if this round gets killed (6-minute limit), the next round still starts by itself
+    ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'weeklyContinue') ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger('weeklyContinue').timeBased().after(7 * 60 * 1000).create();
     for (const u of st.units) {
       if (st.files[u]) continue;
       if (Date.now() - t0 > WEEK_BUDGET_MS) {
         props.setProperty(WEEK_KEY, JSON.stringify(st));
+        ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'weeklyContinue') ScriptApp.deleteTrigger(t); });
         ScriptApp.newTrigger('weeklyContinue').timeBased().after(60 * 1000).create();
-        return { units: Object.keys(st.files).length, pending: true };
+        return { units: Object.keys(st.files).filter(k => st.files[k] !== '-').length, pending: true };
       }
+      st.files[u] = '-';                                   // if this unit crashes the run, skip it next round
+      props.setProperty(WEEK_KEY, JSON.stringify(st));
+      const t1 = Date.now();
       let f = null;
       try { f = weeklyUnitPdf_(u, st.end); } catch (e) { console.error('weekly ' + u + ': ' + msg_(e)); }
+      console.log(`weekly ${u}: ${f ? 'ok' : 'failed'} in ${Math.round((Date.now() - t1) / 1000)}s`);
       st.files[u] = f ? f.getId() : '-';
       props.setProperty(WEEK_KEY, JSON.stringify(st));
     }
     props.deleteProperty(WEEK_KEY);
+    ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'weeklyContinue') ScriptApp.deleteTrigger(t); });
     return weeklyFinish_(st);
   } finally { lock.releaseLock(); }
 }
@@ -669,9 +678,10 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
    Needs a free Gemini API key (Script Property GEMINI_KEY). Without a key, or if the AI fails,
    the weekly PDF simply has photos only. */
 
+let AI_DOWN = false;   // after one failure in a run, skip AI for the rest of that run (photos only)
 function polishWeek_(unit, items, days) {
   const key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
-  if (!key) return null;
+  if (!key || AI_DOWN) return null;
   const notes = days.filter(d => d.notes.length);
   if (!notes.length) return null;
   const input = JSON.stringify({ unit: unit, scope: items, days: notes });
@@ -707,7 +717,7 @@ function polishWeek_(unit, items, days) {
         payload: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } })
       });
       let res = call(), code = res.getResponseCode();
-      for (let k = 0; k < 2 && (code === 429 || code === 503); k++) { Utilities.sleep(15000); res = call(); code = res.getResponseCode(); }   // free tier busy
+      if (code === 429 || code === 503) { Utilities.sleep(4000); res = call(); code = res.getResponseCode(); }   // busy: one quick retry
       if (code !== 200) { console.error('AI ' + model + ' ' + code + ': ' + res.getContentText().slice(0, 300)); continue; }   // try the next model
       const j = JSON.parse(res.getContentText());
       const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
@@ -720,6 +730,7 @@ function polishWeek_(unit, items, days) {
       return out;
     } catch (e) { console.error('AI: ' + msg_(e)); }
   }
+  AI_DOWN = true;
   return null;
 }
 
