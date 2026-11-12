@@ -717,7 +717,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   const unitName = info.unitName || unit;
   const client = info.client || cl.name || '';
 
-  // type and sizes follow the O West action plan: Poppins body, Liberation Serif titles, peach kickers on navy
+  // O West brand: Poppins throughout (bold titles), peach kickers on navy, logos as in the action plan
   const INK = '#0b1a3a', MUTE = '#5a6378', PEACH = '#f3cfb3', LINE = '#e2dbd5', NAVY = '#001640';
   let h = `<html lang="en"><head><meta charset="utf-8"><style>
     ${fontsCss_()}
@@ -733,7 +733,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .kick { font-size: 7.5pt; letter-spacing: 2.2px; color: ${PEACH}; text-transform: uppercase; font-weight: 500; }
     .rule { border-top: 1px solid #2b3b63; margin: 14pt 0 12pt; height: 0; }
     .blab { font-size: 7pt; letter-spacing: 2px; color: ${PEACH}; text-transform: uppercase; }
-    .unit { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; font-size: 24pt; color: #ffffff; line-height: 1.15; margin-top: 4px; }
+    .unit { font-weight: 700; font-size: 25pt; letter-spacing: 0.5px; color: #ffffff; line-height: 1.15; margin-top: 4px; }
     .client { font-size: 10pt; color: #ffffff; font-weight: 500; text-align: right; margin-top: 6px; }
     .sub { font-size: 8.3pt; color: #d5d9e3; margin-top: 6px; }
     .sub b { color: #ffffff; font-weight: 500; }
@@ -749,7 +749,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .val { font-size: 9.5pt; color: ${INK}; margin-top: 3px; font-weight: 500; }
     .shead { margin-top: 16pt; }
     .shead td { border-bottom: 1.5px solid ${NAVY}; padding-bottom: 4px; vertical-align: bottom; }
-    .shead h2 { font-family: 'Liberation Serif', 'Times New Roman', serif; font-size: 13.5pt; color: ${INK}; margin: 0; }
+    .shead h2 { font-size: 12.5pt; font-weight: 700; color: ${INK}; margin: 0; }
     .shead .r { font-size: 7.5pt; letter-spacing: 1.8px; color: ${MUTE}; text-transform: uppercase; font-weight: 500; text-align: right; }
     .photos { margin-top: 8pt; }
     .photos td.p { width: 50%; text-align: center; }
@@ -757,10 +757,10 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .ph-empty { padding-top: ${Math.round(PH / 2) - 10}px; color: ${MUTE}; font-size: 9pt; }
     .card { background: #f4f5f8; border: 1px solid #e6e8ee; padding: 14pt 18pt; height: 104px; }
     .ring { position: relative; width: 104px; height: 104px; }
-    .ring .pct { position: absolute; left: 0; right: 0; top: 33px; text-align: center; font-size: 17pt; color: ${INK}; line-height: 1.2; }
+    .ring .pct { position: absolute; left: 0; right: 0; top: 33px; text-align: center; font-size: 17pt; font-weight: 700; color: ${INK}; line-height: 1.2; }
     .badge { display: inline-block; border: 1px solid ${C.navy}; color: ${INK}; font-weight: 500; font-size: 7.6pt; padding: 2px 12px; border-radius: 10px; margin-top: 8px; background: #ffffff; }
     .badge.late { border-color: #c23a28; color: #c23a28; }
-    .big { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; font-size: 24pt; color: ${INK}; line-height: 1.1; }
+    .big { font-weight: 700; font-size: 24pt; color: ${INK}; line-height: 1.1; }
     .of { font-size: 8.6pt; color: ${MUTE}; }
     .bar { background: ${WK.track}; height: 7px; margin: 9px 0 7px; overflow: hidden; }
     .bar div { background: ${NAVY}; height: 7px; }
@@ -795,7 +795,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   <table class="shead"><tr><td><h2>Progress</h2></td><td class="r">As of ${d_(endDay).toUpperCase()}</td></tr></table>
   <table style="margin-top:8pt"><tr>
     <td style="width:50%;padding-right:6px"><div class="card"><table><tr>
-      <td style="width:118px;vertical-align:middle"><div class="ring"><img src="${ringPng_(actual || 0)}" width="104" height="104"><div class="pct serif">${actual == null ? '—' : actual + '%'}</div></div></td>
+      <td style="width:118px;vertical-align:middle"><div class="ring"><img src="${ringPng_(actual || 0)}" width="104" height="104"><div class="pct">${actual == null ? '—' : actual + '%'}</div></div></td>
       <td style="vertical-align:middle;padding-left:8px"><div class="lab">Actual progress</div>${badge ? `<div class="badge${badge === 'Behind plan' ? ' late' : ''}">${badge}</div>` : ''}</td>
     </tr></table></div></td>
     <td style="width:50%;padding-left:6px"><div class="card">
