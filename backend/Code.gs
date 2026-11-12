@@ -683,7 +683,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
   const photoDay = pick.length ? pick[pick.length - 1].day : endDay;
   // 1-2 photos: one row of 2; 3: one row of 3; 4: two rows of 2
   const cols = pick.length === 3 ? 3 : 2, FULL = 668, GAP = 12;
-  const PW = Math.floor((FULL - GAP * (cols - 1)) / cols), PH = pick.length === 3 ? 160 : pick.length > 3 ? 128 : 190;
+  const PW = Math.floor((FULL - GAP * (cols - 1)) / cols), PH = pick.length === 3 ? 215 : pick.length > 3 ? 128 : 190;
   const img = x => {
     const im = x && imgs[x.p.fileId];
     if (!im) return '';
