@@ -757,7 +757,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew, info) {
     .ph-empty { padding-top: ${Math.round(PH / 2) - 10}px; color: ${MUTE}; font-size: 9pt; }
     .card { background: #f4f5f8; border: 1px solid #e6e8ee; padding: 14pt 18pt; height: 104px; }
     .ring { position: relative; width: 104px; height: 104px; }
-    .ring .pct { position: absolute; left: 0; right: 0; top: 33px; text-align: center; font-size: 17pt; font-weight: 700; color: ${INK}; line-height: 1.2; }
+    .ring .pct { position: absolute; left: 0; right: 0; top: 39px; height: 28px; text-align: center; font-size: 17pt; font-weight: 700; color: ${INK}; line-height: 28px; }
     .badge { display: inline-block; border: 1px solid ${C.navy}; color: ${INK}; font-weight: 500; font-size: 7.6pt; padding: 2px 12px; border-radius: 10px; margin-top: 8px; background: #ffffff; }
     .badge.late { border-color: #c23a28; color: #c23a28; }
     .big { font-weight: 700; font-size: 24pt; color: ${INK}; line-height: 1.1; }
