@@ -684,62 +684,73 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   const C = BRAND;
 
   let h = `<html lang="en"><head><meta charset="utf-8"><style>
-    @page { size: A4; margin: 12mm 12mm 12mm 12mm; }
+    ${fontsCss_()}
+    @page { size: A4; margin: 16mm 15mm; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: ${C.ink}; }
+    body { font-family: 'Poppins', Arial, sans-serif; font-size: 9.5pt; line-height: 1.6; color: ${C.ink}; }
     table { border-collapse: collapse; width: 100%; }
     tr, .keep { page-break-inside: avoid; }
     .ar { direction: rtl; text-align: right; font-family: Arial, sans-serif; }
-    .band td { background: ${C.navy}; color: #ffffff; padding: 14px 18px; vertical-align: top; }
-    .kick { font-size: 7.5pt; letter-spacing: 2.5px; color: ${C.peach}; text-transform: uppercase; }
-    .title { font-family: "Times New Roman", Times, serif; font-weight: bold; font-size: 22pt; color: #ffffff; margin: 4px 0 6px; }
-    .meta { font-size: 8.5pt; color: #c9cfdd; }
-    .meta b { color: #ffffff; font-weight: bold; }
+    .serif { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; }
+    .band td { background: ${C.navy}; color: #ffffff; padding: 22px 26px 26px; vertical-align: top; }
+    .kick { font-size: 7.5pt; letter-spacing: 2.5px; color: ${C.peach}; text-transform: uppercase; font-weight: 500; }
+    .unit { font-family: 'Liberation Serif', 'Times New Roman', serif; font-weight: bold; font-size: 28pt; line-height: 1.15; color: #ffffff; margin-top: 10px; }
+    .client { font-size: 13pt; color: #dfe3ec; margin-top: 6px; }
     .rev { font-size: 7.5pt; letter-spacing: 2px; color: #c9cfdd; text-align: right; }
-    h2 { font-family: "Times New Roman", Times, serif; font-size: 14pt; color: ${C.navy}; margin: 18px 0 6px; }
-    .h2r { font-size: 7.5pt; letter-spacing: 2px; color: ${C.mute}; text-transform: uppercase; text-align: right; }
-    .sec td { border-bottom: 1.5px solid ${C.navy}; padding-bottom: 4px; vertical-align: bottom; }
-    .info td { border-bottom: 1px solid ${C.line}; padding: 8px 6px; vertical-align: top; }
-    .lab { font-size: 7pt; letter-spacing: 2px; color: ${C.mute}; text-transform: uppercase; }
-    .val { font-size: 10.5pt; font-weight: bold; color: ${C.navy}; margin-top: 3px; }
-    .chip { display: inline-block; border: 1px solid ${C.peach}; color: #8a5a35; padding: 2px 9px; font-size: 8pt; margin: 2px 2px 0 0; }
-    .hl td { vertical-align: top; padding: 6px 8px; font-size: 10pt; line-height: 1.65; }
+    .meta td { padding: 18px 4px 16px 0; vertical-align: top; border-bottom: 1px solid ${C.line}; }
+    .lab { font-size: 6.8pt; letter-spacing: 2px; color: ${C.mute}; text-transform: uppercase; font-weight: 500; }
+    .val { font-size: 9.5pt; color: ${C.navy}; margin-top: 4px; }
+    .sec { margin-top: 30px; }
+    .sec td { border-bottom: 1.5px solid ${C.navy}; padding-bottom: 6px; vertical-align: bottom; }
+    .sec h2 { font-family: 'Liberation Serif', 'Times New Roman', serif; font-size: 15pt; color: ${C.navy}; margin: 0; }
+    .sec .r { font-size: 10pt; color: ${C.mute}; text-align: right; }
+    .chip { display: inline-block; border: 1px solid ${C.peach}; color: #8a5a35; padding: 3px 12px; font-size: 8pt; margin: 4px 6px 0 0; }
+    .hl td { vertical-align: top; padding: 14px 10px 0 0; font-size: 10pt; line-height: 1.8; }
     .hl ul { margin: 0; }
-    .hero { text-align: center; height: 360px; background: ${C.soft}; }
-    .cap { font-size: 7.5pt; color: ${C.mute}; margin-top: 3px; text-align: center; }
-    .day td { background: ${C.soft}; padding: 6px 10px; border-top: 1px solid ${C.line}; border-bottom: 1px solid ${C.line}; }
-    .day .d { font-weight: bold; color: ${C.navy}; font-size: 10pt; }
-    .day .n { font-size: 8pt; color: ${C.mute}; }
-    .line td { padding: 6px 10px 6px; font-size: 9pt; line-height: 1.55; vertical-align: top; }
-    .grid td { width: 50%; padding: 5px; vertical-align: top; text-align: center; }
-    .box { height: 262px; background: ${C.soft}; text-align: center; }
+    .hl li { margin-bottom: 6px; }
+    .hero { text-align: center; height: 360px; background: ${C.soft}; margin-top: 14px; }
+    .day { margin-top: 26px; }
+    .day td { padding: 0 0 6px; border-bottom: 1px solid ${C.line}; }
+    .day .d { font-weight: 500; color: ${C.navy}; font-size: 10.5pt; }
+    .day .n { font-size: 9pt; color: ${C.mute}; }
+    .line td { padding: 10px 10px 4px 0; font-size: 9.5pt; line-height: 1.7; vertical-align: top; color: #33405a; }
+    .grid { margin-top: 10px; }
+    .grid td { width: 50%; padding: 6px; vertical-align: top; text-align: center; }
+    .box { height: 250px; background: ${C.soft}; text-align: center; }
     .page { page-break-before: always; }
-    .foot td { font-size: 7.5pt; color: ${C.mute}; border-top: 1px solid ${C.line}; padding-top: 6px; }
+    .foot td { font-size: 7pt; letter-spacing: 1px; color: ${C.mute}; border-top: 1px solid ${C.line}; padding-top: 8px; }
   </style></head><body>
   <table class="band"><tr><td>
     <table><tr>
-      <td style="padding:0;background:${C.navy}"><img src="data:image/png;base64,${LOGO_OWEST}" height="26"> &nbsp; <img src="data:image/png;base64,${LOGO_OPLUS}" height="26"></td>
+      <td style="padding:0;background:${C.navy}"><img src="data:image/png;base64,${LOGO_OWEST}" height="24"> &nbsp;&nbsp; <img src="data:image/png;base64,${LOGO_OPLUS}" height="24"></td>
       <td class="rev" style="padding:0;background:${C.navy}">WEEK ENDING ${esc_(dateEn_(endDay)).toUpperCase()}</td>
     </tr></table>
-    <div class="kick" style="margin-top:14px">Weekly Progress Report · تقرير التقدم الأسبوعي</div>
-    <div class="title">${esc_(unit)}${cl.name ? ' – ' + esc_(cl.name) : ''}</div>
-    <div class="meta">Client <b>${esc_(cl.name || '—')}</b> &nbsp;&nbsp; Unit <b>${esc_(unit)}</b> &nbsp;&nbsp; Period <b>${esc_(dateEn_(startDay))} – ${esc_(dateEn_(endDay))}</b> &nbsp;&nbsp; Prepared by <b>${esc_(co)} Extra Works</b></div>
+    <div style="height:34px"></div>
+    <div class="kick">Weekly Progress Report</div>
+    <div class="unit">${esc_(unit)}</div>
+    ${cl.name ? `<div class="client">${esc_(cl.name)}</div>` : ''}
   </td></tr></table>
-  ${items.length ? `<table class="info"><tr><td><div class="lab">Scope of works · نطاق الأعمال</div><div style="margin-top:4px">${items.map(i => `<span class="chip">${esc_(i)}</span>`).join('')}</div></td></tr></table>` : ''}`;
+  <table class="meta"><tr>
+    <td style="width:30%"><div class="lab">Client</div><div class="val">${esc_(cl.name || '—')}</div></td>
+    <td style="width:24%"><div class="lab">Unit</div><div class="val">${esc_(unit)}</div></td>
+    <td style="width:26%"><div class="lab">Period</div><div class="val">${esc_(dateEn_(startDay))} – ${esc_(dateEn_(endDay))}</div></td>
+    <td><div class="lab">Prepared by</div><div class="val">${esc_(co)} Extra Works</div></td>
+  </tr></table>
+  ${items.length ? `<div style="margin-top:16px"><div class="lab">Scope of works</div><div>${items.map(i => `<span class="chip">${esc_(i)}</span>`).join('')}</div></div>` : ''}`;
   if (ai && (ai.ar.length || ai.en.length)) {
-    h += `<table class="sec"><tr><td><h2 style="margin-bottom:0">Progress highlights</h2></td><td class="h2r ar" style="font-size:10pt;letter-spacing:0">أبرز ما تم هذا الأسبوع</td></tr></table>
+    h += `<table class="sec"><tr><td><h2>Progress highlights</h2></td><td class="r ar">أبرز ما تم هذا الأسبوع</td></tr></table>
       <table class="hl"><tr>
-        <td style="width:50%">${ai.en.length ? '<ul style="padding-left:16px">' + ai.en.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
+        <td style="width:52%">${ai.en.length ? '<ul style="padding-left:16px">' + ai.en.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
         <td class="ar">${ai.ar.length ? '<ul style="padding-right:16px" dir="rtl">' + ai.ar.map(x => `<li>${esc_(x)}</li>`).join('') + '</ul>' : ''}</td>
       </tr></table>`;
   }
   if (hero) {
-    h += `<table class="sec"><tr><td><h2 style="margin-bottom:0">Latest site photo</h2></td><td class="h2r">${esc_(dateEn_(heroDay))}</td></tr></table>
-      <div style="height:8px"></div><div class="hero keep">${img(hero, 680, 358)}</div>`;
+    h += `<table class="sec"><tr><td><h2>Latest site photo</h2></td><td class="r">${esc_(dateEn_(heroDay))}</td></tr></table>
+      <div class="hero keep">${img(hero, 650, 358)}</div>`;
   }
 
   // photo log
-  h += `<div class="page"></div><table class="sec"><tr><td><h2 style="margin:0">Site progress photos</h2></td><td class="h2r ar" style="font-size:10pt;letter-spacing:0">صور تقدم الأعمال</td></tr></table><div style="height:8px"></div>`;
+  h += `<div class="page"></div><table class="sec" style="margin-top:0"><tr><td><h2>Site progress photos</h2></td><td class="r ar">صور تقدم الأعمال</td></tr></table>`;
   dayKeys.forEach(d => {
     const pd = perDay[d];
     if (!pd.pick.length) return;
@@ -752,13 +763,13 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
       for (let j = i; j < i + 2; j++) {
         const p = pd.pick[j];
         if (!p) { h += '<td></td>'; continue; }
-        h += `<td><div class="box">${img(p, 325, 260)}</div></td>`;
+        h += `<td><div class="box">${img(p, 318, 248)}</div></td>`;
       }
       h += '</tr>';
     }
     h += '</table>';
   });
-  h += `<div style="height:10px"></div><table class="foot"><tr><td>O West by Orascom Development · ${esc_(unit)}</td><td style="text-align:right">${esc_(co)} Extra Works · Week ending ${esc_(dateEn_(endDay))}</td></tr></table>`;
+  h += `<div style="height:30px"></div><table class="foot"><tr><td>O West by Orascom Development · ${esc_(unit)}</td><td style="text-align:right">${esc_(co)} Extra Works · Week ending ${esc_(dateEn_(endDay))}</td></tr></table>`;
   return h + '</body></html>';
 }
 
@@ -846,6 +857,25 @@ function dateEn_(s, withDay) {
   const wd = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()];
   const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()];
   return (withDay ? wd + ' ' : '') + `${d.getUTCDate()} ${mo} ${d.getUTCFullYear()}`;
+}
+
+/** Brand fonts (Poppins + Liberation Serif), served from the website and embedded in the PDF. Arial if unreachable. */
+const FONT_BASE = 'https://xowestx.github.io/owest-site-camera/fonts/';
+function fontsCss_() {
+  const list = [['Poppins', 400, 'Poppins-Regular'], ['Poppins', 500, 'Poppins-Medium'], ['Poppins', 700, 'Poppins-Bold'], ['Liberation Serif', 700, 'LiberationSerif-Bold']];
+  const cache = CacheService.getScriptCache();
+  return list.map(([fam, w, file]) => {
+    let b64 = cache.get('font:' + file);
+    if (!b64) {
+      try {
+        const r = UrlFetchApp.fetch(FONT_BASE + file + '.ttf', { muteHttpExceptions: true });
+        if (r.getResponseCode() !== 200) return '';
+        b64 = Utilities.base64Encode(r.getBlob().getBytes());
+        try { cache.put('font:' + file, b64, 21600); } catch (e) {}
+      } catch (e) { return ''; }
+    }
+    return `@font-face { font-family: '${fam}'; font-weight: ${w}; font-style: normal; src: url(data:font/ttf;base64,${b64}) format('truetype'); }`;
+  }).join('\n');
 }
 
 const LOGO_OWEST = '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';
