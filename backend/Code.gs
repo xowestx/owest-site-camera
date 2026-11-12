@@ -788,30 +788,33 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
    "WhatsApp Client" = wa.me link to the client's Mobile with the message ready. */
 
 let CU_UNITS = null;
+/** Unit -> its ClickUp task IDs, from the "ClickUp Tasks" tab (the full list API answer is too big, over 50 MB).
+    Units missing from the tab are looked up by the "Unit Code" field. Client name/mobile are read task by task. */
 function cuUnitTasks_() {
   if (CU_UNITS) return CU_UNITS;
-  const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
-  if (!token) return (CU_UNITS = {});
-  const cache = CacheService.getScriptCache();
-  const hit = cache.get('cu:unitTasks');
-  if (hit) { try { return (CU_UNITS = JSON.parse(hit)); } catch (e) {} }
   const out = {};
-  for (let page = 0; page < 30; page++) {
-    const res = UrlFetchApp.fetch(`https://api.clickup.com/api/v2/list/${CU.list}/task?statuses[]=${encodeURIComponent(CU.status)}&subtasks=true&page=${page}`, { headers: { Authorization: token }, muteHttpExceptions: true });
-    if (res.getResponseCode() !== 200) break;
-    const j = JSON.parse(res.getContentText());
-    (j.tasks || []).forEach(t => {
-      const unit = normUnit_(t.name);
-      if (!unit) return;
-      const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
-      (out[unit.toLowerCase()] = out[unit.toLowerCase()] || []).push({
-        id: t.id, client: str_(f[CU.f.client] && f[CU.f.client].value), mobile: str_(f[CU.f.mobile] && f[CU.f.mobile].value)
-      });
-    });
-    if (j.last_page || !(j.tasks || []).length) break;
-  }
-  try { cache.put('cu:unitTasks', JSON.stringify(out), 1800); } catch (e) {}
+  rows_('ClickUp Tasks').forEach(r => {
+    const u = normUnit_(r['Unit']), id = str_(r['Task ID']);
+    if (u && id) (out[u.toLowerCase()] = out[u.toLowerCase()] || []).push(id);
+  });
   return (CU_UNITS = out);
+}
+
+function cuTaskIdsForUnit_(unit, token) {
+  const k = unit.toLowerCase();
+  const map = cuUnitTasks_();
+  if (map[k] && map[k].length) return map[k];
+  // fallback: tasks whose "Unit Code" field equals the unit
+  const cf = encodeURIComponent(JSON.stringify([{ field_id: '536dcc2d-7696-4813-88ed-e3f4966f793e', operator: '=', value: unit }]));
+  const res = UrlFetchApp.fetch(`https://api.clickup.com/api/v2/list/${CU.list}/task?statuses[]=${encodeURIComponent(CU.status)}&custom_fields=${cf}`, { headers: { Authorization: token }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return [];
+  const ids = (JSON.parse(res.getContentText()).tasks || []).filter(t => normUnit_(t.name).toLowerCase() === k).map(t => t.id);
+  if (ids.length) {
+    const sh = sheet_('ClickUp Tasks', ['Unit', 'Task ID']);
+    ids.forEach(id => sh.appendRow([unit, id]));
+    map[k] = ids;
+  }
+  return ids;
 }
 
 /** "+20 12 75024002" / "01275024002" -> "201275024002" (WhatsApp format). */
@@ -827,8 +830,20 @@ function waNumber_(m) {
 function publishWeeklyToClickUp_(unit, file, endDay) {
   const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
   if (!token) return;
-  const tasks = cuUnitTasks_()[unit.toLowerCase()] || [];
-  if (!tasks.length) return;
+  const ids = cuTaskIdsForUnit_(unit, token);
+  if (!ids.length) { console.error('clickup ' + unit + ': no tasks found'); return; }
+  // read client name + mobile from each task (one small call per task)
+  const got = UrlFetchApp.fetchAll(ids.map(id => ({ url: `https://api.clickup.com/api/v2/task/${id}`, headers: { Authorization: token }, muteHttpExceptions: true })));
+  const tasks = ids.map((id, i) => {
+    const t = { id: id, client: '', mobile: '' };
+    try {
+      if (got[i].getResponseCode() === 200) {
+        const j = JSON.parse(got[i].getContentText());
+        (j.custom_fields || []).forEach(c => { if (c.id === CU.f.client) t.client = str_(c.value); if (c.id === CU.f.mobile) t.mobile = str_(c.value); });
+      }
+    } catch (e) {}
+    return t;
+  });
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   const link = `https://drive.google.com/file/d/${file.getId()}/view`;
   const t0 = tasks.find(t => t.mobile) || tasks[0];
@@ -859,7 +874,7 @@ function testWeeklyOneUnit() {
   if (!f) { Logger.log('No visits for ' + unit + ' in the last 7 days'); return; }
   publishWeeklyToClickUp_(unit, f, end);
   Logger.log('PDF: https://drive.google.com/file/d/' + f.getId() + '/view');
-  Logger.log('ClickUp tasks updated: ' + (cuUnitTasks_()[unit.toLowerCase()] || []).length);
+  Logger.log('ClickUp tasks for this unit: ' + (cuUnitTasks_()[unit.toLowerCase()] || []).length + ' (see Executions for any errors)');
 }
 
 /* =========================== MANAGERS WEEKLY (internal) =========================== */
