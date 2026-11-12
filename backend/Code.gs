@@ -588,6 +588,8 @@ function weeklyFinish_(st) {
     if (!id || id === '-') return;
     try { made.push({ unit: u, client: clients[u.toLowerCase()] || {}, file: DriveApp.getFileById(id) }); } catch (e) {}
   });
+  let mgrPdf = null;
+  try { mgrPdf = managersWeeklyPdf_(st.start, st.end); } catch (e) { console.error('managers weekly: ' + msg_(e)); }
   const sentTo = {};
   if (st.send && made.length) {
     const to = S['Weekly report to'] || S['Weekly report copy to'];
@@ -604,16 +606,19 @@ function weeklyFinish_(st) {
       if (cur.length) batches.push(cur);
       batches.forEach((list, i) => {
         const part = batches.length > 1 ? ` (${i + 1}/${batches.length})` : '';
+        const att = list.map(m => m.file.getBlob());
+        if (i === 0 && mgrPdf) att.unshift(mgrPdf.getBlob());
         const rowsH = list.map(m => `<tr><td style="padding:4px 10px;font-family:monospace">${esc_(m.unit)}</td><td style="padding:4px 10px">${esc_(m.client.name || '')}</td></tr>`).join('');
         MailApp.sendEmail({
           to: to, cc: cc,
           subject: `${S['Company name'] || 'O-Plus'} · Weekly progress reports · ${period} · ${made.length} units${part}`,
           htmlBody: `<div style="font-family:Arial,sans-serif;font-size:14px">
             <p><b>Weekly progress reports · ${period}</b>${part}</p>
-            <p>${list.length} unit report(s) attached, one PDF per unit, ready to send to the client.</p>
+            ${i === 0 && mgrPdf ? '<p><b>Internal:</b> "Managers weekly" PDF attached (visits, manpower, units not visited, issues). <b>Do not forward it to clients.</b></p>' : ''}
+            <p>${list.length} client report(s) attached, one PDF per unit, ready to send to the client.</p>
             <table style="border-collapse:collapse;border:1px solid #ddd">${rowsH}</table>
             <p style="color:#666">All PDFs are also in Drive: ${REPORTS_ROOT} / Weekly / ${st.end}.</p></div>`,
-          attachments: list.map(m => m.file.getBlob())
+          attachments: att
         });
         list.forEach(m => sentTo[m.unit] = [to, cc].filter(Boolean).join(', '));
       });
@@ -634,6 +639,7 @@ function weeklyFinish_(st) {
     }
   }
   made.forEach(m => logReport_('Weekly client', period, m.unit, m.file, st.send ? (sentTo[m.unit] || '') : '(made from menu, not emailed)'));
+  if (mgrPdf) logReport_('Weekly managers', period, 'Managers', mgrPdf, st.send ? 'with the weekly email' : '(made from menu, not emailed)');
   return { units: made.length };
 }
 
@@ -646,8 +652,9 @@ const BRAND = { navy: '#001641', peach: '#e9b88f', ink: '#1d2433', soft: '#fbf3e
 function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   const days = groupBy_(list, v => v.date);
   const dayKeys = Object.keys(days).sort();
-  const items = [];
-  list.forEach(v => v.items.split(',').map(s => s.trim()).filter(Boolean).forEach(i => items.indexOf(i) < 0 && items.push(i)));
+  // scope = what the client bought (ClickUp), never the engineers' photo tags
+  const items = rows_(T.scope).filter(r => low_(r['Unit']) === unit.toLowerCase()).map(r => str_(r['Item'])).filter(Boolean)
+    .filter((x, i, a) => a.indexOf(x) === i && !/^others?$|^general$/i.test(x));
   const ai = polishWeek_(unit, items, dayKeys.map(d => ({ date: d, notes: days[d].map(v => v.workDone).filter(Boolean) })));
 
   // pick photos: spread evenly through each day, at most WK_MAX_PER_DAY a day and WK_MAX_PHOTOS a week
@@ -718,11 +725,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
     <div class="title">${esc_(unit)}${cl.name ? ' – ' + esc_(cl.name) : ''}</div>
     <div class="meta">Client <b>${esc_(cl.name || '—')}</b> &nbsp;&nbsp; Unit <b>${esc_(unit)}</b> &nbsp;&nbsp; Period <b>${esc_(dateEn_(startDay))} – ${esc_(dateEn_(endDay))}</b> &nbsp;&nbsp; Prepared by <b>${esc_(co)} Extra Works</b></div>
   </td></tr></table>
-  <table class="info"><tr>
-    <td style="width:33%"><div class="lab">Site visits</div><div class="val">${dayKeys.length} day${dayKeys.length === 1 ? '' : 's'}</div></td>
-    <td style="width:33%"><div class="lab">Photos</div><div class="val">${total}</div></td>
-    <td><div class="lab">Scope</div><div style="margin-top:3px">${items.length ? items.map(i => `<span class="chip">${esc_(i)}</span>`).join('') : '—'}</div></td>
-  </tr></table>`;
+  ${items.length ? `<table class="info"><tr><td><div class="lab">Scope of works · نطاق الأعمال</div><div style="margin-top:4px">${items.map(i => `<span class="chip">${esc_(i)}</span>`).join('')}</div></td></tr></table>` : ''}`;
   if (ai && (ai.ar.length || ai.en.length)) {
     h += `<table class="sec"><tr><td><h2 style="margin-bottom:0">Progress highlights</h2></td><td class="h2r ar" style="font-size:10pt;letter-spacing:0">أبرز ما تم هذا الأسبوع</td></tr></table>
       <table class="hl"><tr>
@@ -736,14 +739,12 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   }
 
   // photo log
-  h += `<div class="page"></div><table class="sec"><tr><td><h2 style="margin:0">Photo log</h2></td><td class="h2r">${allPicked.length} of ${total} photos · by day</td></tr></table><div style="height:8px"></div>`;
+  h += `<div class="page"></div><table class="sec"><tr><td><h2 style="margin:0">Site progress photos</h2></td><td class="h2r ar" style="font-size:10pt;letter-spacing:0">صور تقدم الأعمال</td></tr></table><div style="height:8px"></div>`;
   dayKeys.forEach(d => {
     const pd = perDay[d];
     if (!pd.pick.length) return;
     const line = ai && ai.days[d];
-    const dayItems = [];
-    pd.pick.forEach(p => p.item && dayItems.indexOf(p.item) < 0 && dayItems.push(p.item));
-    h += `<table class="day keep"><tr><td><span class="d">${esc_(dateEn_(d, true))}</span> &nbsp; <span class="n">${dayItems.map(esc_).join(' · ')}</span></td><td class="ar n">${esc_(dayAr_(d))}</td></tr></table>`;
+    h += `<table class="day keep"><tr><td><span class="d">${esc_(dateEn_(d, true))}</span></td><td class="ar n">${esc_(dayAr_(d))}</td></tr></table>`;
     if (line && (line.ar || line.en)) h += `<table class="line"><tr><td style="width:50%">${esc_(line.en || '')}</td><td class="ar">${esc_(line.ar || '')}</td></tr></table>`;
     h += '<table class="grid">';
     for (let i = 0; i < pd.pick.length; i += 2) {
@@ -751,8 +752,7 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
       for (let j = i; j < i + 2; j++) {
         const p = pd.pick[j];
         if (!p) { h += '<td></td>'; continue; }
-        const cap = [dayItems.length > 1 ? p.item : '', p.note].filter(Boolean).map(esc_).join(' · ');
-        h += `<td><div class="box">${img(p, 325, 260)}</div>${cap ? `<div class="cap">${cap}</div>` : ''}</td>`;
+        h += `<td><div class="box">${img(p, 325, 260)}</div></td>`;
       }
       h += '</tr>';
     }
@@ -760,6 +760,84 @@ function weeklyHtml_(S, unit, cl, startDay, endDay, list, photos, crew) {
   });
   h += `<div style="height:10px"></div><table class="foot"><tr><td>O West by Orascom Development · ${esc_(unit)}</td><td style="text-align:right">${esc_(co)} Extra Works · Week ending ${esc_(dateEn_(endDay))}</td></tr></table>`;
   return h + '</body></html>';
+}
+
+/* =========================== MANAGERS WEEKLY (internal) =========================== */
+/* Everything the client must not see: coverage gaps, idle days, manpower, raw notes, internal notes. */
+const NEG_RE = /مفيش\s*(شغل|عمال|عماله|عمالة)|لا\s*يوجد|واقف|متوقف|توقف|مستني|منتظر|انتظار|تأخير|متأخر|مشكل|ناقص|نقص|مافيش|no\s*work|stopp|waiting|delay|missing|issue|problem/i;
+
+function managersWeeklyPdf_(startDay, endDay) {
+  const visits = closedVisits_(v => v.date >= startDay && v.date <= endDay);
+  const crew = crewByVisit_(visits);
+  const byUnit = groupBy_(visits, v => v.unit);
+  const active = rows_(T.units).filter(r => str_(r['Unit']) && low_(r['Active']) !== 'no').map(r => ({ unit: str_(r['Unit']), client: str_(r['Client name']), project: str_(r['Project']) }));
+  const notVisited = active.filter(u => !byUnit[u.unit]);
+  const last = {};
+  rows_(T.visits).forEach(r => { if (str_(r['Status']) !== 'Closed') return; const k = low_(r['Unit']), d = day_(r['Date']); if (d > (last[k] || '')) last[k] = d; });
+  const workers = visits.reduce((s, v) => s + v.manpower, 0);
+  const byC = {}, byEng = {};
+  visits.forEach(v => {
+    (crew[v.id] || []).forEach(m => byC[m.contractor] = (byC[m.contractor] || 0) + m.count);
+    const e = byEng[v.by] = byEng[v.by] || { visits: 0, units: {}, days: {} };
+    e.visits++; e.units[v.unit] = 1; e.days[v.date] = 1;
+  });
+  const flags = visits.filter(v => !v.manpower || NEG_RE.test(v.workDone) || v.notes);
+  const C = BRAND;
+  let h = `<html lang="en"><head><meta charset="utf-8"><style>
+    @page { size: A4; margin: 11mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: Arial, sans-serif; font-size: 8.5pt; color: ${C.ink}; }
+    table { border-collapse: collapse; width: 100%; }
+    tr { page-break-inside: avoid; }
+    .band td { background: ${C.navy}; color: #fff; padding: 12px 16px; }
+    .kick { font-size: 7pt; letter-spacing: 2.5px; color: ${C.peach}; }
+    .title { font-family: "Times New Roman", serif; font-weight: bold; font-size: 18pt; margin-top: 3px; }
+    .kpi td { width: 20%; text-align: center; border: 1px solid ${C.line}; padding: 8px 4px; }
+    .kpi .n { font-family: "Times New Roman", serif; font-size: 17pt; font-weight: bold; color: ${C.navy}; }
+    .kpi .k { font-size: 7pt; letter-spacing: 1.5px; color: ${C.mute}; }
+    .kpi .bad .n { color: #b3261e; }
+    h2 { font-family: "Times New Roman", serif; font-size: 12.5pt; color: ${C.navy}; margin: 14px 0 4px; border-bottom: 1.5px solid ${C.navy}; padding-bottom: 3px; }
+    .t th { background: ${C.soft}; color: ${C.navy}; text-align: left; font-size: 7.5pt; padding: 4px 5px; border-bottom: 1px solid ${C.line}; }
+    .t td { padding: 4px 5px; border-bottom: 1px solid ${C.line}; vertical-align: top; }
+    .ar { direction: rtl; text-align: right; }
+    .r { text-align: right; } .b { font-weight: bold; } .red { color: #b3261e; font-weight: bold; } .mute { color: ${C.mute}; }
+    .mono { font-family: "Courier New", monospace; }
+  </style></head><body>
+  <table class="band"><tr><td><img src="data:image/png;base64,${LOGO_OWEST}" height="22"> &nbsp; <img src="data:image/png;base64,${LOGO_OPLUS}" height="22">
+    <div class="kick" style="margin-top:10px">INTERNAL · MANAGERS ONLY · DO NOT FORWARD</div>
+    <div class="title">Site execution weekly review</div><div style="font-size:8.5pt;color:#c9cfdd">${esc_(dateEn_(startDay))} – ${esc_(dateEn_(endDay))}</div></td></tr></table>
+  <div style="height:8px"></div>
+  <table class="kpi"><tr>
+    <td><div class="n">${Object.keys(byUnit).length}</div><div class="k">UNITS VISITED</div></td>
+    <td class="${notVisited.length ? 'bad' : ''}"><div class="n">${notVisited.length}</div><div class="k">ACTIVE UNITS NOT VISITED</div></td>
+    <td><div class="n">${visits.length}</div><div class="k">VISITS</div></td>
+    <td><div class="n">${workers}</div><div class="k">WORKER-DAYS</div></td>
+    <td class="${flags.length ? 'bad' : ''}"><div class="n">${flags.length}</div><div class="k">VISITS FLAGGED</div></td>
+  </tr></table>`;
+
+  h += `<h2>Flags · no workers, stoppages, waiting, internal notes</h2>`;
+  h += flags.length ? `<table class="t"><tr><th style="width:62px">Date</th><th style="width:100px">Unit</th><th style="width:70px">Engineer</th><th style="width:40px" class="r">Workers</th><th>Work done (as typed)</th><th>Internal notes</th></tr>` +
+    flags.sort((a, b) => (a.date + a.unit).localeCompare(b.date + b.unit)).map(v => `<tr><td>${esc_(v.date.slice(5))}</td><td class="mono">${esc_(v.unit)}</td><td>${esc_(v.by)}</td><td class="r ${v.manpower ? '' : 'red'}">${v.manpower}</td><td class="ar">${br_(v.workDone)}</td><td class="ar">${br_(v.notes)}</td></tr>`).join('') + '</table>'
+    : '<p class="mute">Nothing flagged this week.</p>';
+
+  h += `<h2>Active units not visited this week (${notVisited.length})</h2>`;
+  h += notVisited.length ? `<table class="t"><tr><th style="width:130px">Unit</th><th>Client</th><th style="width:110px">Last visit</th></tr>` +
+    notVisited.map(u => `<tr><td class="mono">${esc_(u.unit)}</td><td>${esc_(u.client)}</td><td>${esc_(last[u.unit.toLowerCase()] || 'never')}</td></tr>`).join('') + '</table>'
+    : '<p class="mute">Every active unit was visited.</p>';
+
+  h += `<h2>Manpower by contractor (worker-days)</h2><table class="t"><tr><th>Contractor</th><th class="r" style="width:80px">Worker-days</th></tr>` +
+    Object.keys(byC).sort((a, b) => byC[b] - byC[a]).map(c => `<tr><td>${esc_(c)}</td><td class="r b">${byC[c]}</td></tr>`).join('') + '</table>';
+
+  h += `<h2>Engineers</h2><table class="t"><tr><th>Engineer</th><th class="r">Visits</th><th class="r">Units</th><th class="r">Days on site</th></tr>` +
+    Object.keys(byEng).sort().map(e => `<tr><td>${esc_(e)}</td><td class="r">${byEng[e].visits}</td><td class="r">${Object.keys(byEng[e].units).length}</td><td class="r">${Object.keys(byEng[e].days).length}</td></tr>`).join('') + '</table>';
+
+  h += `<h2>All visits by unit</h2><table class="t"><tr><th style="width:100px">Unit</th><th style="width:44px">Date</th><th style="width:70px">Engineer</th><th style="width:36px" class="r">Wkrs</th><th>Contractors</th><th>Work done (as typed)</th></tr>`;
+  Object.keys(byUnit).sort().forEach(u => byUnit[u].sort((a, b) => a.closed.localeCompare(b.closed)).forEach((v, i) => {
+    const cs = groupBy_(crew[v.id] || [], m => m.contractor);
+    h += `<tr><td class="mono">${i ? '' : esc_(u)}</td><td>${esc_(v.date.slice(5))}</td><td>${esc_(v.by)}</td><td class="r">${v.manpower}</td><td>${Object.keys(cs).map(c => esc_(c) + ' ' + cs[c].reduce((s, m) => s + m.count, 0)).join(', ')}</td><td class="ar">${br_(v.workDone)}</td></tr>`;
+  }));
+  h += '</table></body></html>';
+  return savePdf_(h, reportsFolder_('Weekly', endDay), `Managers weekly ${endDay}.pdf`);
 }
 
 /** "Tue 10 Nov 2026" (or without weekday). */
