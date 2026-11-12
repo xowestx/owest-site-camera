@@ -699,7 +699,7 @@ function polishWeek_(unit, items, days) {
   ].join('\n');
 
   const S = settings_();
-  const models = [S['AI model'] || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'].filter((m, i, a) => m && a.indexOf(m) === i);
+  const models = [S['AI model'] || 'gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
   for (const model of models) {
     try {
       const call = () => UrlFetchApp.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
@@ -708,8 +708,7 @@ function polishWeek_(unit, items, days) {
       });
       let res = call(), code = res.getResponseCode();
       for (let k = 0; k < 2 && (code === 429 || code === 503); k++) { Utilities.sleep(15000); res = call(); code = res.getResponseCode(); }   // free tier busy
-      if (code === 404) continue;                       // model name not available, try the next
-      if (code !== 200) { console.error('AI ' + code + ': ' + res.getContentText().slice(0, 300)); return null; }
+      if (code !== 200) { console.error('AI ' + model + ' ' + code + ': ' + res.getContentText().slice(0, 300)); continue; }   // try the next model
       const j = JSON.parse(res.getContentText());
       const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
       const t = (txt || []).map(p => p.text || '').join('').replace(/^```(json)?|```$/g, '').trim();
@@ -719,7 +718,7 @@ function polishWeek_(unit, items, days) {
       (o.days || []).forEach(d => { const k = str_(d.date); if (k) out.days[k] = { ar: str_(d.ar), en: str_(d.en) }; });
       try { cache.put(ck, JSON.stringify(out), 21600); } catch (e) {}
       return out;
-    } catch (e) { console.error('AI: ' + msg_(e)); return null; }
+    } catch (e) { console.error('AI: ' + msg_(e)); }
   }
   return null;
 }
