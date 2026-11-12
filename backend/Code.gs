@@ -537,13 +537,13 @@ function weeklyContinue() {
   weeklyWork_();
 }
 
-function weeklyStart_(endDay, send) {
+function weeklyStart_(endDay, send, onlyTo) {
   const startDay = fmt_(new Date(parseDay_(endDay).getTime() - 6 * 86400000), 'yyyy-MM-dd');
   const units = [];
   closedVisits_(v => v.date >= startDay && v.date <= endDay).forEach(v => { if (units.indexOf(v.unit) < 0) units.push(v.unit); });
   units.sort();
   if (!units.length) return { units: 0 };
-  PropertiesService.getScriptProperties().setProperty(WEEK_KEY, JSON.stringify({ end: endDay, start: startDay, send: !!send, units: units, files: {} }));
+  PropertiesService.getScriptProperties().setProperty(WEEK_KEY, JSON.stringify({ end: endDay, start: startDay, send: !!send, onlyTo: onlyTo || '', units: units, files: {} }));
   return weeklyWork_();
 }
 
@@ -598,8 +598,9 @@ function weeklyFinish_(st) {
   try { mgrPdf = managersWeeklyPdf_(st.start, st.end); } catch (e) { console.error('managers weekly: ' + msg_(e)); }
   const sentTo = {};
   if (st.send && made.length) {
-    const to = S['Weekly report to'] || S['Weekly report copy to'];
-    const cc = [S['Weekly report cc'], S['Weekly report to'] ? S['Weekly report copy to'] : ''].filter(Boolean).join(', ');
+    // onlyTo: a test / re-send to one address (no cc, never to clients)
+    const to = st.onlyTo || S['Weekly report to'] || S['Weekly report copy to'];
+    const cc = st.onlyTo ? '' : [S['Weekly report cc'], S['Weekly report to'] ? S['Weekly report copy to'] : ''].filter(Boolean).join(', ');
     if (to) {
       // split into emails of up to ~15 MB of PDFs
       const batches = [];
@@ -629,7 +630,7 @@ function weeklyFinish_(st) {
         list.forEach(m => sentTo[m.unit] = [to, cc].filter(Boolean).join(', '));
       });
     }
-    if (yes_(S['Send weekly to clients'])) {
+    if (!st.onlyTo && yes_(S['Send weekly to clients'])) {
       made.forEach(m => {
         if (!m.client.email) return;
         MailApp.sendEmail({
@@ -1581,6 +1582,7 @@ function onOpen() {
     .addItem("Send today's daily reports now", 'menuDailySend')
     .addItem('Make weekly client reports, week to date (no email)', 'menuWeekly')
     .addItem('Send weekly client reports now', 'menuSendWeekly')
+    .addItem('Send weekly client reports to one email only', 'menuSendWeeklyTo')
     .addSeparator()
     .addItem('Delete selected photos', 'menuDeletePhotos')
     .addItem('Delete selected visits (photos + manpower)', 'menuDeleteVisits')
@@ -1601,6 +1603,16 @@ function menuWeekly() {
   const ui = SpreadsheetApp.getUi();
   if (!r.units && !r.pending) return ui.alert('No closed visits in the last 7 days.');
   ui.alert(r.pending ? `Started: ${r.units} unit PDFs made so far. The rest are made in the background in the next few minutes (Drive > ${REPORTS_ROOT} > Weekly).` : `Done. ${r.units} unit PDFs in Drive > ${REPORTS_ROOT} > Weekly.`);
+}
+function menuSendWeeklyTo() {
+  const ui = SpreadsheetApp.getUi();
+  const a = ui.prompt('Send weekly reports to one email', 'Makes this week\'s unit reports and emails them ONLY to this address (no cc, no clients):', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const to = str_(a.getResponseText());
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return ui.alert('That is not an email address.');
+  const r = weeklyStart_(fmt_(new Date(), 'yyyy-MM-dd'), true, to);
+  if (!r.units && !r.pending) return ui.alert('No closed visits in the last 7 days.');
+  ui.alert(r.pending ? `Started: ${r.units} unit PDFs made so far. The rest are made in the background, then the email goes to ${to} (5–15 minutes).` : `Done. ${r.units} unit reports emailed to ${to}.`);
 }
 function menuSendWeekly() {
   const ui = SpreadsheetApp.getUi();
