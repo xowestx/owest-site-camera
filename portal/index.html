@@ -19,202 +19,339 @@
 </div></header>
 <div class="strip"><div class="in">
   <span class="eyebrow" id="unitLine">Client portal</span>
-  <span class="small muted" id="clientLine"></span>
+  <span style="display:flex;align-items:center;gap:10px"><span class="small muted" id="clientLine"></span><button class="lang" id="lang" lang="ar">عربي</button></span>
 </div></div>
 
 <main class="in" id="view"><div class="center">Loading your portal…</div></main>
 
 <nav class="tabs" id="tabs" hidden><div class="in">
-  <button data-v="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3v-9z"/></svg>Home</button>
-  <button data-v="approvals"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>Approvals<span class="badge" id="badge" hidden></span></button>
-  <button data-v="selections"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>Selections</button>
-  <button data-v="concerns"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5z"/></svg>Concerns</button>
-  <button data-v="history"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</button>
+  <button data-v="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3v-9z"/></svg><span data-t="Home|الرئيسية"></span></button>
+  <button data-v="approvals"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg><span data-t="Approvals|الموافقات"></span><span class="badge" id="badge" hidden></span></button>
+  <button data-v="selections"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg><span data-t="Selections|الخامات"></span></button>
+  <button data-v="concerns"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5z"/></svg><span data-t="Concerns|الاستفسارات"></span></button>
+  <button data-v="snags" id="snagTab" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3H8z"/><path d="M8 5H5v16h14V5h-3"/><path d="M9 14l2 2 4-4"/></svg><span data-t="Snags|الاستلام"></span><span class="badge" id="snagBadge" hidden></span></button>
+  <button data-v="history"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-t="History|السجل"></span></button>
 </div></nav>
 
 <script src="portal.js"></script>
 <script>
-let token = "", D = null, view = "home", filter = "all", sel = null, back = "approvals";
+let token = "", D = null, view = "home", filter = "all", snagFilter = "all", sel = null, back = "approvals";
+/** L("English", "عربي"): the text in the language the client chose. */
+const L = (en, ar) => AR() ? ar : en;
 
-(function start() {
+function start() {
+  try { LANG = localStorage.getItem("oplus_lang") === "ar" ? "ar" : "en"; } catch (e) {}
+  applyLang();
   const m = location.hash.match(/t=([A-Za-z0-9]+)/);
   try {
     if (m) { token = m[1]; localStorage.setItem("oplus_t", token); history.replaceState(null, "", location.pathname); }
     else token = localStorage.getItem("oplus_t") || "";
   } catch (e) { if (m) token = m[1]; }
-  if (!token) return fail("Please open the portal from the link in your email.");
+  if (!token) return fail(L("Please open the portal from the link in your email.", "برجاء فتح البوابة من الرابط المرسل في بريدك الإلكتروني."));
+  $("view").innerHTML = `<div class="center">${L("Loading your portal…", "جاري التحميل…")}</div>`;
   load();
-})();
+}
+
+$("lang").onclick = () => {
+  LANG = AR() ? "en" : "ar";
+  try { localStorage.setItem("oplus_lang", LANG); } catch (e) {}
+  applyLang(); if (D) render();
+};
+function applyLang() {
+  document.documentElement.lang = LANG; document.documentElement.dir = AR() ? "rtl" : "ltr";
+  $("lang").textContent = AR() ? "English" : "عربي"; $("lang").lang = AR() ? "en" : "ar";
+  document.title = L("O-Plus Client Portal", "بوابة عملاء O-Plus");
+  document.querySelectorAll("[data-t]").forEach(el => { const t = el.dataset.t.split("|"); el.textContent = AR() ? t[1] : t[0]; });
+  if (AR() && !$("arFont")) {
+    const l = document.createElement("link"); l.id = "arFont"; l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap";
+    document.head.appendChild(l);
+  }
+}
 
 async function load() {
   try { D = (await api({ action: "portal.open", token })); render(); }
   catch (e) { fail(e.message); }
 }
-function fail(t) { $("view").innerHTML = `<div class="center">${esc(t)}</div>`; }
+function fail(t) { $("view").innerHTML = `<div class="center">${esc(tr(t))}</div>`; }
+/** Server messages are English; the client sees them in Arabic when Arabic is on. */
+const ERR_AR = {
+  "This link is not valid. Please ask your project manager for a new one.": "هذا الرابط غير صالح. برجاء طلب رابط جديد من مدير المشروع.",
+  "This link is no longer active. Please ask your project manager for a new one.": "هذا الرابط لم يعد يعمل. برجاء طلب رابط جديد من مدير المشروع.",
+  "That code is not correct.": "الكود غير صحيح.", "The code expired. Please request a new one.": "انتهت صلاحية الكود. برجاء طلب كود جديد.",
+  "Too many wrong codes. Please request a new one.": "محاولات خاطئة كثيرة. برجاء طلب كود جديد.",
+  "Too many codes requested. Please wait an hour and try again.": "طلبات أكواد كثيرة. برجاء الانتظار ساعة والمحاولة مرة أخرى.",
+  "We have no email for you yet. Please ask your project manager to add it.": "لا يوجد بريد إلكتروني مسجل لك. برجاء طلب إضافته من مدير المشروع.",
+  "This item was already decided or replaced. Please reload.": "تم البت في هذا البند أو استبداله. برجاء إعادة التحميل.",
+  "No connection. Please check your internet and try again.": "لا يوجد اتصال. برجاء التحقق من الإنترنت والمحاولة مرة أخرى.",
+  "The photo is too large.": "الصورة كبيرة جداً.", "This snag is not marked as fixed yet. Please reload.": "هذه الملاحظة لم تُسجل كمُصلحة بعد. برجاء إعادة التحميل."
+};
+const tr = m => AR() && ERR_AR[m] || m;
 const auth = () => ({ token });
 const pending = () => D.items.filter(x => x.status === "Sent for approval");
+const TYPE_AR = { "Selection": "اختيار خامة", "Scope of work": "نطاق أعمال", "Date change": "تغيير موعد" };
+const type = t => AR() ? TYPE_AR[t] || t : t;
+const EVENT_AR = { "Sent for approval": "أُرسل للموافقة", "Approved": "تمت الموافقة", "Rejected": "طُلب تعديل", "New concern": "استفسار جديد",
+  "Team replied": "رد الفريق", "Concern resolved": "تم حل الاستفسار", "Portal invitation sent": "تم إرسال دعوة البوابة", "New link made": "تم إنشاء رابط جديد",
+  "Snag reported": "ملاحظة استلام جديدة", "Snag fixed": "تم إصلاح ملاحظة استلام", "Snag closed": "تم إغلاق ملاحظة استلام", "Snag reopened": "أُعيد فتح ملاحظة استلام" };
+const plural = (n, en1, enN, ar) => AR() ? `${n} ${ar}` : `${n} ${n === 1 ? en1 : enN}`;
 
 document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
 function go(v, extra) { view = v; if (extra) Object.assign(window, extra); render(); scrollTo(0, 0); }
 
 function render() {
   $("tabs").hidden = false;
-  $("unitLine").textContent = "Client portal · " + D.unit;
+  $("unitLine").textContent = L("Client portal", "بوابة العميل") + " · " + D.unit;
   $("clientLine").textContent = D.client || "";
   const p = pending().length;
   $("badge").hidden = !p; $("badge").textContent = p;
-  const tab = { item: back, concern: "concerns" }[view] || view;
+  // The snag list appears from Quality Inspection on, or as soon as there is a snag.
+  const snags = D.snags || [], showSnags = snags.length > 0 || (D.status && D.status.stage >= 4);
+  $("snagTab").hidden = !showSnags;
+  document.querySelector("#tabs .in").style.gridTemplateColumns = `repeat(${showSnags ? 6 : 5},minmax(0,1fr))`;
+  const chk = snags.filter(x => x.status === "Fixed").length;
+  $("snagBadge").hidden = !chk; $("snagBadge").textContent = chk;
+  const tab = { item: back, concern: "concerns", snag: "snags" }[view] || view;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === tab));
-  $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span>${esc(D.unit)}</span></div>`;
+  $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span class="ltr">${esc(D.unit)}</span></div>`;
   bind();
   loadImages($("view"), auth());
 }
 
 const VIEWS = {
   home() {
-    const s = D.status || {}, p = pending().length, open = D.concerns.filter(c => c.status !== "Resolved").length;
-    return head("O-Plus · Extra works", "Dear " + (D.client || "client"), "This portal is the agreed record of your unit: scope, dates, selections and our replies.") +
+    const s = D.status || {}, p = pending().length, open = D.concerns.filter(c => c.status !== "Resolved").length, f = fixes();
+    return head(L("O-Plus · Extra works", "O-Plus · الأعمال الإضافية"), L("Dear ", "أهلاً ") + (D.client || L("client", "بك")),
+        L("This portal is the agreed record of your unit: scope, dates, selections and our replies.", "هذه البوابة هي السجل المتفق عليه لوحدتك: نطاق الأعمال والمواعيد والخامات وردودنا.")) +
       `<div class="meta">
-        <div><div class="eyebrow m">Progress</div><div class="big">${s.poc == null ? "—" : s.poc + "%"}</div></div>
-        <div><div class="eyebrow m">Handover</div><div class="v">${s.handover ? when(s.handover, true) : "—"}</div></div>
-        <div><div class="eyebrow m">PM</div><div class="v">${esc(s.pm || D.pm || "—")}</div></div>
+        <div><div class="eyebrow m">${L("Progress", "نسبة الإنجاز")}</div><div class="big">${s.poc == null ? "—" : s.poc + "%"}</div></div>
+        <div><div class="eyebrow m">${L("Handover", "التسليم")}</div><div class="v">${s.handover ? when(s.handover, true) : "—"}</div></div>
+        <div><div class="eyebrow m">${L("PM", "مدير المشروع")}</div><div class="v">${esc(s.pm || D.pm || "—")}</div></div>
       </div>` + stepper(s.stage) +
-      (p ? `<button class="cta" data-go="approvals" data-filter="Sent for approval"><span><span class="eyebrow">Action needed</span><b>${p} item${p > 1 ? "s" : ""} need${p > 1 ? "" : "s"} your approval</b><span class="small muted">Approve, or tell us what to change</span></span>${CHEV}</button>` : "") +
+      (p ? `<button class="cta" data-go="approvals" data-filter="Sent for approval"><span><span class="eyebrow">${L("Action needed", "مطلوب منك")}</span><b>${L(`${p} item${p > 1 ? "s" : ""} need${p > 1 ? "" : "s"} your approval`, `${p} بند بانتظار موافقتك`)}</b><span class="small muted">${L("Approve, or tell us what to change", "وافق، أو أخبرنا بما تريد تعديله")}</span></span>${CHEV}</button>` : "") +
+      (f ? `<button class="cta" data-go="snags" data-sfilter="Fixed"><span><span class="eyebrow">${L("Snag list", "ملاحظات الاستلام")}</span><b>${L(`${f} fix${f > 1 ? "es" : ""} ready for your check`, `${f} إصلاح جاهز لمراجعتك`)}</b><span class="small muted">${L("See the after photo and confirm", "شاهد صورة ما بعد الإصلاح وأكّد")}</span></span>${CHEV}</button>` : "") +
       `<div class="rows">
-        <button class="row" data-go="selections"><span class="col"><span class="t">Selections</span><span class="s">Finishes with sample photos</span></span>${CHEV}</button>
-        <button class="row" data-go="concerns"><span class="col"><span class="t">Concerns</span><span class="s">${open ? open + " open" : "Ask us anything about your unit"}</span></span>${CHEV}</button>
-        ${s.report && s.report.url ? `<a class="row" href="${esc(s.report.url)}" target="_blank" rel="noopener" style="text-decoration:none"><span class="col"><span class="t">Weekly report</span><span class="s">Latest · ${esc(s.report.period)}</span></span>${CHEV}</a>` : ""}
+        <button class="row" data-go="selections"><span class="col"><span class="t">${L("Selections", "الخامات")}</span><span class="s">${L("Finishes with sample photos", "التشطيبات مع صور العينات")}</span></span>${CHEV}</button>
+        <button class="row" data-go="concerns"><span class="col"><span class="t">${L("Concerns", "الاستفسارات")}</span><span class="s">${open ? L(open + " open", open + " مفتوح") : L("Ask us anything about your unit", "اسألنا عن أي شيء يخص وحدتك")}</span></span>${CHEV}</button>
+        ${s.report && s.report.url ? `<a class="row" href="${esc(s.report.url)}" target="_blank" rel="noopener" style="text-decoration:none"><span class="col"><span class="t">${L("Weekly report", "التقرير الأسبوعي")}</span><span class="s">${L("Latest", "الأحدث")} · ${esc(s.report.period)}</span></span>${CHEV}</a>` : ""}
       </div>` +
-      (s.photos && s.photos.length ? `<div class="eyebrow" style="margin:20px 0 8px">Site photos · ${when(s.photos[0].date, true)}</div>
-        <div class="grid2">${s.photos.slice(0, 4).map(ph => `<div class="ph"><img data-id="${esc(ph.id)}" alt="Site photo ${esc(ph.item)}"><span>${esc(ph.item || when(ph.date, true))}</span></div>`).join("")}</div>` : "");
+      (s.photos && s.photos.length ? `<div class="eyebrow" style="margin:20px 0 8px">${L("Site photos", "صور الموقع")} · ${when(s.photos[0].date, true)}</div>
+        <div class="grid2">${s.photos.slice(0, 4).map(ph => `<div class="ph"><img data-id="${esc(ph.id)}" alt="${L("Site photo", "صورة من الموقع")} ${esc(ph.item)}"><span>${esc(ph.item || when(ph.date, true))}</span></div>`).join("")}</div>` : "");
   },
 
   approvals() {
-    const fs = [["all", "All"], ["Sent for approval", "Sent for approval"], ["Approved", "Approved"], ["Rejected", "Rejected"]];
+    const fs = [["all", L("All", "الكل")], ["Sent for approval", L("Sent for approval", "بانتظار موافقتك")], ["Approved", L("Approved", "تمت الموافقة")], ["Rejected", L("Rejected", "مطلوب تعديل")]];
     const list = D.items.filter(x => filter === "all" || x.status === filter);
-    return head("Scope · Dates · Selections", "Approvals") +
+    return head(L("Scope · Dates · Selections", "نطاق الأعمال · المواعيد · الخامات"), L("Approvals", "الموافقات")) +
       `<div class="chips">${fs.map(f => `<button class="chip ${filter === f[0] ? "on" : ""}" data-filter="${f[0]}">${f[1]}</button>`).join("")}</div>` +
-      (list.length ? `<div class="rows">${list.map(itemRow).join("")}</div>` : `<p class="muted">Nothing in this list yet.</p>`);
+      (list.length ? `<div class="rows">${list.map(itemRow).join("")}</div>` : `<p class="muted">${L("Nothing in this list yet.", "لا يوجد شيء في هذه القائمة بعد.")}</p>`);
   },
 
   selections() {
     const list = D.items.filter(x => x.type === "Selection");
-    return head("Materials · Finishes", "Selections", "Each finish with the sample photos we agreed on.") +
+    return head(L("Materials · Finishes", "الخامات · التشطيبات"), L("Selections", "الخامات"), L("Each finish with the sample photos we agreed on.", "كل خامة مع صور العينات المتفق عليها.")) +
       (list.length ? `<div class="grid2">${list.map(x => `<button class="card" data-item="${esc(x.id)}" data-back="selections">
         <div class="ph">${x.photos[0] ? `<img data-id="${esc(x.photos[0])}" alt="">` : ""}</div>
-        <div class="body"><span class="t">${esc(x.title)}</span>${pill(x.status)}</div></button>`).join("")}</div>` : `<p class="muted">No selections shared yet.</p>`);
+        <div class="body"><span class="t">${esc(x.title)}</span>${pill(x.status)}</div></button>`).join("")}</div>` : `<p class="muted">${L("No selections shared yet.", "لم تتم مشاركة أي خامات بعد.")}</p>`);
   },
 
   item() {
     const x = D.items.find(i => i.id === sel);
-    if (!x) return `<p class="muted">This item is no longer available.</p>`;
-    return `<button class="back" data-go="${back}">${BACK("Back")}</button>` +
-      head(`${x.type} · Version ${x.version}`, x.title) + pill(x.status) +
-      (x.photos.length ? `<div class="grid2" style="margin-top:14px">${x.photos.map((id, i) => `<div class="ph"><img data-id="${esc(id)}" alt="Sample photo ${i + 1}"><span>Sample ${i + 1}</span></div>`).join("")}</div>` : "") +
+    if (!x) return `<p class="muted">${L("This item is no longer available.", "هذا البند لم يعد متاحاً.")}</p>`;
+    return `<button class="back" data-go="${back}">${BACK(L("Back", "رجوع"))}</button>` +
+      head(`${type(x.type)} · ${L("Version", "النسخة")} ${x.version}`, x.title) + pill(x.status) +
+      (x.photos.length ? `<div class="grid2" style="margin-top:14px">${x.photos.map((id, i) => `<div class="ph"><img data-id="${esc(id)}" alt="${L("Sample photo", "صورة عينة")} ${i + 1}"><span>${L("Sample", "عينة")} ${i + 1}</span></div>`).join("")}</div>` : "") +
       details(x.details) +
-      `<p class="small muted">Sent by ${esc(x.sentBy)} · ${when(x.sentAt)}</p>` +
-      (x.status === "Approved" ? `<div class="note"><b>Approved · ${when(x.decidedAt)}</b><br>By ${esc(x.decidedBy)}, confirmed with an email code.<br><span class="small muted">Any later change is issued as a new version for approval.</span></div>` : "") +
-      (x.status === "Rejected" ? `<div class="note bad"><b>Rejected · ${when(x.decidedAt)}</b><br>Reason: ${esc(x.reason)}<br><span class="small muted">Our team will revise it and send a new version.</span></div>` : "") +
-      (x.status === "Sent for approval" ? `<div class="stack"><button class="btn" data-decide="approve">Approve</button><button class="btn bad" data-decide="reject">Request changes</button><span class="small muted">We will email you a 6-digit code to confirm. Your decision is recorded with your name, date and time.</span></div>` : "");
+      `<p class="small muted">${L("Sent by", "أرسله")} ${esc(x.sentBy)} · ${when(x.sentAt)}</p>` +
+      (x.status === "Approved" ? `<div class="note"><b>${L("Approved", "تمت الموافقة")} · ${when(x.decidedAt)}</b><br>${L(`By ${esc(x.decidedBy)}, confirmed with an email code.`, `بواسطة ${esc(x.decidedBy)}، وتم التأكيد بكود عبر البريد الإلكتروني.`)}<br><span class="small muted">${L("Any later change is issued as a new version for approval.", "أي تغيير لاحق يُرسل كنسخة جديدة للموافقة.")}</span></div>` : "") +
+      (x.status === "Rejected" ? `<div class="note bad"><b>${L("Rejected", "مطلوب تعديل")} · ${when(x.decidedAt)}</b><br>${L("Reason", "السبب")}: ${esc(x.reason)}<br><span class="small muted">${L("Our team will revise it and send a new version.", "سيقوم فريقنا بالتعديل وإرسال نسخة جديدة.")}</span></div>` : "") +
+      (x.status === "Sent for approval" ? `<div class="stack"><button class="btn" data-decide="approve">${L("Approve", "موافقة")}</button><button class="btn bad" data-decide="reject">${L("Request changes", "طلب تعديل")}</button><span class="small muted">${L("We will email you a 6-digit code to confirm. Your decision is recorded with your name, date and time.", "سنرسل لك كوداً من 6 أرقام على بريدك للتأكيد. يُسجَّل قرارك باسمك والتاريخ والوقت.")}</span></div>` : "");
   },
 
   concerns() {
-    return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">${head("Questions · Issues", "Concerns")}<button class="btn small" id="newConcern" style="margin-bottom:16px">New concern</button></div>` +
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">${head(L("Questions · Issues", "أسئلة · مشاكل"), L("Concerns", "الاستفسارات"))}<button class="btn small" id="newConcern" style="margin-bottom:16px">${L("New concern", "استفسار جديد")}</button></div>` +
       (D.concerns.length ? `<div class="rows">${D.concerns.map(c => { const l = c.messages[c.messages.length - 1] || {};
         return `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${esc((l.name || "") + ": " + (l.text || ""))}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status)}</button>`; }).join("")}</div>`
-      : `<p class="muted">No concerns yet. If anything on site worries you, tell us here and your PM will reply.</p>`);
+      : `<p class="muted">${L("No concerns yet. If anything on site worries you, tell us here and your PM will reply.", "لا توجد استفسارات بعد. إذا كان هناك ما يقلقك في الموقع، أخبرنا هنا وسيرد عليك مدير المشروع.")}</p>`);
   },
 
   concern() {
     const c = D.concerns.find(k => k.id === sel);
-    if (!c) return `<p class="muted">Not found.</p>`;
-    return `<button class="back" data-go="concerns">${BACK("All concerns")}</button>` + head("Concern", c.subject) + pill(c.status) +
-      c.messages.map(m => `<div class="msg ${m.from === "client" ? "me" : "them"}"><div class="b">${esc(m.text)}${m.photo ? `<img data-id="${esc(m.photo)}" alt="Attached photo">` : ""}</div><span class="w">${esc(m.name)}${m.from === "team" ? " · O-Plus" : ""} · ${when(m.at)}</span></div>`).join("") +
-      (c.status !== "Resolved" ? `<label class="f" for="reply">Your reply</label><textarea class="f" id="reply" rows="3"></textarea>
-        <div class="stack"><button class="btn" id="sendReply">Send</button><button class="btn ghost" id="resolve">Mark as resolved</button></div>`
-      : `<p class="small muted" style="border-top:1px solid var(--line);padding-top:12px">This concern is resolved. If the issue returns, please open a new concern.</p>`);
+    if (!c) return `<p class="muted">${L("Not found.", "غير موجود.")}</p>`;
+    return `<button class="back" data-go="concerns">${BACK(L("All concerns", "كل الاستفسارات"))}</button>` + head(L("Concern", "استفسار"), c.subject) + pill(c.status) +
+      c.messages.map(m => `<div class="msg ${m.from === "client" ? "me" : "them"}"><div class="b">${esc(m.text)}${m.photo ? `<img data-id="${esc(m.photo)}" alt="${L("Attached photo", "صورة مرفقة")}">` : ""}</div><span class="w">${esc(m.name)}${m.from === "team" ? " · O-Plus" : ""} · ${when(m.at)}</span></div>`).join("") +
+      (c.status !== "Resolved" ? `<label class="f" for="reply">${L("Your reply", "ردك")}</label><textarea class="f" id="reply" rows="3"></textarea>
+        <div class="stack"><button class="btn" id="sendReply">${L("Send", "إرسال")}</button><button class="btn ghost" id="resolve">${L("Mark as resolved", "تم الحل")}</button></div>`
+      : `<p class="small muted" style="border-top:1px solid var(--line);padding-top:12px">${L("This concern is resolved. If the issue returns, please open a new concern.", "تم حل هذا الاستفسار. إذا تكررت المشكلة، برجاء فتح استفسار جديد.")}</p>`);
+  },
+
+  snags() {
+    const all = D.snags || [], n = st => all.filter(x => x.status === st).length;
+    const fs = [["all", L("All", "الكل")], ["Open", L("Open", "مفتوحة")], ["Fixed", L("To check", "للمراجعة")], ["Closed", L("Closed", "مغلقة")]];
+    const list = all.filter(x => snagFilter === "all" || x.status === snagFilter);
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">${head(L("Handover · Snag list", "التسليم · ملاحظات الاستلام"), L("Snags", "ملاحظات الاستلام"))}<button class="btn small" id="newSnag" style="margin-bottom:16px">${L("Add a snag", "إضافة ملاحظة")}</button></div>` +
+      `<p class="sub" style="margin:-8px 0 0">${L("Anything not right in your unit? Add it with a photo. We fix it, show you the after photo, and you confirm.", "هل هناك شيء غير سليم في وحدتك؟ أضفه مع صورة. نقوم بالإصلاح ونرسل لك صورة بعد الإصلاح، وأنت تؤكد.")}</p>` +
+      `<div class="meta"><div><div class="eyebrow m">${L("Open", "مفتوحة")}</div><div class="big">${n("Open")}</div></div>
+        <div><div class="eyebrow m">${L("To check", "للمراجعة")}</div><div class="big" style="color:var(--active)">${n("Fixed")}</div></div>
+        <div><div class="eyebrow m">${L("Closed", "مغلقة")}</div><div class="big" style="color:var(--done)">${n("Closed")}</div></div></div>` +
+      (all.length ? `<div class="chips">${fs.map(f => `<button class="chip ${snagFilter === f[0] ? "on" : ""}" data-sfilter="${f[0]}">${f[1]}</button>`).join("")}</div>` : "") +
+      (list.length ? `<div class="rows">${list.map(snagRow).join("")}</div>` : `<p class="muted">${all.length ? L("Nothing in this list.", "لا يوجد شيء في هذه القائمة.") : L("No snags yet. Walk through your unit and add anything that needs fixing.", "لا توجد ملاحظات بعد. تفقّد وحدتك وأضف أي شيء يحتاج إصلاحاً.")}</p>`);
+  },
+
+  snag() {
+    const x = (D.snags || []).find(k => k.id === sel);
+    if (!x) return `<p class="muted">${L("This snag is no longer available.", "هذه الملاحظة لم تعد متاحة.")}</p>`;
+    const ph = (ids, label) => ids.length ? `<div class="grid2" style="margin-top:12px">${ids.map((id, i) => `<div class="ph"><img data-id="${esc(id)}" alt="${label} ${i + 1}"><span>${label}</span></div>`).join("")}</div>` : "";
+    const before = L("Before", "قبل"), after = L("After", "بعد");
+    return `<button class="back" data-go="snags">${BACK(L("Snag list", "ملاحظات الاستلام"))}</button>` +
+      head(`${L("Snag", "ملاحظة")} #${x.no} · ${x.from === "team" ? L("Found by O-Plus", "رصدها فريق O-Plus") : L("Reported by you", "أضفتها أنت")}`, x.location || L("Snag", "ملاحظة") + " #" + x.no) + pill(x.status === "Fixed" ? "Please check" : x.status) +
+      `<p class="para">${esc(x.text)}</p>` + ph(x.photos, before) +
+      `<p class="small muted">${esc(x.reportedBy)} · ${when(x.reportedAt)}</p>` +
+      (x.status === "Open" && x.reopenNote ? `<div class="note bad"><b>${L("You said it is still not fixed", "ذكرت أنها لم تُصلح بعد")}</b><br>${esc(x.reopenNote)}</div>` : "") +
+      (x.fixPhotos.length && x.status !== "Open" ? `<div class="eyebrow" style="margin-top:18px">${after} · ${L("fixed by", "أصلحها")} ${esc(x.fixedBy)} · ${when(x.fixedAt)}</div>` + ph(x.fixPhotos, after) + (x.fixNote ? `<p class="para">${esc(x.fixNote)}</p>` : "") : "") +
+      (x.status === "Fixed" ? `<div class="stack"><button class="btn" id="snagOk">${L("Yes, it's fixed", "نعم، تم الإصلاح")}</button><button class="btn bad" id="snagNo">${L("Still not fixed", "لم تُصلح بعد")}</button><span class="small muted">${L("Your answer is recorded with your name, date and time.", "يُسجَّل ردك باسمك والتاريخ والوقت.")}</span></div>` : "") +
+      (x.status === "Closed" ? `<div class="note"><b>${L("Closed", "مغلقة")} · ${when(x.closedAt)}</b><br>${L("Confirmed by", "أكدها")} ${esc(x.closedBy)}.</div>` : "") +
+      (x.status === "Open" ? `<p class="small muted" style="border-top:1px solid var(--line);padding-top:12px">${L("Our team is on it. We will email you when it is fixed, with a photo.", "فريقنا يعمل عليها. سنرسل لك بريداً عند الإصلاح مع صورة.")}</p>` : "");
   },
 
   history() {
-    const dot = e => /Approved|resolved/i.test(e) ? "var(--done)" : /Rejected/.test(e) ? "var(--problem)" : /concern|replied/i.test(e) ? "#E0B55C" : "var(--navy)";
-    return head("Record · Not editable", "History", "Everything shared, approved or rejected, newest first.") +
-      (D.history.length ? `<div class="rows">${D.history.map(h => `<div class="log"><span class="dot" style="background:${dot(h.event)}"></span><span><b style="font-weight:500">${esc(h.event)}${h.title ? " · " + esc(h.title) : ""}${h.version ? " (v" + esc(h.version) + ")" : ""}</b><br><span class="small muted">${when(h.at)} · ${esc(h.by)}</span></span></div>`).join("")}</div>` : `<p class="muted">Nothing yet.</p>`);
+    const dot = e => /Approved|resolved|closed/i.test(e) ? "var(--done)" : /Rejected|reopened/i.test(e) ? "var(--problem)" : /concern|replied|snag/i.test(e) ? "#E0B55C" : "var(--navy)";
+    return head(L("Record · Not editable", "السجل · غير قابل للتعديل"), L("History", "السجل"), L("Everything shared, approved or rejected, newest first.", "كل ما تمت مشاركته أو الموافقة عليه أو رفضه، الأحدث أولاً.")) +
+      (D.history.length ? `<div class="rows">${D.history.map(h => `<div class="log"><span class="dot" style="background:${dot(h.event)}"></span><span><b style="font-weight:500">${esc(AR() ? EVENT_AR[h.event] || h.event : h.event)}${h.title ? " · " + esc(h.title) : ""}${h.version ? " (v" + esc(h.version) + ")" : ""}</b><br><span class="small muted">${when(h.at)} · ${esc(h.by)}</span></span></div>`).join("")}</div>` : `<p class="muted">${L("Nothing yet.", "لا شيء بعد.")}</p>`);
   }
 };
 
+const fixes = () => (D.snags || []).filter(x => x.status === "Fixed").length;
+function snagRow(x) {
+  return `<button class="row" data-snag="${esc(x.id)}"><span class="col"><span class="eyebrow m">#${x.no}${x.location ? " · " + esc(x.location) : ""}</span><span class="t" style="font-weight:500;font-size:14px">${esc(x.text)}</span><span class="s">${x.status === "Closed" ? L("Closed ", "أُغلقت ") + when(x.closedAt, true) : x.status === "Fixed" ? L("Fixed ", "أُصلحت ") + when(x.fixedAt, true) : L("Reported ", "أُضيفت ") + when(x.reportedAt, true)}</span></span>${pill(x.status === "Fixed" ? "Please check" : x.status)}</button>`;
+}
+
 function itemRow(x) {
-  return `<button class="row" data-item="${esc(x.id)}" data-back="approvals"><span class="col"><span class="eyebrow m">${esc(x.type)}</span><span class="t">${esc(x.title)}</span><span class="s">${x.status === "Sent for approval" ? "Sent " + when(x.sentAt, true) : x.decidedAt ? when(x.decidedAt, true) : ""}</span></span>${pill(x.status)}</button>`;
+  return `<button class="row" data-item="${esc(x.id)}" data-back="approvals"><span class="col"><span class="eyebrow m">${esc(type(x.type))}</span><span class="t">${esc(x.title)}</span><span class="s">${x.status === "Sent for approval" ? L("Sent ", "أُرسل ") + when(x.sentAt, true) : x.decidedAt ? when(x.decidedAt, true) : ""}</span></span>${pill(x.status)}</button>`;
 }
 
 function bind() {
   const v = $("view");
-  v.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { if (b.dataset.filter) filter = b.dataset.filter; go(b.dataset.go); });
+  v.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { if (b.dataset.filter) filter = b.dataset.filter; if (b.dataset.sfilter) snagFilter = b.dataset.sfilter; go(b.dataset.go); });
   v.querySelectorAll(".chips [data-filter]").forEach(b => b.onclick = () => { filter = b.dataset.filter; render(); });
+  v.querySelectorAll(".chips [data-sfilter]").forEach(b => b.onclick = () => { snagFilter = b.dataset.sfilter; render(); });
   v.querySelectorAll("[data-item]").forEach(b => b.onclick = () => { sel = b.dataset.item; back = b.dataset.back || "approvals"; go("item"); });
   v.querySelectorAll("[data-concern]").forEach(b => b.onclick = () => { sel = b.dataset.concern; go("concern"); });
+  v.querySelectorAll("[data-snag]").forEach(b => b.onclick = () => { sel = b.dataset.snag; go("snag"); });
   v.querySelectorAll("[data-decide]").forEach(b => b.onclick = () => decide(b.dataset.decide));
   if ($("newConcern")) $("newConcern").onclick = newConcern;
+  if ($("newSnag")) $("newSnag").onclick = newSnag;
+  if ($("snagOk")) $("snagOk").onclick = () => busy($("snagOk"), async () => {
+    D = await api({ action: "portal.snag.close", token, snagId: sel }); render(); toast(L("Thank you. The snag is closed.", "شكراً لك. تم إغلاق الملاحظة."));
+  });
+  if ($("snagNo")) $("snagNo").onclick = snagReopen;
   if ($("sendReply")) $("sendReply").onclick = () => busy($("sendReply"), async () => {
-    const text = $("reply").value.trim(); if (!text) return toast("Please write a reply.");
-    D = await api({ action: "portal.reply", token, concernId: sel, text }); render(); toast("Sent to the team.");
+    const text = $("reply").value.trim(); if (!text) return toast(L("Please write a reply.", "برجاء كتابة رد."));
+    D = await api({ action: "portal.reply", token, concernId: sel, text }); render(); toast(L("Sent to the team.", "تم الإرسال للفريق."));
   });
   if ($("resolve")) $("resolve").onclick = () => busy($("resolve"), async () => {
-    D = await api({ action: "portal.resolve", token, concernId: sel }); render(); toast("Concern marked as resolved.");
+    D = await api({ action: "portal.resolve", token, concernId: sel }); render(); toast(L("Concern marked as resolved.", "تم تسجيل الاستفسار كمحلول."));
   });
 }
 
 async function busy(btn, fn) {
-  const t = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
-  try { await fn(); } catch (e) { toast(e.message); } finally { if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = t; } }
+  const t = btn.textContent; btn.disabled = true; btn.textContent = L("Please wait…", "برجاء الانتظار…");
+  try { await fn(); } catch (e) { toast(tr(e.message)); } finally { if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = t; } }
 }
 
 function decide(kind) {
   const x = D.items.find(i => i.id === sel);
-  const s = sheet(`<div class="eyebrow">${kind === "approve" ? "Confirm approval" : "Request changes"}</div>
+  const s = sheet(`<div class="eyebrow">${kind === "approve" ? L("Confirm approval", "تأكيد الموافقة") : L("Request changes", "طلب تعديل")}</div>
     <div class="title" style="font-size:17px">${esc(x.title)}</div>
-    ${kind === "reject" ? `<label class="f" for="reason">What should we change?</label><textarea class="f" id="reason" rows="4"></textarea>` : `<p class="small">We will email a 6-digit code to ${esc(D.email || "your email")} to confirm it is you.</p>`}
-    <div id="codeBox" hidden><label class="f" for="code">Code from your email</label><input class="f code" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    ${kind === "reject" ? `<label class="f" for="reason">${L("What should we change?", "ما الذي تريد تعديله؟")}</label><textarea class="f" id="reason" rows="4"></textarea>` : `<p class="small">${L(`We will email a 6-digit code to ${esc(D.email || "your email")} to confirm it is you.`, `سنرسل كوداً من 6 أرقام إلى <span class="ltr">${esc(D.email || "بريدك")}</span> للتأكد من هويتك.`)}</p>`}
+    <div id="codeBox" hidden><label class="f" for="code">${L("Code from your email", "الكود المرسل لبريدك")}</label><input class="f code ltr" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
     <div class="err" id="err" hidden></div>
-    <div class="stack"><button class="btn ${kind === "reject" ? "red" : ""}" id="go">Send me a code</button><button class="btn ghost" id="cancel">Cancel</button></div>`);
+    <div class="stack"><button class="btn ${kind === "reject" ? "red" : ""}" id="go">${L("Send me a code", "أرسل لي الكود")}</button><button class="btn ghost" id="cancel">${L("Cancel", "إلغاء")}</button></div>`);
   let step = 1;
   const err = t => { $("err").hidden = !t; $("err").textContent = t || ""; };
   s.querySelector("#cancel").onclick = closeSheet;
   s.querySelector("#go").onclick = () => busy($("go"), async () => {
     err("");
     const reason = kind === "reject" ? $("reason").value.trim() : "";
-    if (kind === "reject" && !reason) return err("Please add a reason.");
+    if (kind === "reject" && !reason) return err(L("Please add a reason.", "برجاء كتابة السبب."));
     if (step === 1) {
       const j = await api({ action: "portal.code", token, itemId: x.id, decision: kind });
       $("codeBox").hidden = false; step = 2; $("code").focus();
-      toast("Code sent to " + j.sentTo);
-      setTimeout(() => $("go").textContent = kind === "approve" ? "Confirm approval" : "Send to the team", 0);
+      toast(L("Code sent to ", "تم إرسال الكود إلى ") + j.sentTo);
+      setTimeout(() => $("go").textContent = kind === "approve" ? L("Confirm approval", "تأكيد الموافقة") : L("Send to the team", "إرسال للفريق"), 0);
       return;
     }
     const code = $("code").value.replace(/\D/g, "");
-    if (code.length !== 6) return err("Enter the 6-digit code.");
+    if (code.length !== 6) return err(L("Enter the 6-digit code.", "أدخل الكود المكون من 6 أرقام."));
     try { D = await api({ action: "portal.decide", token, itemId: x.id, decision: kind, reason, code }); }
-    catch (e) { return err(e.message); }
-    closeSheet(); render(); toast(kind === "approve" ? "Approval recorded. The team has been notified." : "Sent to the team.");
+    catch (e) { return err(tr(e.message)); }
+    closeSheet(); render(); toast(kind === "approve" ? L("Approval recorded. The team has been notified.", "تم تسجيل الموافقة وإبلاغ الفريق.") : L("Sent to the team.", "تم الإرسال للفريق."));
+  });
+}
+
+function newSnag() {
+  let photos = [];
+  const s = sheet(`<div class="eyebrow">${L("Add a snag", "إضافة ملاحظة استلام")}</div><div class="title" style="font-size:17px">${L("What needs fixing?", "ما الذي يحتاج إصلاحاً؟")}</div>
+    <label class="f" for="sl">${L("Where", "المكان")}</label><input class="f" id="sl" list="rooms" maxlength="120" placeholder="${L("For example: Kitchen", "مثال: المطبخ")}"><datalist id="rooms">${(AR() ? ROOMS_AR : ROOMS).map(r => `<option value="${esc(r)}">`).join("")}</datalist>
+    <label class="f" for="st">${L("What is wrong", "المشكلة")}</label><textarea class="f" id="st" rows="3" placeholder="${L("For example: chipped tile next to the sink", "مثال: بلاطة مكسورة بجوار الحوض")}"></textarea>
+    <input type="file" id="sf" accept="image/*" multiple hidden><div class="thumbs" id="sth"></div>
+    <div class="err" id="serr" hidden></div>
+    <div class="stack"><button class="btn ghost" id="sp">${L("Add photos (up to 4)", "إضافة صور (حتى 4)")}</button><button class="btn" id="ssend">${L("Save snag", "حفظ الملاحظة")}</button><button class="btn ghost" id="smore">${L("Save and add another", "حفظ وإضافة أخرى")}</button><button class="btn ghost" id="sc" style="border:0">${L("Cancel", "إلغاء")}</button></div>`);
+  const err = t => { $("serr").hidden = !t; $("serr").textContent = t || ""; };
+  s.querySelector("#sc").onclick = closeSheet;
+  s.querySelector("#sp").onclick = () => $("sf").click();
+  s.querySelector("#sf").onchange = async e => {
+    for (const f of e.target.files) if (photos.length < 4) photos.push(await compress(f));
+    $("sth").innerHTML = photos.map(p => `<img src="${p}" alt="">`).join("");
+  };
+  const save = more => async () => {
+    err("");
+    const location = $("sl").value.trim(), text = $("st").value.trim();
+    if (!text) return err(L("Please describe the snag.", "برجاء وصف المشكلة."));
+    if (!photos.length) return err(L("Please add at least one photo.", "برجاء إضافة صورة واحدة على الأقل."));
+    D = await api({ action: "portal.snag", token, location, text, photos });
+    const no = Math.max(...D.snags.map(x => x.no));
+    snagFilter = "all"; view = "snags"; render();
+    if (more) { newSnag(); $("sl").value = location; $("st").focus(); } else closeSheet();
+    toast(L(`Snag #${no} saved.${more ? " Add the next one." : " Your PM has been notified."}`, `تم حفظ الملاحظة #${no}.${more ? " أضف التالية." : " تم إبلاغ مدير المشروع."}`));
+  };
+  s.querySelector("#ssend").onclick = () => busy($("ssend"), save(false));
+  s.querySelector("#smore").onclick = () => busy($("smore"), save(true));
+}
+
+function snagReopen() {
+  const x = D.snags.find(k => k.id === sel);
+  const s = sheet(`<div class="eyebrow">${L("Still not fixed", "لم تُصلح بعد")}</div><div class="title" style="font-size:17px">#${x.no}${x.location ? " · " + esc(x.location) : ""}</div>
+    <label class="f" for="rn">${L("What is still wrong?", "ما الذي ما زال غير سليم؟")}</label><textarea class="f" id="rn" rows="4"></textarea>
+    <div class="err" id="rerr" hidden></div>
+    <div class="stack"><button class="btn red" id="rgo">${L("Send back to the team", "إعادتها للفريق")}</button><button class="btn ghost" id="rc">${L("Cancel", "إلغاء")}</button></div>`);
+  s.querySelector("#rc").onclick = closeSheet;
+  s.querySelector("#rgo").onclick = () => busy($("rgo"), async () => {
+    const note = $("rn").value.trim();
+    if (!note) { $("rerr").hidden = false; $("rerr").textContent = L("Please tell us what is still wrong.", "برجاء توضيح ما زال غير سليم."); return; }
+    D = await api({ action: "portal.snag.reopen", token, snagId: sel, note }); closeSheet(); render(); toast(L("Sent back to the team.", "تمت إعادتها للفريق."));
   });
 }
 
 function newConcern() {
   let photo = "";
-  const s = sheet(`<div class="eyebrow">New concern</div>
-    <label class="f" for="cs">Subject</label><input class="f" id="cs" maxlength="200" placeholder="For example: crack in the corridor wall">
-    <label class="f" for="cb">Details</label><textarea class="f" id="cb" rows="4" placeholder="What did you notice, and where?"></textarea>
+  const s = sheet(`<div class="eyebrow">${L("New concern", "استفسار جديد")}</div>
+    <label class="f" for="cs">${L("Subject", "الموضوع")}</label><input class="f" id="cs" maxlength="200" placeholder="${L("For example: crack in the corridor wall", "مثال: شرخ في حائط الطرقة")}">
+    <label class="f" for="cb">${L("Details", "التفاصيل")}</label><textarea class="f" id="cb" rows="4" placeholder="${L("What did you notice, and where?", "ماذا لاحظت، وأين؟")}"></textarea>
     <input type="file" id="cf" accept="image/*" hidden><div class="thumbs" id="ct"></div>
-    <div class="stack"><button class="btn ghost" id="cp">Attach a photo</button><button class="btn" id="csend">Send</button><button class="btn ghost" id="cc">Cancel</button></div>`);
+    <div class="stack"><button class="btn ghost" id="cp">${L("Attach a photo", "إرفاق صورة")}</button><button class="btn" id="csend">${L("Send", "إرسال")}</button><button class="btn ghost" id="cc">${L("Cancel", "إلغاء")}</button></div>`);
   s.querySelector("#cc").onclick = closeSheet;
   s.querySelector("#cp").onclick = () => $("cf").click();
-  s.querySelector("#cf").onchange = async e => { if (!e.target.files[0]) return; photo = await compress(e.target.files[0]); $("ct").innerHTML = `<img src="${photo}" alt="Attached photo">`; };
+  s.querySelector("#cf").onchange = async e => { if (!e.target.files[0]) return; photo = await compress(e.target.files[0]); $("ct").innerHTML = `<img src="${photo}" alt="">`; };
   s.querySelector("#csend").onclick = () => busy($("csend"), async () => {
     const subject = $("cs").value.trim(), text = $("cb").value.trim();
-    if (!subject && !text) return toast("Please write your concern.");
+    if (!subject && !text) return toast(L("Please write your concern.", "برجاء كتابة استفسارك."));
     D = await api({ action: "portal.concern", token, subject, text, photo });
-    closeSheet(); sel = D.concerns[0] && D.concerns[0].id; go("concern"); toast("Sent. Your PM will reply here.");
+    closeSheet(); sel = D.concerns[0] && D.concerns[0].id; go("concern"); toast(L("Sent. Your PM will reply here.", "تم الإرسال. سيرد مدير المشروع هنا."));
   });
 }
+
+start();
 </script>
 </body>
 </html>

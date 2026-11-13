@@ -16,6 +16,8 @@ It is **separate from O West Site Camera**. It has its own Apps Script and its o
 - **Client access:** a private link per unit, with no account and no password. To approve or reject an item, the client enters a 6-digit code that we email to them. The decision is recorded with their name, the date and time, and the email the code went to.
 - **Versions:** a rejected item is revised and sent again as version 2. The old version stays in the record, marked "Replaced".
 - **The record:** the "Portal Log" tab gets a row for every send, approval, rejection, concern and reply. It is protected, so only the sheet owner can edit it.
+- **Snag list (handover):** from Quality Inspection on, the client gets a Snags tab. The client or the PM adds a snag with a room and photos. The PM marks it fixed with an after photo. The client then confirms it is fixed (closed) or sends it back with a note. Emails are grouped: at most one per unit every 30 minutes, so a walk-through of 20 snags is not 20 emails.
+- **Arabic:** the client page has an English / عربي button in the top bar. It switches the page to Arabic, right to left, and remembers the choice on that phone. What the PM types (titles, details, replies) shows as written. Emails and the team page stay in English.
 - **Home page data:** progress %, stage, handover date and PM come from the unit's ClickUp tasks (cached for 3 hours). The newest site photos and the latest weekly report come from Site Camera.
 - **Emails:** the client is emailed when they are invited, when an item is sent and when the PM replies. The team ("Team emails" in Settings) is emailed on every approval, rejection, concern and client reply.
 
@@ -38,4 +40,5 @@ Use the same Google account that owns the Site Camera sheet (x.owest.x), so the 
 2. Open a unit and check the client email. Tap **Send invitation**, or **Copy client link** to paste it on WhatsApp.
 3. Use **Send new item for approval**: pick the type, title, details ("Label: value" lines show as a table) and sample photos.
 4. **Needs your action** lists rejected items to revise and concerns to answer, oldest first.
-5. If a link leaks, use **Make a new link**. The old link stops working at once.
+5. **Snags:** on the unit page, use **Add snag** at inspection. Open a snag and use **Mark as fixed** with at least one after photo. Units with open snags show in **Needs your action**.
+6. If a link leaks, use **Make a new link**. The old link stops working at once.

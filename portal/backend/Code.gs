@@ -41,7 +41,7 @@ function doPost(e) {
   } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
 }
 
-const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', log: 'Portal Log' };
+const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', log: 'Portal Log' };
 const PORTAL_URL = 'https://xowestx.github.io/owest-site-camera/portal/';
 const PORTAL_ASSETS = 'https://xowestx.github.io/owest-site-camera/portal/assets/';
 const PORTAL_ROOT = 'O West Client Portal';
@@ -49,10 +49,14 @@ const PC_HEADERS = ['Unit', 'Client name', 'Client email', 'Token', 'Invited at'
 const PI_HEADERS = ['Item ID', 'Unit', 'Type', 'Title', 'Details', 'Photo IDs', 'Version', 'Replaces', 'Status', 'Sent at', 'Sent by', 'Decided at', 'Decided by', 'Reason'];
 const PCN_HEADERS = ['Concern ID', 'Unit', 'Subject', 'Status', 'Opened at', 'Updated at'];
 const PMS_HEADERS = ['Concern ID', 'Unit', 'At', 'From', 'Name', 'Text', 'Photo ID'];
+const PSN_HEADERS = ['Snag ID', 'Unit', 'No.', 'Location', 'Description', 'Photo IDs', 'Status', 'Reported at', 'Reported by', 'From',
+  'Fixed at', 'Fixed by', 'Fix note', 'Fix photo IDs', 'Closed at', 'Closed by', 'Reopen note'];
 const PL_HEADERS = ['At', 'Unit', 'Event', 'Ref', 'Version', 'Title', 'Detail', 'By', 'Confirmed with'];
 const P_TYPES = ['Selection', 'Scope of work', 'Date change'];
 const S_PENDING = 'Sent for approval', S_OK = 'Approved', S_NO = 'Rejected', S_OLD = 'Replaced';
 const C_OPEN = 'Under review', C_REPLIED = 'Replied', C_DONE = 'Resolved';
+const SN_OPEN = 'Open', SN_FIXED = 'Fixed', SN_CLOSED = 'Closed';
+const SNAG_MAIL_GAP = 1800; // seconds: one email per unit per half hour while a snag walk-through is going on
 
 /* =========================== router =========================== */
 
@@ -67,6 +71,8 @@ function portal_(b) {
     if (a === 'portal.pm.upload') return pmUpload_(b);
     if (a === 'portal.pm.item') return pmItem_(b);
     if (a === 'portal.pm.reply') return pmReply_(b);
+    if (a === 'portal.pm.snag') return pmSnag_(b);
+    if (a === 'portal.pm.snagfix') return pmSnagFix_(b);
   } else {
     const c = clientByToken_(b.token);
     if (a === 'portal.open') { touchClient_(c); return clientView_(c); }
@@ -75,6 +81,9 @@ function portal_(b) {
     if (a === 'portal.concern') return clientConcern_(c, b);
     if (a === 'portal.reply') return clientReply_(c, b);
     if (a === 'portal.resolve') return clientResolve_(c, b);
+    if (a === 'portal.snag') return clientSnag_(c, b);
+    if (a === 'portal.snag.close') return clientSnagClose_(c, b);
+    if (a === 'portal.snag.reopen') return clientSnagReopen_(c, b);
   }
   throw new Error('Unknown portal action.');
 }
@@ -103,7 +112,7 @@ function clientView_(c) {
     unit: c.unit, project: u.project, client: c.name || u.client, pm: c.pm,
     email: maskEmail_(c.email), status: unitStatus_(c.unit),
     items: unitItems_(c.unit).filter(x => x.status !== S_OLD),
-    concerns: unitConcerns_(c.unit),
+    concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit),
     history: unitLog_(c.unit)
   };
 }
@@ -190,20 +199,111 @@ function clientResolve_(c, b) {
   return clientView_(c);
 }
 
+/* =========================== snag list (handover) =========================== */
+/* Open -> Fixed (team, with after photos) -> Closed (client confirms). "Still not fixed" sends it back to Open. */
+
+function addSnag_(unit, b, by, from, photoIds) {
+  const location = str_(b.location).slice(0, 120), text = str_(b.text).slice(0, 2000);
+  if (!text) throw new Error('Please describe the snag.');
+  let no = 0;
+  withLock_(() => {
+    no = rows_(PT.snags).filter(r => low_(r['Unit']) === unit.toLowerCase()).reduce((m, r) => Math.max(m, Number(r['No.'] || 0)), 0) + 1;
+    const id = 'S' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    sheet_(PT.snags, PSN_HEADERS).appendRow([id, unit, no, location, text, photoIds.join(','), SN_OPEN, now_(), by, from, '', '', '', '', '', '', '']);
+    log_(unit, 'Snag reported', id, '', `#${no}${location ? ' · ' + location : ''}`, text, by, '');
+  });
+  return no;
+}
+
+/** One email per unit per half hour, so a walk-through of 30 snags is not 30 emails. */
+function snagMailDue_(key) {
+  const cache = CacheService.getScriptCache();
+  if (cache.get(key)) return false;
+  cache.put(key, '1', SNAG_MAIL_GAP);
+  return true;
+}
+
+function clientSnag_(c, b) {
+  const photos = (b.photos || []).slice(0, 4).map(p => savePortalPhoto_(c.unit, p, 'snag'));
+  const no = addSnag_(c.unit, b, c.name || 'Client', 'client', photos);
+  if (snagMailDue_('psnagmail:' + c.unit))
+    notifyTeam_(`${c.unit} · Client is adding snags`, 'SNAG LIST', `${c.name || 'The client'} reported snag #${no}`,
+      [`${str_(b.location) ? str_(b.location) + ': ' : ''}${str_(b.text)}`, 'More may follow. Open the unit in the team portal to see the full list.']);
+  return clientView_(c);
+}
+
+function clientSnagClose_(c, b) {
+  withLock_(() => {
+    const ref = snagRef_(c.unit, b.snagId);
+    if (str_(ref.obj['Status']) !== SN_FIXED) throw new Error('This snag is not marked as fixed yet. Please reload.');
+    setCells_(ref, { 'Status': SN_CLOSED, 'Closed at': now_(), 'Closed by': c.name || 'Client' });
+    log_(c.unit, 'Snag closed', ref.obj['Snag ID'], '', `#${ref.obj['No.']}${str_(ref.obj['Location']) ? ' · ' + str_(ref.obj['Location']) : ''}`, 'Client confirmed the fix', c.name || 'Client', '');
+  });
+  return clientView_(c);
+}
+
+function clientSnagReopen_(c, b) {
+  const note = str_(b.note).slice(0, 2000);
+  if (!note) throw new Error('Please tell us what is still wrong.');
+  let title = '';
+  withLock_(() => {
+    const ref = snagRef_(c.unit, b.snagId);
+    if (str_(ref.obj['Status']) !== SN_FIXED) throw new Error('This snag is not marked as fixed yet. Please reload.');
+    title = `#${ref.obj['No.']}${str_(ref.obj['Location']) ? ' · ' + str_(ref.obj['Location']) : ''}`;
+    setCells_(ref, { 'Status': SN_OPEN, 'Reopen note': note });
+    log_(c.unit, 'Snag reopened', ref.obj['Snag ID'], '', title, note, c.name || 'Client', '');
+  });
+  notifyTeam_(`${c.unit} · Snag ${title} is still not fixed`, 'SNAG REOPENED', title, [`${c.name || 'The client'}: ${note}`]);
+  return clientView_(c);
+}
+
+function pmSnag_(b) {
+  const unit = unitInfo_(str_(b.unit)).unit;
+  addSnag_(unit, b, str_(b.by) || 'O West team', 'team', (b.photoIds || []).map(str_).filter(Boolean).slice(0, 4));
+  return pmUnit_(unit);
+}
+
+function pmSnagFix_(b) {
+  const unit = unitInfo_(str_(b.unit)).unit, by = str_(b.by) || 'O West team';
+  const note = str_(b.note).slice(0, 2000), photos = (b.photoIds || []).map(str_).filter(Boolean).slice(0, 4);
+  if (!photos.length) throw new Error('Add at least one photo of the fix.');
+  withLock_(() => {
+    const ref = snagRef_(unit, b.snagId);
+    if (str_(ref.obj['Status']) !== SN_OPEN) throw new Error('This snag is not open. Please reload.');
+    setCells_(ref, { 'Status': SN_FIXED, 'Fixed at': now_(), 'Fixed by': by, 'Fix note': note, 'Fix photo IDs': photos.join(',') });
+    log_(unit, 'Snag fixed', ref.obj['Snag ID'], '', `#${ref.obj['No.']}${str_(ref.obj['Location']) ? ' · ' + str_(ref.obj['Location']) : ''}`, note, by, '');
+  });
+  const c = rows_(PT.clients).find(r => low_(r['Unit']) === unit.toLowerCase());
+  if (c && str_(c['Client email']) && snagMailDue_('psnagfixmail:' + unit)) {
+    MailApp.sendEmail({
+      to: str_(c['Client email']), name: 'O West Extra Works',
+      subject: `Snags fixed, please check · ${unit}`,
+      htmlBody: mailHtml_('SNAG LIST', 'Fixed and ready for your check', [
+        `Dear ${str_(c['Client name']) || 'Client'},`,
+        `${by} has fixed snags in unit ${unit} and added photos of each fix. Please check them in your portal and confirm, or tell us what is still not right.`
+      ], { label: 'Check the snag list', url: PORTAL_URL + '#t=' + str_(c['Token']) })
+    });
+  }
+  return pmUnit_(unit);
+}
+
 /* =========================== team side =========================== */
 
 function pmHome_() {
   const clients = {};
   rows_(PT.clients).forEach(r => clients[low_(r['Unit'])] = r);
-  const items = rows_(PT.items), concerns = rows_(PT.concerns);
+  const items = rows_(PT.items), concerns = rows_(PT.concerns), snags = rows_(PT.snags);
   const units = camRows_('Units').filter(r => str_(r['Unit']) && low_(r['Active']) !== 'no').map(r => {
     const u = str_(r['Unit']), k = u.toLowerCase();
     const its = items.filter(x => low_(x['Unit']) === k), cns = concerns.filter(x => low_(x['Unit']) === k);
+    const sns = snags.filter(x => low_(x['Unit']) === k);
     return {
       unit: u, project: str_(r['Project']), client: str_(r['Client name']), invited: !!clients[k],
       pending: its.filter(x => str_(x['Status']) === S_PENDING).length,
       rejected: its.filter(x => str_(x['Status']) === S_NO).length,
-      open: cns.filter(x => str_(x['Status']) === C_OPEN).length
+      open: cns.filter(x => str_(x['Status']) === C_OPEN).length,
+      snags: sns.filter(x => str_(x['Status']) === SN_OPEN).length,
+      snagsToCheck: sns.filter(x => str_(x['Status']) === SN_FIXED).length
     };
   });
   const actions = [];
@@ -213,6 +313,12 @@ function pmHome_() {
   concerns.filter(x => str_(x['Status']) === C_OPEN).forEach(x => actions.push({
     kind: 'concern', unit: str_(x['Unit']), id: str_(x['Concern ID']), title: str_(x['Subject']), at: dt_(x['Updated at']), detail: ''
   }));
+  const openSnags = groupBy_(snags.filter(x => str_(x['Status']) === SN_OPEN), x => str_(x['Unit']));
+  Object.keys(openSnags).forEach(u => {
+    const l = openSnags[u], oldest = l.map(x => dt_(x['Reported at'])).sort()[0];
+    actions.push({ kind: 'snags', unit: u, id: '', title: `${l.length} open snag${l.length > 1 ? 's' : ''}`, at: oldest,
+      detail: l.slice(0, 3).map(x => str_(x['Location']) || str_(x['Description']).slice(0, 30)).join(' · ') });
+  });
   actions.sort((a, b) => a.at < b.at ? -1 : 1);
   return { units: units, actions: actions, engineers: engineers_() };
 }
@@ -226,7 +332,7 @@ function pmUnit_(unit) {
     email: (c && str_(c['Client email'])) || u.email,
     invited: !!c, invitedAt: c ? dt_(c['Invited at']) : '', lastOpened: c ? dt_(c['Last opened']) : '',
     link: c ? PORTAL_URL + '#t=' + str_(c['Token']) : '', status: unitStatus_(u.unit),
-    items: unitItems_(u.unit), concerns: unitConcerns_(u.unit), history: unitLog_(u.unit)
+    items: unitItems_(u.unit), concerns: unitConcerns_(u.unit), snags: unitSnags_(u.unit), history: unitLog_(u.unit)
   };
 }
 
@@ -347,7 +453,8 @@ function portalImg_(b) {
   else unit = clientByToken_(b.token).unit.toLowerCase();
   if (unit) {
     const mine = rows_(PT.items).some(r => low_(r['Unit']) === unit && str_(r['Photo IDs']).split(',').indexOf(id) >= 0) ||
-      rows_(PT.messages).some(r => low_(r['Unit']) === unit && str_(r['Photo ID']) === id);
+      rows_(PT.messages).some(r => low_(r['Unit']) === unit && str_(r['Photo ID']) === id) ||
+      rows_(PT.snags).some(r => low_(r['Unit']) === unit && (str_(r['Photo IDs']) + ',' + str_(r['Fix photo IDs'])).split(',').indexOf(id) >= 0);
     if (!mine && !sitePhotos_(unit).some(p => p.id === id)) throw new Error('Photo not found.');
   }
   const f = DriveApp.getFileById(id);
@@ -450,6 +557,16 @@ function unitConcerns_(unit) {
   })).sort((a, b) => a.updatedAt < b.updatedAt ? 1 : -1);
 }
 
+function unitSnags_(unit) {
+  const k = unit.toLowerCase(), ids = v => str_(v).split(',').filter(Boolean);
+  return rows_(PT.snags).filter(r => low_(r['Unit']) === k).map(r => ({
+    id: str_(r['Snag ID']), no: Number(r['No.'] || 0), location: str_(r['Location']), text: str_(r['Description']),
+    photos: ids(r['Photo IDs']), status: str_(r['Status']), reportedAt: dt_(r['Reported at']), reportedBy: str_(r['Reported by']), from: str_(r['From']),
+    fixedAt: dt_(r['Fixed at']), fixedBy: str_(r['Fixed by']), fixNote: str_(r['Fix note']), fixPhotos: ids(r['Fix photo IDs']),
+    closedAt: dt_(r['Closed at']), closedBy: str_(r['Closed by']), reopenNote: str_(r['Reopen note'])
+  })).sort((a, b) => b.no - a.no);
+}
+
 function unitLog_(unit) {
   const k = unit.toLowerCase();
   return rows_(PT.log).filter(r => low_(r['Unit']) === k).map(r => ({
@@ -462,6 +579,12 @@ function openItem_(unit, itemId) {
   if (!r) throw new Error('This item was not found.');
   if (str_(r['Status']) !== S_PENDING) throw new Error('This item was already decided or replaced. Please reload.');
   return { id: str_(r['Item ID']), title: str_(r['Title']), version: Number(r['Version'] || 1) };
+}
+
+function snagRef_(unit, id) {
+  const ref = findRow_(PT.snags, PSN_HEADERS, 'Snag ID', str_(id));
+  if (!ref || low_(ref.obj['Unit']) !== unit.toLowerCase()) throw new Error('This snag was not found.');
+  return ref;
 }
 
 function concernRef_(unit, id) {
@@ -541,7 +664,7 @@ function mailHtml_(eyebrow, title, lines, button) {
 /** Run once (or from the menu): makes the portal tabs and protects the record. */
 function portalSetup() {
   SpreadsheetApp.getActive().setSpreadsheetTimeZone(TZ);
-  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS);
+  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS);
   const log = sheet_(PT.log, PL_HEADERS);
   if (!log.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
     const p = log.protect().setDescription('Client portal record: written by the portal only');
