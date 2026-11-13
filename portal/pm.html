@@ -25,7 +25,7 @@
 
 <script src="portal.js"></script>
 <script>
-let pmToken = "", me = "", H = null, U = null, view = "home", sel = null, q = "", form = null;
+let pmToken = "", me = "", H = null, U = null, DB = null, dashFilter = "all", view = "home", sel = null, q = "", form = null;
 try { pmToken = localStorage.getItem("oplus_pm") || ""; me = localStorage.getItem("oplus_me") || ""; } catch (e) {}
 const auth = () => ({ pmToken });
 const TYPES = ["Selection", "Scope of work", "Date change"];
@@ -36,7 +36,6 @@ const TEMPLATE = {
 };
 
 $("me").onclick = pickName;
-if (!pmToken) login(); else home();
 
 function login() {
   $("view").innerHTML = head("Team access", "Sign in", "Use the team password set in the portal sheet.") +
@@ -68,19 +67,77 @@ function render() {
   $("me").textContent = me || "Choose your name";
   if (!pmToken) return;
   const body = (V[view] || V.home)();
+  // the overview uses the full width on a desktop; everything else stays phone width
+  document.querySelectorAll(".in").forEach(el => el.classList.toggle("wide", view === "dash"));
   $("view").innerHTML = body + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span>Team only</span></div>`;
   bind();
   loadImages($("view"), auth());
 }
 
+/** "My units" / "Overview" switch at the top of the team page. */
+const switcher = on => `<div class="chips" style="margin-bottom:14px"><button class="chip ${on === "home" ? "on" : ""}" data-switch="home">My units</button><button class="chip ${on === "dash" ? "on" : ""}" data-switch="dash">Overview</button></div>`;
+
+async function openDash() {
+  view = "dash"; render(); scrollTo(0, 0);
+  try { DB = await call({ action: "portal.pm.dash" }); render(); } catch (e) { fail(e.message); }
+}
+
+const STAGE_SHORT = ["Initiation", "Design", "Quotation", "Site work", "Inspection", "Handed over"];
+const fmtN = n => Number(n || 0).toLocaleString("en-US");
+
 const V = {
+  dash() {
+    if (!DB) return switcher("dash") + `<div class="center">Loading the overview…</div>`;
+    const t = DB.totals;
+    const tile = (label, value, note, tone, f) => `<button class="tile ${tone || ""}" ${f ? `data-dfilter="${f}"` : "disabled"}><span class="eyebrow m">${label}</span><span class="big">${fmtN(value)}</span>${note ? `<span class="small muted">${note}</span>` : ""}</button>`;
+    const max = Math.max(1, ...DB.manpowerDays.map(d => d.count));
+    const cmax = Math.max(1, ...DB.contractors.map(c => c.count));
+    const fs = [["all", "All on site"], ["late", "Late"], ["behind", "Behind plan"], ["novisit", "No visit in 7 days"], ["open", "Open items"]];
+    const pass = { all: () => true, late: u => u.late > 0, behind: u => u.gap != null && u.gap <= -15, novisit: u => !u.lastVisit || u.lastVisit < DB.manpowerDays[7].date, open: u => u.pending + u.rejected + u.concerns + u.snags > 0 };
+    const list = DB.units.filter(pass[dashFilter] || pass.all);
+    return switcher("dash") + head("Management · " + when(DB.today, true), "Overview", `Units on site from ClickUp, visits and manpower from Site Camera, approvals, concerns and snags from the portal.${DB.synced ? " ClickUp read " + when(DB.synced) + "." : " ClickUp not read yet: run Refresh dashboard now in the portal sheet."}`) +
+      `<div class="tiles">
+        ${tile("On site", t.onSite, "Construction + inspection", "", "all")}
+        ${tile("Late", t.late, "Past the handover date", t.late ? "bad" : "", "late")}
+        ${tile("Behind plan", t.behind, "15+ points under planned", t.behind ? "warn" : "", "behind")}
+        ${tile("No visit 7 days", t.noVisit, "No Site Camera visit", t.noVisit ? "warn" : "", "novisit")}
+        ${tile("Manpower today", t.manpowerToday, fmtN(t.manpower7) + " worker-days in 7 days")}
+        ${tile("With clients", t.pending, "Waiting for approval", "", "open")}
+        ${tile("Open concerns", t.concerns, "Waiting for our reply", t.concerns ? "warn" : "", "open")}
+        ${tile("Open snags", t.snags, "Not fixed yet", "", "open")}
+      </div>` +
+      `<div class="eyebrow" style="margin:22px 0 8px">All units by stage</div>
+       <div class="stagebar">${DB.stages.map((n, i) => `<div class="${i === 3 || i === 4 ? "on" : ""}"><b>${fmtN(n)}</b><span>${STAGE_SHORT[i]}</span></div>`).join("")}</div>` +
+      `<div class="dgrid">
+        <section><div class="eyebrow" style="margin:22px 0 4px">Manpower · last 14 days</div><p class="small muted" style="margin:0 0 10px">Workers on site per day, from Site Camera visits.</p>
+          <div class="bars" role="img" aria-label="Workers on site per day for the last 14 days">${DB.manpowerDays.map((d, i) => `<div class="mbar" title="${when(d.date, true)}: ${d.count} workers"><span class="v">${i === 13 || d.count === max ? d.count : ""}</span><i style="height:${Math.round(d.count / max * 100)}%"></i><span class="d">${+d.date.slice(8)}</span></div>`).join("")}</div></section>
+        <section><div class="eyebrow" style="margin:22px 0 4px">Contractors · worker-days, 7 days</div><p class="small muted" style="margin:0 0 10px">Top ${DB.contractors.length} by people on site.</p>
+          ${DB.contractors.length ? DB.contractors.map(c => `<div class="hbar" title="${esc(c.name)}: ${c.count} worker-days"><span class="n">${esc(c.name)}</span><span class="track"><i style="width:${Math.round(c.count / cmax * 100)}%"></i></span><b>${fmtN(c.count)}</b></div>`).join("") : `<p class="small muted">No manpower recorded this week.</p>`}</section>
+      </div>` +
+      `<div class="eyebrow" style="margin:22px 0 8px">By PM</div>
+       <div class="tbl"><div class="tr th"><span>PM</span><span>On site</span><span>Late</span><span>Behind</span><span>Open items</span></div>
+       ${DB.pms.map(p => `<div class="tr"><span>${esc(p.name)}</span><span>${p.units}</span><span class="${p.late ? "red" : ""}">${p.late}</span><span class="${p.behind ? "amb" : ""}">${p.behind}</span><span>${p.open}</span></div>`).join("")}</div>` +
+      `<div class="eyebrow" style="margin:22px 0 8px">Units on site · latest problems first</div>
+       <div class="chips">${fs.map(f => `<button class="chip ${dashFilter === f[0] ? "on" : ""}" data-dfilter="${f[0]}">${f[1]}</button>`).join("")}</div>
+       <p class="small muted" style="margin:2px 0 8px">${list.length} of ${DB.units.length} units. The bar is actual progress; the tick is where it should be by today.</p>
+       <div class="urows">${list.map(u => `<button class="urow" data-unit="${esc(u.unit)}">
+          <span class="c1"><b>${esc(u.unit)}</b><span class="small muted">${esc(u.pm || "No PM")} · ${STAGE_SHORT[u.stage]}</span></span>
+          <span class="c2"><span class="prog" title="Actual ${u.poc == null ? "not set" : u.poc + "%"} · planned ${u.planned == null ? "no dates" : u.planned + "%"}"><i style="width:${u.poc || 0}%"></i>${u.planned != null ? `<em style="left:${u.planned}%"></em>` : ""}</span>
+            <span class="small"><b>${u.poc == null ? "—" : u.poc + "%"}</b>${u.planned != null ? ` <span class="muted">of ${u.planned}% planned</span>` : ""}${u.gap != null && u.gap <= -15 ? ` <span class="amb">· ${-u.gap} behind</span>` : ""}</span></span>
+          <span class="c3 small">${u.end ? `Handover ${when(u.end, true)}` : `<span class="muted">No handover date</span>`}${u.late ? `<br><span class="red">${u.late} day${u.late > 1 ? "s" : ""} late</span>` : ""}</span>
+          <span class="c4 small">${u.lastVisit ? `Visit ${when(u.lastVisit, true)}` : `<span class="amb">No visit yet</span>`}<br><span class="muted">${u.manpower7} worker-days · 7 days</span></span>
+          <span class="c5 small">${[u.pending ? u.pending + " with client" : "", u.rejected ? `<span class="red">${u.rejected} rejected</span>` : "", u.concerns ? `<span class="amb">${u.concerns} concern${u.concerns > 1 ? "s" : ""}</span>` : "", u.snags ? u.snags + " snag" + (u.snags > 1 ? "s" : "") : ""].filter(Boolean).join(" · ") || `<span class="muted">Nothing open</span>`}</span>
+        </button>`).join("") || `<p class="small muted">No units in this list.</p>`}</div>`;
+  },
+
+
   home() {
     if (!H) return `<div class="center">Loading units…</div>`;
     const t = H.units.reduce((a, u) => (a.p += u.pending, a.r += u.rejected, a.o += u.open, a), { p: 0, r: 0, o: 0 });
     const k = q.toLowerCase();
     const units = H.units.filter(u => !k || (u.unit + " " + u.client + " " + u.project).toLowerCase().includes(k))
       .sort((a, b) => (b.invited - a.invited) || (b.pending + b.rejected + b.open - a.pending - a.rejected - a.open) || a.unit.localeCompare(b.unit));
-    return head("Today · " + when(new Date().toISOString().slice(0, 10), true), "My units") +
+    return switcher("home") + head("Today · " + when(new Date().toISOString().slice(0, 10), true), "My units") +
       `<div class="meta"><div><div class="eyebrow m">With client</div><div class="big">${t.p}</div></div>
         <div><div class="eyebrow m">Rejected</div><div class="big" style="color:var(--problem)">${t.r}</div></div>
         <div><div class="eyebrow m">To answer</div><div class="big" style="color:var(--active)">${t.o}</div></div></div>` +
@@ -177,6 +234,8 @@ const V = {
 function bind() {
   const v = $("view");
   v.querySelectorAll("[data-home]").forEach(b => b.onclick = home);
+  v.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => b.dataset.switch === "dash" ? openDash() : home());
+  v.querySelectorAll("[data-dfilter]").forEach(b => b.onclick = () => { dashFilter = b.dataset.dfilter; render(); if (b.classList.contains("tile")) document.querySelector(".urows").scrollIntoView({ behavior: "smooth" }); });
   v.querySelectorAll("[data-unit]").forEach(b => b.onclick = async () => {
     await openUnit(b.dataset.unit);
     const t = b.dataset.then;
@@ -293,6 +352,9 @@ async function busy(btn, fn) {
   const t = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
   try { await fn(); } catch (e) { toast(e.message); } finally { if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = t; } }
 }
+
+// start only after everything above is defined
+if (!pmToken) login(); else home();
 </script>
 </body>
 </html>
