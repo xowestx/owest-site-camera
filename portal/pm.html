@@ -28,11 +28,12 @@
 let pmToken = "", me = "", H = null, U = null, DB = null, dashFilter = "all", view = "home", sel = null, q = "", form = null;
 try { pmToken = localStorage.getItem("oplus_pm") || ""; me = localStorage.getItem("oplus_me") || ""; } catch (e) {}
 const auth = () => ({ pmToken });
-const TYPES = ["Selection", "Scope of work", "Date change"];
+const TYPES = ["Selection", "Scope of work", "Date change", "Variation order"];
 const TEMPLATE = {
   "Selection": "Location: \nSupplier / code: \nSize: \nColour: \nQuantity: ",
   "Scope of work": "Description: \nQuantity: \nDuration: \nRequested: ",
-  "Date change": "Current date: \nNew date: \nReason: \nEffect on final handover: "
+  "Date change": "Current date: \nNew date: \nReason: \nEffect on final handover: ",
+  "Variation order": "Description: \nLocation: \nReason: \nRequested by: \nQuantity: \nEffect on handover date: "
 };
 
 $("me").onclick = pickName;
@@ -173,7 +174,7 @@ const V = {
       `<div class="eyebrow" style="margin-top:18px">Concerns</div>` +
       (U.concerns.length ? `<div class="rows" style="margin-top:8px">${U.concerns.map(c => `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status === "Under review" ? "Under review" : c.status)}</button>`).join("")}</div>`
         : `<p class="small muted">No concerns.</p>`) +
-      snagSection();
+      snagSection() + docSection() + certSection();
   },
 
   snag() {
@@ -195,6 +196,26 @@ const V = {
         <span class="small muted">The client sees the after photo and confirms, or sends it back.</span></div>` : "");
   },
 
+  docNew() {
+    return `<button class="back" id="toUnit">${BACK("Cancel")}</button>` + head(U.unit + " · Documents", "Add document", "PDF or photo, up to 15 MB. The client can view and download it in their portal.") +
+      `<label class="f">Category</label><div class="chips">${DOC_CATS.map((c, i) => `<button class="chip ${i === 0 ? "on" : ""}" data-cat="${c}">${c}</button>`).join("")}</div>
+       <label class="f" for="dt">Title</label><input class="f" id="dt" maxlength="160" placeholder="For example: Kitchen layout, rev. B">
+       <input type="file" id="df" accept="application/pdf,image/jpeg,image/png" hidden><p class="small" id="dfn"></p>
+       <div class="stack"><button class="btn ghost" id="dpick">Choose file</button><button class="btn" id="dgo">Share with client</button>
+       <span class="small muted">Don't share contracts or anything with prices.</span></div>`;
+  },
+
+  certNew() {
+    const today = new Date(Date.now() + 2 * 3600e3).toISOString().slice(0, 10);
+    return `<button class="back" id="toUnit">${BACK("Cancel")}</button>` + head(U.unit + " · Handover", "Handover certificate", "The client reviews it in the portal and signs with an email code. A PDF is then emailed to the client and the team.") +
+      `<label class="f" for="hd">Handover date</label><input class="f" id="hd" type="date" value="${today}">
+       <label class="f" for="hx">Handed over to the client</label><textarea class="f" id="hx" rows="6">Keys: \nAccess cards: \nRemote controls: \nElectricity meter reading: \nWater meter reading: \nWarranty: </textarea>
+       <p class="small muted">Keep "Label: value" lines and they show as a table. Delete lines you don't need.</p>
+       <label class="f" for="hn">Notes (optional)</label><textarea class="f" id="hn" rows="3" placeholder="Anything agreed for after handover"></textarea>
+       <div class="stack"><button class="btn" id="hgo">Send to client for signature</button>
+       <span class="small muted">The certificate lists the approved items and confirms every snag is closed.</span></div>`;
+  },
+
   snagNew() {
     return `<button class="back" id="toUnit">${BACK("Cancel")}</button>` + head(U.unit + " · Inspection", "Add a snag") +
       `<label class="f" for="sl">Where</label><input class="f" id="sl" list="rooms" maxlength="120" placeholder="For example: Kitchen"><datalist id="rooms">${ROOMS.map(r => `<option value="${esc(r)}">`).join("")}</datalist>
@@ -209,7 +230,8 @@ const V = {
     return `<button class="back" id="cancelItem">${BACK("Cancel")}</button>` +
       head(`${U.unit} · Version ${f.version}`, f.replaces ? "Revised version" : "New item") +
       `<label class="f">Type</label><div class="chips">${TYPES.map(t => `<button class="chip ${f.type === t ? "on" : ""}" data-type="${t}" ${f.replaces ? "disabled" : ""}>${t}</button>`).join("")}</div>
-       <label class="f" for="ft">Title</label><input class="f" id="ft" maxlength="200" value="${esc(f.title)}" placeholder="For example: Guest bathroom wall tiles">
+       <label class="f" for="ft">Title</label><input class="f" id="ft" maxlength="200" value="${esc(f.title)}" placeholder="${f.type === "Variation order" ? "For example: Extra power points in the living room" : "For example: Guest bathroom wall tiles"}">
+       ${f.type === "Variation order" && !f.replaces ? `<p class="small muted">It is numbered for you (VO-01, VO-02 …). Don't put prices here: the cost is agreed with the client separately.</p>` : ""}
        <label class="f" for="fd">Details for the client</label><textarea class="f" id="fd" rows="6">${esc(f.details)}</textarea>
        <p class="small muted">Keep "Label: value" lines and they show as a neat table. Delete lines you don't need.</p>
        <label class="f">Photos ${f.type === "Selection" ? "of the samples" : "(optional)"}</label>
@@ -283,6 +305,39 @@ function bind() {
   if ($("addSnag")) $("addSnag").onclick = () => { view = "snagNew"; render(); scrollTo(0, 0); };
   const pics = (input, box, list) => { $(input).onchange = async e => { for (const f of e.target.files) if (list.length < 4) list.push(await compress(f)); $(box).innerHTML = list.map(p => `<img src="${p}" alt="">`).join(""); }; };
   const upload = async (btn, list) => { const ids = []; for (let i = 0; i < list.length; i++) { btn.textContent = `Uploading photo ${i + 1} of ${list.length}…`; ids.push((await call({ action: "portal.pm.upload", unit: U.unit, data: list[i] })).id); } return ids; };
+  if ($("addDoc")) $("addDoc").onclick = () => { view = "docNew"; render(); scrollTo(0, 0); };
+  v.querySelectorAll("[data-docget]").forEach(b => b.onclick = () => busy(b, async () => { const j = await call({ action: "portal.pm.docget", unit: U.unit, docId: b.dataset.docget }); saveData(j.data, j.name); }));
+  v.querySelectorAll("[data-docdel]").forEach(b => b.onclick = () => busy(b, async () => {
+    if (!confirm("Remove this document from the client's portal?")) return;
+    U = await call({ action: "portal.pm.docremove", unit: U.unit, docId: b.dataset.docdel, by: me }); render(); toast("Removed.");
+  }));
+  if (view === "docNew") {
+    let file = null, cat = DOC_CATS[0];
+    v.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => { cat = b.dataset.cat; v.querySelectorAll("[data-cat]").forEach(x => x.classList.toggle("on", x === b)); });
+    $("dpick").onclick = () => $("df").click();
+    $("df").onchange = e => { file = e.target.files[0] || null; $("dfn").textContent = file ? `${file.name} · ${kb(Math.round(file.size / 1024))}` : ""; if (file && !$("dt").value) $("dt").value = file.name.replace(/\.\w+$/, ""); };
+    $("dgo").onclick = () => busy($("dgo"), async () => {
+      if (!me) return pickName();
+      if (!file) return toast("Choose a file.");
+      if (file.size > 15 * 1024 * 1024) return toast("The file is too large (15 MB at most).");
+      if (!$("dt").value.trim()) return toast("Add a title.");
+      $("dgo").textContent = "Uploading…";
+      const data = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
+      U = await call({ action: "portal.pm.doc", unit: U.unit, category: cat, title: $("dt").value.trim(), name: file.name, data, by: me });
+      view = "unit"; render(); toast("Shared with the client.");
+    });
+  }
+  if ($("hnew")) $("hnew").onclick = () => { view = "certNew"; render(); scrollTo(0, 0); };
+  if ($("hpdf")) $("hpdf").onclick = () => busy($("hpdf"), async () => {
+    const j = await call({ action: "portal.pm.certpdf", unit: U.unit, certId: $("hpdf").dataset.cert });
+    const a = document.createElement("a"); a.href = j.data; a.download = j.name; document.body.appendChild(a); a.click(); a.remove();
+  });
+  if (view === "certNew") $("hgo").onclick = () => busy($("hgo"), async () => {
+    if (!me) return pickName();
+    const details = $("hx").value.split("\n").filter(l => !/^[^:]{1,40}:\s*$/.test(l.trim())).join("\n");
+    U = await call({ action: "portal.pm.cert", unit: U.unit, date: $("hd").value, details, notes: $("hn").value.trim(), by: me });
+    view = "unit"; render(); toast("Sent. The client was emailed to sign.");
+  });
   if (view === "snagNew") {
     const photos = [];
     $("sp").onclick = () => $("sf").click(); pics("sf", "sth", photos);
@@ -324,6 +379,25 @@ function snagSection() {
   return `<div id="snags" style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="eyebrow">Snag list · ${n("Open")} open · ${n("Fixed")} to check · ${n("Closed")} closed</span><button class="btn ghost small" id="addSnag">Add snag</button></div>` +
     (l.length ? `<div class="rows" style="margin-top:8px">${l.map(x => `<button class="row" data-snag="${esc(x.id)}"><span class="col"><span class="eyebrow m">#${x.no}${x.location ? " · " + esc(x.location) : ""}${x.from === "client" ? " · client" : ""}</span><span class="t" style="font-weight:500;font-size:14px">${esc(x.text)}</span><span class="s">${x.reopenNote && x.status === "Open" ? "Reopened by client" : when(x.reportedAt)}</span></span>${pill(x.status)}</button>`).join("")}</div>`
       : `<p class="small muted">No snags. They appear here when you or the client add them at inspection or handover.</p>`);
+}
+
+function docSection() {
+  const l = U.docs || [];
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="eyebrow">Documents · ${l.length}</span><button class="btn ghost small" id="addDoc">Add document</button></div>` +
+    (l.length ? `<div class="rows" style="margin-top:8px">${l.map(d => `<div class="row"><span class="col"><span class="eyebrow m">${esc(d.category)}</span><span class="t" style="font-size:14px">${esc(d.title)}</span><span class="s">${esc(d.type.toUpperCase())} · ${kb(d.kb)} · ${esc(d.by)} · ${when(d.at, true)}</span></span>
+      <span style="display:flex;gap:8px"><button class="btn ghost small" data-docget="${esc(d.id)}">Open</button><button class="btn bad small" data-docdel="${esc(d.id)}">Remove</button></span></div>`).join("")}</div>`
+      : `<p class="small muted">Share drawings, warranties and manuals with the client here.</p>`);
+}
+
+function certSection() {
+  const l = U.certs || [], c = l.find(x => x.status !== "Declined"), d = l.find(x => x.status === "Declined");
+  const open = (U.snags || []).filter(x => x.status !== "Closed").length;
+  let body;
+  if (c && c.status === "Signed") body = `<div class="note"><b>Signed by ${esc(c.signedBy)} · ${when(c.signedAt)}</b><br>Handover ${when(c.date, true)}.</div><button class="btn ghost small" id="hpdf" data-cert="${esc(c.id)}">Download PDF</button>`;
+  else if (c) body = `<p class="small">Sent ${when(c.issuedAt)} by ${esc(c.issuedBy)} · handover ${when(c.date, true)}. Waiting for the client to sign.</p>`;
+  else body = (d ? `<div class="note bad"><b>Client did not sign · ${when(d.issuedAt, true)}</b><br>${esc(d.declineNote)}</div>` : "") +
+    (open ? `<p class="small muted">Close all snags first: ${open} still open or waiting for the client's check.</p>` : !U.invited ? `<p class="small muted">Send the portal invitation first.</p>` : `<button class="btn" id="hnew">${d ? "Issue a new certificate" : "Issue handover certificate"}</button>`);
+  return `<div class="eyebrow" style="margin:18px 0 8px">Handover certificate${c ? " · " + esc(c.status) : ""}</div>` + body;
 }
 
 function startItem(base) {

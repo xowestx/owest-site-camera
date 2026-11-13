@@ -41,7 +41,7 @@ function doPost(e) {
   } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
 }
 
-const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', log: 'Portal Log' };
+const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', certs: 'Portal Handover', docs: 'Portal Documents', log: 'Portal Log' };
 const PORTAL_URL = 'https://xowestx.github.io/owest-site-camera/portal/';
 const PORTAL_ASSETS = 'https://xowestx.github.io/owest-site-camera/portal/assets/';
 const PORTAL_ROOT = 'O West Client Portal';
@@ -51,11 +51,18 @@ const PCN_HEADERS = ['Concern ID', 'Unit', 'Subject', 'Status', 'Opened at', 'Up
 const PMS_HEADERS = ['Concern ID', 'Unit', 'At', 'From', 'Name', 'Text', 'Photo ID'];
 const PSN_HEADERS = ['Snag ID', 'Unit', 'No.', 'Location', 'Description', 'Photo IDs', 'Status', 'Reported at', 'Reported by', 'From',
   'Fixed at', 'Fixed by', 'Fix note', 'Fix photo IDs', 'Closed at', 'Closed by', 'Reopen note'];
+const PH_HEADERS = ['Cert ID', 'Unit', 'Status', 'Handover date', 'Details', 'Notes', 'Issued at', 'Issued by', 'Signed at', 'Signed by', 'Signed with', 'Decline note', 'PDF ID'];
+const PD_HEADERS = ['Doc ID', 'Unit', 'Category', 'Title', 'File ID', 'File name', 'Type', 'Size KB', 'Uploaded at', 'Uploaded by', 'Status'];
+const DOC_CATS = ['Drawings', 'Warranties', 'Manuals', 'Certificates', 'Other'];
+const DOC_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
+const DOC_MAX_B64 = 20 * 1024 * 1024; // about 15 MB file
 const PL_HEADERS = ['At', 'Unit', 'Event', 'Ref', 'Version', 'Title', 'Detail', 'By', 'Confirmed with'];
-const P_TYPES = ['Selection', 'Scope of work', 'Date change'];
+const P_TYPES = ['Selection', 'Scope of work', 'Date change', 'Variation order'];
+const P_VO = 'Variation order';
 const S_PENDING = 'Sent for approval', S_OK = 'Approved', S_NO = 'Rejected', S_OLD = 'Replaced';
 const C_OPEN = 'Under review', C_REPLIED = 'Replied', C_DONE = 'Resolved';
 const SN_OPEN = 'Open', SN_FIXED = 'Fixed', SN_CLOSED = 'Closed';
+const H_WAIT = 'Sent for signature', H_SIGNED = 'Signed', H_DECLINED = 'Declined';
 const SNAG_MAIL_GAP = 1800; // seconds: one email per unit per half hour while a snag walk-through is going on
 
 /* =========================== router =========================== */
@@ -74,6 +81,11 @@ function portal_(b) {
     if (a === 'portal.pm.snag') return pmSnag_(b);
     if (a === 'portal.pm.snagfix') return pmSnagFix_(b);
     if (a === 'portal.pm.dash') return pmDash_();
+    if (a === 'portal.pm.cert') return pmCert_(b);
+    if (a === 'portal.pm.doc') return pmDoc_(b);
+    if (a === 'portal.pm.docremove') return pmDocRemove_(b);
+    if (a === 'portal.pm.docget') return docGet_(unitInfo_(str_(b.unit)).unit, b.docId);
+    if (a === 'portal.pm.certpdf') return certPdf_(unitInfo_(str_(b.unit)).unit, b.certId);
   } else {
     const c = clientByToken_(b.token);
     if (a === 'portal.open') { touchClient_(c); return clientView_(c); }
@@ -85,6 +97,10 @@ function portal_(b) {
     if (a === 'portal.snag') return clientSnag_(c, b);
     if (a === 'portal.snag.close') return clientSnagClose_(c, b);
     if (a === 'portal.snag.reopen') return clientSnagReopen_(c, b);
+    if (a === 'portal.cert.sign') return clientCertSign_(c, b);
+    if (a === 'portal.cert.decline') return clientCertDecline_(c, b);
+    if (a === 'portal.cert.pdf') return certPdf_(c.unit, b.certId);
+    if (a === 'portal.doc') return docGet_(c.unit, b.docId);
   }
   throw new Error('Unknown portal action.');
 }
@@ -113,13 +129,13 @@ function clientView_(c) {
     unit: c.unit, project: u.project, client: c.name || u.client, pm: c.pm,
     email: maskEmail_(c.email), status: unitStatus_(c.unit),
     items: unitItems_(c.unit).filter(x => x.status !== S_OLD),
-    concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit),
+    concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit), certs: unitCerts_(c.unit), docs: unitDocs_(c.unit),
     history: unitLog_(c.unit)
   };
 }
 
 function clientCode_(c, b) {
-  const item = openItem_(c.unit, b.itemId);
+  const item = b.certId ? openCert_(c.unit, b.certId) : openItem_(c.unit, b.itemId);
   if (!c.email) throw new Error('We have no email for you yet. Please ask your project manager to add it.');
   const cache = CacheService.getScriptCache();
   const sent = Number(cache.get('pcodes:' + c.token) || 0);
@@ -127,7 +143,7 @@ function clientCode_(c, b) {
   cache.put('pcodes:' + c.token, String(sent + 1), 3600);
   const code = String(Math.floor(100000 + Math.random() * 900000));
   cache.put('pcode:' + c.token, JSON.stringify({ code: code, itemId: item.id, tries: 0 }), 600);
-  const verb = str_(b.decision) === 'reject' ? 'request changes to' : 'approve';
+  const verb = b.certId ? 'sign' : str_(b.decision) === 'reject' ? 'request changes to' : 'approve';
   MailApp.sendEmail({
     to: c.email, name: 'O West Extra Works',
     subject: `Your confirmation code: ${code} · ${c.unit}`,
@@ -142,16 +158,7 @@ function clientDecide_(c, b) {
   if (decision !== 'approve' && decision !== 'reject') throw new Error('Choose approve or request changes.');
   const reason = str_(b.reason).slice(0, 2000);
   if (decision === 'reject' && !reason) throw new Error('Please add a reason.');
-  const cache = CacheService.getScriptCache(), key = 'pcode:' + c.token;
-  const st = JSON.parse(cache.get(key) || 'null');
-  if (!st || st.itemId !== str_(b.itemId)) throw new Error('The code expired. Please request a new one.');
-  if (str_(b.code) !== st.code) {
-    st.tries++;
-    if (st.tries >= 5) { cache.remove(key); throw new Error('Too many wrong codes. Please request a new one.'); }
-    cache.put(key, JSON.stringify(st), 600);
-    throw new Error('That code is not correct.');
-  }
-  cache.remove(key);
+  checkCode_(c, b.itemId, b.code);
   withLock_(() => {
     const item = openItem_(c.unit, b.itemId);
     const ref = findRow_(PT.items, PI_HEADERS, 'Item ID', item.id);
@@ -286,6 +293,219 @@ function pmSnagFix_(b) {
     });
   }
   return pmUnit_(unit);
+}
+
+/* =========================== handover certificate =========================== */
+/* The PM issues it once every snag is closed. The client signs it with the emailed code, or
+   declines with a note. On signing, a branded PDF is saved to the unit's Drive folder and emailed. */
+
+function unitCerts_(unit) {
+  const k = unit.toLowerCase();
+  return rows_(PT.certs).filter(r => low_(r['Unit']) === k).map(r => ({
+    id: str_(r['Cert ID']), status: str_(r['Status']), date: day_(r['Handover date']), details: str_(r['Details']), notes: str_(r['Notes']),
+    issuedAt: dt_(r['Issued at']), issuedBy: str_(r['Issued by']), signedAt: dt_(r['Signed at']), signedBy: str_(r['Signed by']),
+    signedWith: str_(r['Signed with']), declineNote: str_(r['Decline note']), pdf: !!str_(r['PDF ID'])
+  })).reverse();
+}
+
+function openCert_(unit, id) {
+  const ref = findRow_(PT.certs, PH_HEADERS, 'Cert ID', str_(id));
+  if (!ref || low_(ref.obj['Unit']) !== unit.toLowerCase()) throw new Error('This certificate was not found.');
+  if (str_(ref.obj['Status']) !== H_WAIT) throw new Error('This certificate was already signed or replaced. Please reload.');
+  return { id: str_(ref.obj['Cert ID']), title: 'Handover certificate', ref: ref };
+}
+
+function pmCert_(b) {
+  const u = unitInfo_(str_(b.unit)), by = str_(b.by) || 'O West team';
+  const date = str_(b.date).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Choose the handover date.');
+  const open = unitSnags_(u.unit).filter(x => x.status !== SN_CLOSED).length;
+  if (open) throw new Error(`Close all snags first: ${open} still open or waiting for the client's check.`);
+  const c = rows_(PT.clients).find(r => low_(r['Unit']) === u.unit.toLowerCase());
+  if (!c) throw new Error('Send the portal invitation first.');
+  withLock_(() => {
+    rows_(PT.certs).forEach(r => { // one certificate waits at a time, and a signed one is final
+      if (low_(r['Unit']) !== u.unit.toLowerCase()) return;
+      if (str_(r['Status']) === H_WAIT) throw new Error('A certificate is already waiting for the client.');
+      if (str_(r['Status']) === H_SIGNED) throw new Error('This unit is already handed over.');
+    });
+    const id = 'H' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    sheet_(PT.certs, PH_HEADERS).appendRow([id, u.unit, H_WAIT, date, str_(b.details).slice(0, 3000), str_(b.notes).slice(0, 3000), now_(), by, '', '', '', '', '']);
+    log_(u.unit, 'Handover certificate sent', id, '', 'Handover ' + date, '', by, '');
+  });
+  if (str_(c['Client email'])) {
+    MailApp.sendEmail({
+      to: str_(c['Client email']), name: 'O West Extra Works',
+      subject: `Your handover certificate is ready to sign · ${u.unit}`,
+      htmlBody: mailHtml_('HANDOVER', 'Your unit is ready for handover', [
+        `Dear ${str_(c['Client name']) || 'Client'},`,
+        `All works and snags for ${u.unit} are complete. Please review the handover certificate in your portal and sign it. We will email you a 6-digit code to confirm.`
+      ], { label: 'Review and sign', url: PORTAL_URL + '#t=' + str_(c['Token']) })
+    });
+  }
+  return pmUnit_(u.unit);
+}
+
+function clientCertSign_(c, b) {
+  checkCode_(c, b.certId, b.code);
+  let cert;
+  withLock_(() => {
+    cert = openCert_(c.unit, b.certId);
+    setCells_(cert.ref, { 'Status': H_SIGNED, 'Signed at': now_(), 'Signed by': c.name || 'Client', 'Signed with': 'Email code · ' + maskEmail_(c.email) });
+    log_(c.unit, 'Handover certificate signed', cert.id, '', 'Handover ' + day_(cert.ref.obj['Handover date']), '', c.name || 'Client', 'Email code · ' + maskEmail_(c.email));
+  });
+  let pdf = null;
+  try {
+    pdf = makeCertPdf_(c.unit, cert.id);
+    const attach = [pdf.getBlob()];
+    MailApp.sendEmail({ to: c.email, name: 'O West Extra Works', subject: `Handover certificate · ${c.unit}`, attachments: attach,
+      htmlBody: mailHtml_('HANDOVER · SIGNED', 'Welcome to your new home', [`Dear ${c.name || 'Client'},`, `Thank you. Your signed handover certificate for ${c.unit} is attached. It is also saved in your portal.`]) });
+    const to = settings_()['Team emails'];
+    if (to) MailApp.sendEmail({ to: to, name: 'O-Plus Client Portal', subject: `${c.unit} · Handover certificate signed`, attachments: attach,
+      htmlBody: mailHtml_('HANDOVER · SIGNED', c.unit, [`${c.name || 'The client'} signed the handover certificate.`], { label: 'Open the team portal', url: PORTAL_URL + 'pm.html' }) });
+  } catch (e) { console.error('certificate pdf: ' + msg_(e)); }
+  return clientView_(c);
+}
+
+function clientCertDecline_(c, b) {
+  const note = str_(b.note).slice(0, 2000);
+  if (!note) throw new Error('Please tell us what is missing.');
+  withLock_(() => {
+    const cert = openCert_(c.unit, b.certId);
+    setCells_(cert.ref, { 'Status': H_DECLINED, 'Decline note': note });
+    log_(c.unit, 'Handover certificate declined', cert.id, '', '', note, c.name || 'Client', '');
+  });
+  notifyTeam_(`${c.unit} · Client did not sign the handover`, 'HANDOVER NOT SIGNED', c.unit, [`${c.name || 'The client'}: ${note}`, 'Fix what is missing, then issue a new certificate.']);
+  return clientView_(c);
+}
+
+/** Same code rules as approvals: 10 minutes, 5 wrong tries. */
+function checkCode_(c, id, code) {
+  const cache = CacheService.getScriptCache(), key = 'pcode:' + c.token;
+  const st = JSON.parse(cache.get(key) || 'null');
+  if (!st || st.itemId !== str_(id)) throw new Error('The code expired. Please request a new one.');
+  if (str_(code) !== st.code) {
+    st.tries++;
+    if (st.tries >= 5) { cache.remove(key); throw new Error('Too many wrong codes. Please request a new one.'); }
+    cache.put(key, JSON.stringify(st), 600);
+    throw new Error('That code is not correct.');
+  }
+  cache.remove(key);
+}
+
+/** The signed PDF, as a data URL, for the unit's client or the team. */
+function certPdf_(unit, id) {
+  const ref = findRow_(PT.certs, PH_HEADERS, 'Cert ID', str_(id));
+  if (!ref || low_(ref.obj['Unit']) !== unit.toLowerCase() || str_(ref.obj['Status']) !== H_SIGNED) throw new Error('This certificate is not signed yet.');
+  const f = str_(ref.obj['PDF ID']) ? DriveApp.getFileById(str_(ref.obj['PDF ID'])) : makeCertPdf_(unit, id);
+  return { name: `Handover certificate ${safeUnit_(unit)}.pdf`, data: 'data:application/pdf;base64,' + Utilities.base64Encode(f.getBlob().getBytes()) };
+}
+
+function makeCertPdf_(unit, id) {
+  const ref = findRow_(PT.certs, PH_HEADERS, 'Cert ID', str_(id));
+  const r = ref.obj, u = unitInfo_(unit), st = unitStatus_(u.unit) || {};
+  const client = rows_(PT.clients).find(x => low_(x['Unit']) === unit.toLowerCase()) || {};
+  const items = unitItems_(u.unit).filter(x => x.status === S_OK);
+  const snags = unitSnags_(u.unit);
+  const kv = str_(r['Details']).split(/\n+/).map(l => l.trim()).filter(l => /^[^:]{1,40}:\s*\S/.test(l))
+    .map(l => { const i = l.indexOf(':'); return `<tr><td class="k">${esc_(l.slice(0, i))}</td><td>${esc_(l.slice(i + 1).trim())}</td></tr>`; }).join('');
+  const day = d => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}))?/); if (!m) return esc_(d); const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[2] - 1]; return `${+m[3]} ${M} ${m[1]}` + (m[4] ? ` · ${m[4]}:${m[5]}` : ''); };
+  const logo = name => { try { return 'data:image/png;base64,' + Utilities.base64Encode(UrlFetchApp.fetch(PORTAL_ASSETS + name).getContent()); } catch (e) { return ''; } };
+  const mark = logo('oplus-mark-white.png'), lockup = logo('owest-lockup-white.png');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    @page{size:A4;margin:0} body{margin:0;font-family:Poppins,Arial,sans-serif;color:#1A2238;font-size:11px}
+    .band{background:#001641;padding:18px 36px;height:44px} .band img{height:44px} .band .r{float:right;height:20px;margin-top:12px}
+    .wrap{padding:26px 36px} .eb{font-size:8.5px;font-weight:700;letter-spacing:2px;color:#001641}
+    h1{font-size:24px;color:#001641;margin:4px 0 0} .bar{width:36px;height:3px;background:#F0B323;margin:8px 0 18px}
+    table{width:100%;border-collapse:collapse} td{font-size:11.5px;padding:7px 0;border-bottom:1px solid #DCDFE6;vertical-align:top} td.k{width:34%;font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#5F677A;text-transform:uppercase;padding-top:9px}
+    h2{font-size:9px;letter-spacing:2px;color:#001641;margin:20px 0 6px} ul{margin:0;padding-left:16px} li{margin:2px 0}
+    .sign{margin-top:22px;border-left:3px solid #2F6E4E;background:#F3F5F9;padding:12px 16px} .sign b{color:#001641}
+    .foot{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #DCDFE6;padding:8px 36px;font-size:8.5px;color:#5F677A}
+  </style></head><body>
+  <div class="band">${mark ? `<img src="${mark}">` : '<b style="color:#fff">O-PLUS</b>'}${lockup ? `<img class="r" src="${lockup}">` : ''}</div>
+  <div class="wrap">
+    <div class="eb">O-PLUS · EXTRA WORKS · ${esc_(u.unit)}</div><h1>Handover Certificate</h1><div class="bar"></div>
+    <table>
+      <tr><td class="k">Unit</td><td>${esc_(u.unit)}${u.project ? ' · ' + esc_(u.project) : ''}</td></tr>
+      <tr><td class="k">Client</td><td>${esc_(str_(client['Client name']) || u.client)}</td></tr>
+      <tr><td class="k">Handover date</td><td>${day(day_(r['Handover date']))}</td></tr>
+      <tr><td class="k">Project manager</td><td>${esc_(st.pm || str_(r['Issued by']))}</td></tr>
+      ${kv}
+    </table>
+    <h2>APPROVED WORKS AND SELECTIONS</h2>
+    ${items.length ? `<ul>${items.map(x => `<li>${esc_(x.title)} <span style="color:#5F677A">· ${esc_(x.type)} · v${x.version} · approved ${day(x.decidedAt)}</span></li>`).join('')}</ul>` : '<p style="color:#5F677A">As agreed in the contract.</p>'}
+    <h2>SNAG LIST</h2>
+    <p>${snags.length ? `${snags.length} snag${snags.length > 1 ? 's' : ''} recorded, all fixed and confirmed by the client${snags[0] && snags[0].closedAt ? ' (last on ' + day(snags.map(x => x.closedAt).sort().pop()) + ')' : ''}.` : 'No snags recorded.'}</p>
+    ${str_(r['Notes']) ? `<h2>NOTES</h2><p style="white-space:pre-line">${esc_(r['Notes'])}</p>` : ''}
+    <div class="sign"><b>Accepted by ${esc_(r['Signed by'])} · ${day(dt_(r['Signed at']))}</b><br>
+      The client confirmed receipt of the unit and the works above. Confirmed with a one-time code sent to ${esc_(String(r['Signed with']).replace('Email code · ', ''))}.<br>
+      <span style="color:#5F677A">Issued by ${esc_(r['Issued by'])} · ${day(dt_(r['Issued at']))} · Record ${esc_(r['Cert ID'])}</span></div>
+  </div>
+  <div class="foot"><b style="color:#001641">O-PLUS</b> · O West by Orascom Development · This certificate is part of the unit's record in the O-Plus client portal.</div>
+  </body></html>`;
+  const blob = Utilities.newBlob(html, 'text/html', 'cert.html').getAs('application/pdf').setName(`Handover certificate ${safeUnit_(unit)}.pdf`);
+  const file = folderPath_([PORTAL_ROOT, safeUnit_(unit)]).createFile(blob);
+  setCells_(ref, { 'PDF ID': file.getId() });
+  return file;
+}
+
+/* =========================== documents =========================== */
+/* Drawings, warranties and manuals per unit. Files stay private in Drive ("<unit>/Documents")
+   and are served only through the API, to the unit's client or the team. */
+
+function unitDocs_(unit) {
+  const k = unit.toLowerCase();
+  return rows_(PT.docs).filter(r => low_(r['Unit']) === k && str_(r['Status']) !== 'Removed').map(r => ({
+    id: str_(r['Doc ID']), category: str_(r['Category']), title: str_(r['Title']), name: str_(r['File name']), type: str_(r['Type']),
+    kb: Number(r['Size KB']) || 0, at: dt_(r['Uploaded at']), by: str_(r['Uploaded by'])
+  })).reverse();
+}
+
+function pmDoc_(b) {
+  const u = unitInfo_(str_(b.unit)), by = str_(b.by) || 'O West team';
+  const m = str_(b.data).match(/^data:([\w\/+.-]+);base64,(.+)$/);
+  if (!m || !DOC_TYPES[m[1]]) throw new Error('Upload a PDF or a photo (JPG or PNG).');
+  if (m[2].length > DOC_MAX_B64) throw new Error('The file is too large (15 MB at most).');
+  const title = str_(b.title).slice(0, 160), cat = DOC_CATS.indexOf(str_(b.category)) >= 0 ? str_(b.category) : 'Other';
+  if (!title) throw new Error('Add a title.');
+  const bytes = Utilities.base64Decode(m[2]);
+  let name = (str_(b.name) || title).replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120);
+  if (!/\.\w{2,4}$/.test(name)) name += '.' + DOC_TYPES[m[1]];
+  const file = folderPath_([PORTAL_ROOT, safeUnit_(u.unit), 'Documents']).createFile(Utilities.newBlob(bytes, m[1], name));
+  withLock_(() => {
+    const id = 'D' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    sheet_(PT.docs, PD_HEADERS).appendRow([id, u.unit, cat, title, file.getId(), name, DOC_TYPES[m[1]], Math.round(bytes.length / 1024), now_(), by, 'Active']);
+    log_(u.unit, 'Document shared', id, '', title, cat, by, '');
+  });
+  const c = rows_(PT.clients).find(r => low_(r['Unit']) === u.unit.toLowerCase());
+  if (c && str_(c['Client email']) && snagMailDue_('pdocmail:' + u.unit)) {
+    MailApp.sendEmail({
+      to: str_(c['Client email']), name: 'O West Extra Works', subject: `New documents in your portal · ${u.unit}`,
+      htmlBody: mailHtml_('DOCUMENTS', 'New documents for your unit', [`Dear ${str_(c['Client name']) || 'Client'},`,
+        `${by} shared "${title}" (${cat}) for ${u.unit}. You can view and download it in your portal under Documents.`],
+        { label: 'Open my documents', url: PORTAL_URL + '#t=' + str_(c['Token']) })
+    });
+  }
+  return pmUnit_(u.unit);
+}
+
+function pmDocRemove_(b) {
+  const unit = unitInfo_(str_(b.unit)).unit;
+  withLock_(() => {
+    const ref = findRow_(PT.docs, PD_HEADERS, 'Doc ID', str_(b.docId));
+    if (!ref || low_(ref.obj['Unit']) !== unit.toLowerCase()) throw new Error('This document was not found.');
+    setCells_(ref, { 'Status': 'Removed' });
+    log_(unit, 'Document removed', ref.obj['Doc ID'], '', str_(ref.obj['Title']), '', str_(b.by) || 'O West team', '');
+  });
+  return pmUnit_(unit);
+}
+
+function docGet_(unit, id) {
+  const r = rows_(PT.docs).find(x => str_(x['Doc ID']) === str_(id) && low_(x['Unit']) === unit.toLowerCase() && str_(x['Status']) !== 'Removed');
+  if (!r) throw new Error('This document was not found.');
+  const blob = DriveApp.getFileById(str_(r['File ID'])).getBlob();
+  const type = { pdf: 'application/pdf', jpg: 'image/jpeg', png: 'image/png' }[str_(r['Type'])] || 'application/octet-stream';
+  return { name: str_(r['File name']) || str_(r['Title']), type: type, data: `data:${type};base64,` + Utilities.base64Encode(blob.getBytes()) };
 }
 
 /* =========================== management dashboard =========================== */
@@ -466,7 +686,7 @@ function pmUnit_(unit) {
     email: (c && str_(c['Client email'])) || u.email,
     invited: !!c, invitedAt: c ? dt_(c['Invited at']) : '', lastOpened: c ? dt_(c['Last opened']) : '',
     link: c ? PORTAL_URL + '#t=' + str_(c['Token']) : '', status: unitStatus_(u.unit),
-    items: unitItems_(u.unit), concerns: unitConcerns_(u.unit), snags: unitSnags_(u.unit), history: unitLog_(u.unit)
+    items: unitItems_(u.unit), concerns: unitConcerns_(u.unit), snags: unitSnags_(u.unit), certs: unitCerts_(u.unit), docs: unitDocs_(u.unit), history: unitLog_(u.unit)
   };
 }
 
@@ -514,7 +734,8 @@ function pmUpload_(b) {
 function pmItem_(b) {
   const u = unitInfo_(str_(b.unit));
   const type = P_TYPES.indexOf(str_(b.type)) >= 0 ? str_(b.type) : P_TYPES[0];
-  const title = str_(b.title).slice(0, 200), details = str_(b.details).slice(0, 4000);
+  let title = str_(b.title).slice(0, 200);
+  const details = str_(b.details).slice(0, 4000);
   const by = str_(b.by) || 'O West team';
   if (!title) throw new Error('Add a title.');
   const photos = (b.photoIds || []).map(str_).filter(Boolean).slice(0, 8);
@@ -526,6 +747,11 @@ function pmItem_(b) {
       version = Number(old.obj['Version'] || 1) + 1;
       setCells_(old, { 'Status': S_OLD });
     }
+    // a new variation order gets the next number for the unit: VO-01, VO-02 ... (a revision keeps its number)
+    if (type === P_VO && !b.replaces && !/^VO-\d+/.test(title)) {
+      const n = rows_(PT.items).filter(r => low_(r['Unit']) === u.unit.toLowerCase() && str_(r['Type']) === P_VO && Number(r['Version'] || 1) === 1).length + 1;
+      title = `VO-${n < 10 ? '0' + n : n} · ${title}`;
+    }
     id = 'I' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
     sheet_(PT.items, PI_HEADERS).appendRow([id, u.unit, type, title, details, photos.join(','), version, str_(b.replaces), S_PENDING, now_(), by, '', '', '']);
     log_(u.unit, S_PENDING, id, version, title, type, by, '');
@@ -535,7 +761,7 @@ function pmItem_(b) {
   if (c && str_(c['Client email'])) {
     MailApp.sendEmail({
       to: str_(c['Client email']), name: 'O West Extra Works',
-      subject: `For your approval: ${title} · ${u.unit}`,
+      subject: `${type === P_VO ? 'Variation order for your approval' : 'For your approval'}: ${title} · ${u.unit}`,
       htmlBody: mailHtml_(`${type.toUpperCase()} · VERSION ${version}`, title, [
         `Dear ${str_(c['Client name']) || 'Client'},`,
         `${by} has sent you an item to review for unit ${u.unit}. Please open your portal to approve it or request changes.`
@@ -798,7 +1024,7 @@ function mailHtml_(eyebrow, title, lines, button) {
 /** Run once (or from the menu): makes the portal tabs and protects the record. */
 function portalSetup() {
   SpreadsheetApp.getActive().setSpreadsheetTimeZone(TZ);
-  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS);
+  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS); sheet_(PT.certs, PH_HEADERS); sheet_(PT.docs, PD_HEADERS);
   const log = sheet_(PT.log, PL_HEADERS);
   if (!log.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
     const p = log.protect().setDescription('Client portal record: written by the portal only');
