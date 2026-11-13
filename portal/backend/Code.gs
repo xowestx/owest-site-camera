@@ -41,7 +41,7 @@ function doPost(e) {
   } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
 }
 
-const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', certs: 'Portal Handover', log: 'Portal Log' };
+const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', certs: 'Portal Handover', docs: 'Portal Documents', log: 'Portal Log' };
 const PORTAL_URL = 'https://xowestx.github.io/owest-site-camera/portal/';
 const PORTAL_ASSETS = 'https://xowestx.github.io/owest-site-camera/portal/assets/';
 const PORTAL_ROOT = 'O West Client Portal';
@@ -52,6 +52,10 @@ const PMS_HEADERS = ['Concern ID', 'Unit', 'At', 'From', 'Name', 'Text', 'Photo 
 const PSN_HEADERS = ['Snag ID', 'Unit', 'No.', 'Location', 'Description', 'Photo IDs', 'Status', 'Reported at', 'Reported by', 'From',
   'Fixed at', 'Fixed by', 'Fix note', 'Fix photo IDs', 'Closed at', 'Closed by', 'Reopen note'];
 const PH_HEADERS = ['Cert ID', 'Unit', 'Status', 'Handover date', 'Details', 'Notes', 'Issued at', 'Issued by', 'Signed at', 'Signed by', 'Signed with', 'Decline note', 'PDF ID'];
+const PD_HEADERS = ['Doc ID', 'Unit', 'Category', 'Title', 'File ID', 'File name', 'Type', 'Size KB', 'Uploaded at', 'Uploaded by', 'Status'];
+const DOC_CATS = ['Drawings', 'Warranties', 'Manuals', 'Certificates', 'Other'];
+const DOC_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
+const DOC_MAX_B64 = 20 * 1024 * 1024; // about 15 MB file
 const PL_HEADERS = ['At', 'Unit', 'Event', 'Ref', 'Version', 'Title', 'Detail', 'By', 'Confirmed with'];
 const P_TYPES = ['Selection', 'Scope of work', 'Date change', 'Variation order'];
 const P_VO = 'Variation order';
@@ -78,6 +82,9 @@ function portal_(b) {
     if (a === 'portal.pm.snagfix') return pmSnagFix_(b);
     if (a === 'portal.pm.dash') return pmDash_();
     if (a === 'portal.pm.cert') return pmCert_(b);
+    if (a === 'portal.pm.doc') return pmDoc_(b);
+    if (a === 'portal.pm.docremove') return pmDocRemove_(b);
+    if (a === 'portal.pm.docget') return docGet_(unitInfo_(str_(b.unit)).unit, b.docId);
     if (a === 'portal.pm.certpdf') return certPdf_(unitInfo_(str_(b.unit)).unit, b.certId);
   } else {
     const c = clientByToken_(b.token);
@@ -93,6 +100,7 @@ function portal_(b) {
     if (a === 'portal.cert.sign') return clientCertSign_(c, b);
     if (a === 'portal.cert.decline') return clientCertDecline_(c, b);
     if (a === 'portal.cert.pdf') return certPdf_(c.unit, b.certId);
+    if (a === 'portal.doc') return docGet_(c.unit, b.docId);
   }
   throw new Error('Unknown portal action.');
 }
@@ -121,7 +129,7 @@ function clientView_(c) {
     unit: c.unit, project: u.project, client: c.name || u.client, pm: c.pm,
     email: maskEmail_(c.email), status: unitStatus_(c.unit),
     items: unitItems_(c.unit).filter(x => x.status !== S_OLD),
-    concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit), certs: unitCerts_(c.unit),
+    concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit), certs: unitCerts_(c.unit), docs: unitDocs_(c.unit),
     history: unitLog_(c.unit)
   };
 }
@@ -441,6 +449,65 @@ function makeCertPdf_(unit, id) {
   return file;
 }
 
+/* =========================== documents =========================== */
+/* Drawings, warranties and manuals per unit. Files stay private in Drive ("<unit>/Documents")
+   and are served only through the API, to the unit's client or the team. */
+
+function unitDocs_(unit) {
+  const k = unit.toLowerCase();
+  return rows_(PT.docs).filter(r => low_(r['Unit']) === k && str_(r['Status']) !== 'Removed').map(r => ({
+    id: str_(r['Doc ID']), category: str_(r['Category']), title: str_(r['Title']), name: str_(r['File name']), type: str_(r['Type']),
+    kb: Number(r['Size KB']) || 0, at: dt_(r['Uploaded at']), by: str_(r['Uploaded by'])
+  })).reverse();
+}
+
+function pmDoc_(b) {
+  const u = unitInfo_(str_(b.unit)), by = str_(b.by) || 'O West team';
+  const m = str_(b.data).match(/^data:([\w\/+.-]+);base64,(.+)$/);
+  if (!m || !DOC_TYPES[m[1]]) throw new Error('Upload a PDF or a photo (JPG or PNG).');
+  if (m[2].length > DOC_MAX_B64) throw new Error('The file is too large (15 MB at most).');
+  const title = str_(b.title).slice(0, 160), cat = DOC_CATS.indexOf(str_(b.category)) >= 0 ? str_(b.category) : 'Other';
+  if (!title) throw new Error('Add a title.');
+  const bytes = Utilities.base64Decode(m[2]);
+  let name = (str_(b.name) || title).replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120);
+  if (!/\.\w{2,4}$/.test(name)) name += '.' + DOC_TYPES[m[1]];
+  const file = folderPath_([PORTAL_ROOT, safeUnit_(u.unit), 'Documents']).createFile(Utilities.newBlob(bytes, m[1], name));
+  withLock_(() => {
+    const id = 'D' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    sheet_(PT.docs, PD_HEADERS).appendRow([id, u.unit, cat, title, file.getId(), name, DOC_TYPES[m[1]], Math.round(bytes.length / 1024), now_(), by, 'Active']);
+    log_(u.unit, 'Document shared', id, '', title, cat, by, '');
+  });
+  const c = rows_(PT.clients).find(r => low_(r['Unit']) === u.unit.toLowerCase());
+  if (c && str_(c['Client email']) && snagMailDue_('pdocmail:' + u.unit)) {
+    MailApp.sendEmail({
+      to: str_(c['Client email']), name: 'O West Extra Works', subject: `New documents in your portal · ${u.unit}`,
+      htmlBody: mailHtml_('DOCUMENTS', 'New documents for your unit', [`Dear ${str_(c['Client name']) || 'Client'},`,
+        `${by} shared "${title}" (${cat}) for ${u.unit}. You can view and download it in your portal under Documents.`],
+        { label: 'Open my documents', url: PORTAL_URL + '#t=' + str_(c['Token']) })
+    });
+  }
+  return pmUnit_(u.unit);
+}
+
+function pmDocRemove_(b) {
+  const unit = unitInfo_(str_(b.unit)).unit;
+  withLock_(() => {
+    const ref = findRow_(PT.docs, PD_HEADERS, 'Doc ID', str_(b.docId));
+    if (!ref || low_(ref.obj['Unit']) !== unit.toLowerCase()) throw new Error('This document was not found.');
+    setCells_(ref, { 'Status': 'Removed' });
+    log_(unit, 'Document removed', ref.obj['Doc ID'], '', str_(ref.obj['Title']), '', str_(b.by) || 'O West team', '');
+  });
+  return pmUnit_(unit);
+}
+
+function docGet_(unit, id) {
+  const r = rows_(PT.docs).find(x => str_(x['Doc ID']) === str_(id) && low_(x['Unit']) === unit.toLowerCase() && str_(x['Status']) !== 'Removed');
+  if (!r) throw new Error('This document was not found.');
+  const blob = DriveApp.getFileById(str_(r['File ID'])).getBlob();
+  const type = { pdf: 'application/pdf', jpg: 'image/jpeg', png: 'image/png' }[str_(r['Type'])] || 'application/octet-stream';
+  return { name: str_(r['File name']) || str_(r['Title']), type: type, data: `data:${type};base64,` + Utilities.base64Encode(blob.getBytes()) };
+}
+
 /* =========================== management dashboard =========================== */
 /* ClickUp is read by an hourly job into the "Portal Dashboard" tab (one row per task), so the
    dashboard opens fast and never calls ClickUp while someone waits. Amounts are read only to
@@ -619,7 +686,7 @@ function pmUnit_(unit) {
     email: (c && str_(c['Client email'])) || u.email,
     invited: !!c, invitedAt: c ? dt_(c['Invited at']) : '', lastOpened: c ? dt_(c['Last opened']) : '',
     link: c ? PORTAL_URL + '#t=' + str_(c['Token']) : '', status: unitStatus_(u.unit),
-    items: unitItems_(u.unit), concerns: unitConcerns_(u.unit), snags: unitSnags_(u.unit), certs: unitCerts_(u.unit), history: unitLog_(u.unit)
+    items: unitItems_(u.unit), concerns: unitConcerns_(u.unit), snags: unitSnags_(u.unit), certs: unitCerts_(u.unit), docs: unitDocs_(u.unit), history: unitLog_(u.unit)
   };
 }
 
@@ -957,7 +1024,7 @@ function mailHtml_(eyebrow, title, lines, button) {
 /** Run once (or from the menu): makes the portal tabs and protects the record. */
 function portalSetup() {
   SpreadsheetApp.getActive().setSpreadsheetTimeZone(TZ);
-  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS); sheet_(PT.certs, PH_HEADERS);
+  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS); sheet_(PT.certs, PH_HEADERS); sheet_(PT.docs, PD_HEADERS);
   const log = sheet_(PT.log, PL_HEADERS);
   if (!log.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
     const p = log.protect().setDescription('Client portal record: written by the portal only');

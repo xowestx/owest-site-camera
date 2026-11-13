@@ -174,7 +174,7 @@ const V = {
       `<div class="eyebrow" style="margin-top:18px">Concerns</div>` +
       (U.concerns.length ? `<div class="rows" style="margin-top:8px">${U.concerns.map(c => `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status === "Under review" ? "Under review" : c.status)}</button>`).join("")}</div>`
         : `<p class="small muted">No concerns.</p>`) +
-      snagSection() + certSection();
+      snagSection() + docSection() + certSection();
   },
 
   snag() {
@@ -194,6 +194,15 @@ const V = {
         <input type="file" id="fxf" accept="image/*" multiple hidden><div class="thumbs" id="fxt"></div>
         <div class="stack"><button class="btn ghost" id="fxp">Add after photos</button><button class="btn" id="fxgo">Mark as fixed</button>
         <span class="small muted">The client sees the after photo and confirms, or sends it back.</span></div>` : "");
+  },
+
+  docNew() {
+    return `<button class="back" id="toUnit">${BACK("Cancel")}</button>` + head(U.unit + " · Documents", "Add document", "PDF or photo, up to 15 MB. The client can view and download it in their portal.") +
+      `<label class="f">Category</label><div class="chips">${DOC_CATS.map((c, i) => `<button class="chip ${i === 0 ? "on" : ""}" data-cat="${c}">${c}</button>`).join("")}</div>
+       <label class="f" for="dt">Title</label><input class="f" id="dt" maxlength="160" placeholder="For example: Kitchen layout, rev. B">
+       <input type="file" id="df" accept="application/pdf,image/jpeg,image/png" hidden><p class="small" id="dfn"></p>
+       <div class="stack"><button class="btn ghost" id="dpick">Choose file</button><button class="btn" id="dgo">Share with client</button>
+       <span class="small muted">Don't share contracts or anything with prices.</span></div>`;
   },
 
   certNew() {
@@ -296,6 +305,28 @@ function bind() {
   if ($("addSnag")) $("addSnag").onclick = () => { view = "snagNew"; render(); scrollTo(0, 0); };
   const pics = (input, box, list) => { $(input).onchange = async e => { for (const f of e.target.files) if (list.length < 4) list.push(await compress(f)); $(box).innerHTML = list.map(p => `<img src="${p}" alt="">`).join(""); }; };
   const upload = async (btn, list) => { const ids = []; for (let i = 0; i < list.length; i++) { btn.textContent = `Uploading photo ${i + 1} of ${list.length}…`; ids.push((await call({ action: "portal.pm.upload", unit: U.unit, data: list[i] })).id); } return ids; };
+  if ($("addDoc")) $("addDoc").onclick = () => { view = "docNew"; render(); scrollTo(0, 0); };
+  v.querySelectorAll("[data-docget]").forEach(b => b.onclick = () => busy(b, async () => { const j = await call({ action: "portal.pm.docget", unit: U.unit, docId: b.dataset.docget }); saveData(j.data, j.name); }));
+  v.querySelectorAll("[data-docdel]").forEach(b => b.onclick = () => busy(b, async () => {
+    if (!confirm("Remove this document from the client's portal?")) return;
+    U = await call({ action: "portal.pm.docremove", unit: U.unit, docId: b.dataset.docdel, by: me }); render(); toast("Removed.");
+  }));
+  if (view === "docNew") {
+    let file = null, cat = DOC_CATS[0];
+    v.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => { cat = b.dataset.cat; v.querySelectorAll("[data-cat]").forEach(x => x.classList.toggle("on", x === b)); });
+    $("dpick").onclick = () => $("df").click();
+    $("df").onchange = e => { file = e.target.files[0] || null; $("dfn").textContent = file ? `${file.name} · ${kb(Math.round(file.size / 1024))}` : ""; if (file && !$("dt").value) $("dt").value = file.name.replace(/\.\w+$/, ""); };
+    $("dgo").onclick = () => busy($("dgo"), async () => {
+      if (!me) return pickName();
+      if (!file) return toast("Choose a file.");
+      if (file.size > 15 * 1024 * 1024) return toast("The file is too large (15 MB at most).");
+      if (!$("dt").value.trim()) return toast("Add a title.");
+      $("dgo").textContent = "Uploading…";
+      const data = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
+      U = await call({ action: "portal.pm.doc", unit: U.unit, category: cat, title: $("dt").value.trim(), name: file.name, data, by: me });
+      view = "unit"; render(); toast("Shared with the client.");
+    });
+  }
   if ($("hnew")) $("hnew").onclick = () => { view = "certNew"; render(); scrollTo(0, 0); };
   if ($("hpdf")) $("hpdf").onclick = () => busy($("hpdf"), async () => {
     const j = await call({ action: "portal.pm.certpdf", unit: U.unit, certId: $("hpdf").dataset.cert });
@@ -348,6 +379,14 @@ function snagSection() {
   return `<div id="snags" style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="eyebrow">Snag list · ${n("Open")} open · ${n("Fixed")} to check · ${n("Closed")} closed</span><button class="btn ghost small" id="addSnag">Add snag</button></div>` +
     (l.length ? `<div class="rows" style="margin-top:8px">${l.map(x => `<button class="row" data-snag="${esc(x.id)}"><span class="col"><span class="eyebrow m">#${x.no}${x.location ? " · " + esc(x.location) : ""}${x.from === "client" ? " · client" : ""}</span><span class="t" style="font-weight:500;font-size:14px">${esc(x.text)}</span><span class="s">${x.reopenNote && x.status === "Open" ? "Reopened by client" : when(x.reportedAt)}</span></span>${pill(x.status)}</button>`).join("")}</div>`
       : `<p class="small muted">No snags. They appear here when you or the client add them at inspection or handover.</p>`);
+}
+
+function docSection() {
+  const l = U.docs || [];
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="eyebrow">Documents · ${l.length}</span><button class="btn ghost small" id="addDoc">Add document</button></div>` +
+    (l.length ? `<div class="rows" style="margin-top:8px">${l.map(d => `<div class="row"><span class="col"><span class="eyebrow m">${esc(d.category)}</span><span class="t" style="font-size:14px">${esc(d.title)}</span><span class="s">${esc(d.type.toUpperCase())} · ${kb(d.kb)} · ${esc(d.by)} · ${when(d.at, true)}</span></span>
+      <span style="display:flex;gap:8px"><button class="btn ghost small" data-docget="${esc(d.id)}">Open</button><button class="btn bad small" data-docdel="${esc(d.id)}">Remove</button></span></div>`).join("")}</div>`
+      : `<p class="small muted">Share drawings, warranties and manuals with the client here.</p>`);
 }
 
 function certSection() {

@@ -111,3 +111,11 @@ function closeSheet() { const s = $("sheet"); if (s) s.remove(); }
 const ROOMS = ["Entrance", "Living room", "Dining", "Kitchen", "Master bedroom", "Bedroom 2", "Bedroom 3", "Master bathroom", "Guest bathroom", "Corridor", "Balcony", "Garden", "Roof"];
 const ROOMS_AR = ["المدخل", "الريسبشن", "السفرة", "المطبخ", "غرفة النوم الرئيسية", "غرفة نوم 2", "غرفة نوم 3", "حمام رئيسي", "حمام الضيوف", "الطرقة", "البلكونة", "الحديقة", "الروف"];
 const snagTitle = s => `Snag #${s.no}${s.location ? " · " + s.location : ""}`;
+
+const DOC_CATS = ["Drawings", "Warranties", "Manuals", "Certificates", "Other"];
+const DOC_CATS_AR = { "Drawings": "الرسومات", "Warranties": "الضمانات", "Manuals": "كتيبات التشغيل", "Certificates": "الشهادات", "Other": "أخرى" };
+/** Save a data URL as a file on the phone or computer. */
+function saveData(data, name) {
+  const a = document.createElement("a"); a.href = data; a.download = name || "document"; document.body.appendChild(a); a.click(); a.remove();
+}
+const kb = n => n >= 1024 ? (n / 1024).toFixed(1) + " MB" : (n || "<1") + " KB";

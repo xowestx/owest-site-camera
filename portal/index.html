@@ -93,7 +93,7 @@ const TYPE_AR = { "Selection": "اختيار خامة", "Scope of work": "نطا
 const type = t => AR() ? TYPE_AR[t] || t : t;
 const EVENT_AR = { "Sent for approval": "أُرسل للموافقة", "Approved": "تمت الموافقة", "Rejected": "طُلب تعديل", "New concern": "استفسار جديد",
   "Team replied": "رد الفريق", "Concern resolved": "تم حل الاستفسار", "Portal invitation sent": "تم إرسال دعوة البوابة", "New link made": "تم إنشاء رابط جديد",
-  "Handover certificate sent": "أُرسلت شهادة الاستلام", "Handover certificate signed": "تم توقيع شهادة الاستلام", "Handover certificate declined": "لم تُوقّع شهادة الاستلام", "Snag reported": "ملاحظة استلام جديدة", "Snag fixed": "تم إصلاح ملاحظة استلام", "Snag closed": "تم إغلاق ملاحظة استلام", "Snag reopened": "أُعيد فتح ملاحظة استلام" };
+  "Handover certificate sent": "أُرسلت شهادة الاستلام", "Handover certificate signed": "تم توقيع شهادة الاستلام", "Handover certificate declined": "لم تُوقّع شهادة الاستلام", "Document shared": "مستند جديد", "Document removed": "تم حذف مستند", "Snag reported": "ملاحظة استلام جديدة", "Snag fixed": "تم إصلاح ملاحظة استلام", "Snag closed": "تم إغلاق ملاحظة استلام", "Snag reopened": "أُعيد فتح ملاحظة استلام" };
 const plural = (n, en1, enN, ar) => AR() ? `${n} ${ar}` : `${n} ${n === 1 ? en1 : enN}`;
 
 document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
@@ -111,7 +111,7 @@ function render() {
   document.querySelector("#tabs .in").style.gridTemplateColumns = `repeat(${showSnags ? 6 : 5},minmax(0,1fr))`;
   const chk = snags.filter(x => x.status === "Fixed").length;
   $("snagBadge").hidden = !chk; $("snagBadge").textContent = chk;
-  const tab = { item: back, concern: "concerns", snag: "snags", cert: "home" }[view] || view;
+  const tab = { item: back, concern: "concerns", snag: "snags", cert: "home", docs: "home" }[view] || view;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === tab));
   $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span class="ltr">${esc(D.unit)}</span></div>`;
   bind();
@@ -133,6 +133,7 @@ const VIEWS = {
       (f ? `<button class="cta" data-go="snags" data-sfilter="Fixed"><span><span class="eyebrow">${L("Snag list", "ملاحظات الاستلام")}</span><b>${L(`${f} fix${f > 1 ? "es" : ""} ready for your check`, `${f} إصلاح جاهز لمراجعتك`)}</b><span class="small muted">${L("See the after photo and confirm", "شاهد صورة ما بعد الإصلاح وأكّد")}</span></span>${CHEV}</button>` : "") +
       `<div class="rows">
         ${ct && ct.status === "Signed" ? `<button class="row" data-go="cert"><span class="col"><span class="t">${L("Handover certificate", "شهادة الاستلام")}</span><span class="s">${L("Signed", "تم التوقيع")} · ${when(ct.signedAt, true)}</span></span>${pill("Signed")}</button>` : ""}
+        ${docCount() ? `<button class="row" data-go="docs"><span class="col"><span class="t">${L("Documents", "المستندات")}</span><span class="s">${L(`${docCount()} file${docCount() > 1 ? "s" : ""} · drawings, warranties, manuals`, `${docCount()} ملف · رسومات، ضمانات، كتيبات`)}</span></span>${CHEV}</button>` : ""}
         <button class="row" data-go="selections"><span class="col"><span class="t">${L("Selections", "الخامات")}</span><span class="s">${L("Finishes with sample photos", "التشطيبات مع صور العينات")}</span></span>${CHEV}</button>
         <button class="row" data-go="concerns"><span class="col"><span class="t">${L("Concerns", "الاستفسارات")}</span><span class="s">${open ? L(open + " open", open + " مفتوح") : L("Ask us anything about your unit", "اسألنا عن أي شيء يخص وحدتك")}</span></span>${CHEV}</button>
         ${s.report && s.report.url ? `<a class="row" href="${esc(s.report.url)}" target="_blank" rel="noopener" style="text-decoration:none"><span class="col"><span class="t">${L("Weekly report", "التقرير الأسبوعي")}</span><span class="s">${L("Latest", "الأحدث")} · ${esc(s.report.period)}</span></span>${CHEV}</a>` : ""}
@@ -235,6 +236,17 @@ const VIEWS = {
       (x.status === "Signed" ? `<div class="note"><b>${L("Signed", "تم التوقيع")} · ${when(x.signedAt)}</b><br>${L(`By ${esc(x.signedBy)}, confirmed with an email code.`, `بواسطة ${esc(x.signedBy)}، وتم التأكيد بكود عبر البريد الإلكتروني.`)}</div><div class="stack"><button class="btn" id="certPdf">${L("Download PDF", "تحميل PDF")}</button></div>` : "");
   },
 
+  docs() {
+    const list = (D.docs || []).slice(), c = cert();
+    if (c && c.status === "Signed") list.unshift({ id: "", cert: c.id, category: "Certificates", title: L("Handover certificate (signed)", "شهادة الاستلام (موقعة)"), type: "pdf", at: c.signedAt, by: c.signedBy });
+    const groups = DOC_CATS.map(cat => [cat, list.filter(d => d.category === cat)]).filter(g => g[1].length);
+    return `<button class="back" data-go="home">${BACK(L("Home", "الرئيسية"))}</button>` +
+      head(L("Unit file", "ملف الوحدة"), L("Documents", "المستندات"), L("Drawings, warranties and manuals for your unit. Tap a file to download it.", "الرسومات والضمانات وكتيبات التشغيل الخاصة بوحدتك. اضغط على الملف لتحميله.")) +
+      (groups.length ? groups.map(g => `<div class="eyebrow" style="margin:16px 0 4px">${esc(AR() ? DOC_CATS_AR[g[0]] : g[0])}</div><div class="rows">${g[1].map(d =>
+        `<button class="row" ${d.cert ? `data-certdoc="${esc(d.cert)}"` : `data-doc="${esc(d.id)}"`}><span class="col"><span class="t" style="font-size:14px">${esc(d.title)}</span><span class="s">${esc(String(d.type).toUpperCase())}${d.kb ? " · " + kb(d.kb) : ""} · ${when(d.at, true)}</span></span><span class="small" style="font-weight:600;color:var(--navy)">${L("Download", "تحميل")}</span></button>`).join("")}</div>`).join("")
+      : `<p class="muted">${L("No documents yet.", "لا توجد مستندات بعد.")}</p>`);
+  },
+
   history() {
     const dot = e => /Approved|resolved|closed/i.test(e) ? "var(--done)" : /Rejected|reopened/i.test(e) ? "var(--problem)" : /concern|replied|snag/i.test(e) ? "#E0B55C" : "var(--navy)";
     return head(L("Record · Not editable", "السجل · غير قابل للتعديل"), L("History", "السجل"), L("Everything shared, approved or rejected, newest first.", "كل ما تمت مشاركته أو الموافقة عليه أو رفضه، الأحدث أولاً.")) +
@@ -243,6 +255,7 @@ const VIEWS = {
 };
 
 /** The certificate that matters: the one waiting or signed (a declined one is history). */
+const docCount = () => (D.docs || []).length + ((cert() || {}).status === "Signed" ? 1 : 0);
 const cert = () => (D.certs || []).find(c => c.status !== "Declined") || null;
 const fixes = () => (D.snags || []).filter(x => x.status === "Fixed").length;
 function snagRow(x) {
@@ -270,6 +283,8 @@ function bind() {
   });
   if ($("snagNo")) $("snagNo").onclick = snagReopen;
   if ($("certSign")) $("certSign").onclick = signCert;
+  v.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => busy(b, async () => { const j = await api({ action: "portal.doc", token, docId: b.dataset.doc }); saveData(j.data, j.name); }));
+  v.querySelectorAll("[data-certdoc]").forEach(b => b.onclick = () => busy(b, async () => { const j = await api({ action: "portal.cert.pdf", token, certId: b.dataset.certdoc }); saveData(j.data, j.name); }));
   if ($("certNo")) $("certNo").onclick = declineCert;
   if ($("certPdf")) $("certPdf").onclick = () => busy($("certPdf"), async () => {
     const j = await api({ action: "portal.cert.pdf", token, certId: cert().id });
