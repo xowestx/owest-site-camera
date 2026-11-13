@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>O-Plus Client Portal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#001641">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="assets/oplus-mark-white.png">
+<link rel="preconnect" href="https://script.google.com">
+<link rel="stylesheet" href="portal.css">
+</head>
+<body>
+<header class="band"><div class="in">
+  <img class="mark" src="assets/oplus-mark-white.png" alt="O-Plus">
+  <span class="rule"></span>
+  <img class="lock" src="assets/owest-lockup-white.png" alt="O West by Orascom Development">
+</div></header>
+<div class="strip"><div class="in">
+  <span class="eyebrow" id="unitLine">Client portal</span>
+  <span class="small muted" id="clientLine"></span>
+</div></div>
+
+<main class="in" id="view"><div class="center">Loading your portal…</div></main>
+
+<nav class="tabs" id="tabs" hidden><div class="in">
+  <button data-v="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3v-9z"/></svg>Home</button>
+  <button data-v="approvals"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>Approvals<span class="badge" id="badge" hidden></span></button>
+  <button data-v="selections"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>Selections</button>
+  <button data-v="concerns"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5z"/></svg>Concerns</button>
+  <button data-v="history"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</button>
+</div></nav>
+
+<script src="portal.js"></script>
+<script>
+let token = "", D = null, view = "home", filter = "all", sel = null, back = "approvals";
+
+(function start() {
+  const m = location.hash.match(/t=([A-Za-z0-9]+)/);
+  try {
+    if (m) { token = m[1]; localStorage.setItem("oplus_t", token); history.replaceState(null, "", location.pathname); }
+    else token = localStorage.getItem("oplus_t") || "";
+  } catch (e) { if (m) token = m[1]; }
+  if (!token) return fail("Please open the portal from the link in your email.");
+  load();
+})();
+
+async function load() {
+  try { D = (await api({ action: "portal.open", token })); render(); }
+  catch (e) { fail(e.message); }
+}
+function fail(t) { $("view").innerHTML = `<div class="center">${esc(t)}</div>`; }
+const auth = () => ({ token });
+const pending = () => D.items.filter(x => x.status === "Sent for approval");
+
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
+function go(v, extra) { view = v; if (extra) Object.assign(window, extra); render(); scrollTo(0, 0); }
+
+function render() {
+  $("tabs").hidden = false;
+  $("unitLine").textContent = "Client portal · " + D.unit;
+  $("clientLine").textContent = D.client || "";
+  const p = pending().length;
+  $("badge").hidden = !p; $("badge").textContent = p;
+  const tab = { item: back, concern: "concerns" }[view] || view;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === tab));
+  $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span>${esc(D.unit)}</span></div>`;
+  bind();
+  loadImages($("view"), auth());
+}
+
+const VIEWS = {
+  home() {
+    const s = D.status || {}, p = pending().length, open = D.concerns.filter(c => c.status !== "Resolved").length;
+    return head("O-Plus · Extra works", "Dear " + (D.client || "client"), "This portal is the agreed record of your unit: scope, dates, selections and our replies.") +
+      `<div class="meta">
+        <div><div class="eyebrow m">Progress</div><div class="big">${s.poc == null ? "—" : s.poc + "%"}</div></div>
+        <div><div class="eyebrow m">Handover</div><div class="v">${s.handover ? when(s.handover, true) : "—"}</div></div>
+        <div><div class="eyebrow m">PM</div><div class="v">${esc(s.pm || D.pm || "—")}</div></div>
+      </div>` + stepper(s.stage) +
+      (p ? `<button class="cta" data-go="approvals" data-filter="Sent for approval"><span><span class="eyebrow">Action needed</span><b>${p} item${p > 1 ? "s" : ""} need${p > 1 ? "" : "s"} your approval</b><span class="small muted">Approve, or tell us what to change</span></span>${CHEV}</button>` : "") +
+      `<div class="rows">
+        <button class="row" data-go="selections"><span class="col"><span class="t">Selections</span><span class="s">Finishes with sample photos</span></span>${CHEV}</button>
+        <button class="row" data-go="concerns"><span class="col"><span class="t">Concerns</span><span class="s">${open ? open + " open" : "Ask us anything about your unit"}</span></span>${CHEV}</button>
+        ${s.report && s.report.url ? `<a class="row" href="${esc(s.report.url)}" target="_blank" rel="noopener" style="text-decoration:none"><span class="col"><span class="t">Weekly report</span><span class="s">Latest · ${esc(s.report.period)}</span></span>${CHEV}</a>` : ""}
+      </div>` +
+      (s.photos && s.photos.length ? `<div class="eyebrow" style="margin:20px 0 8px">Site photos · ${when(s.photos[0].date, true)}</div>
+        <div class="grid2">${s.photos.slice(0, 4).map(ph => `<div class="ph"><img data-id="${esc(ph.id)}" alt="Site photo ${esc(ph.item)}"><span>${esc(ph.item || when(ph.date, true))}</span></div>`).join("")}</div>` : "");
+  },
+
+  approvals() {
+    const fs = [["all", "All"], ["Sent for approval", "Sent for approval"], ["Approved", "Approved"], ["Rejected", "Rejected"]];
+    const list = D.items.filter(x => filter === "all" || x.status === filter);
+    return head("Scope · Dates · Selections", "Approvals") +
+      `<div class="chips">${fs.map(f => `<button class="chip ${filter === f[0] ? "on" : ""}" data-filter="${f[0]}">${f[1]}</button>`).join("")}</div>` +
+      (list.length ? `<div class="rows">${list.map(itemRow).join("")}</div>` : `<p class="muted">Nothing in this list yet.</p>`);
+  },
+
+  selections() {
+    const list = D.items.filter(x => x.type === "Selection");
+    return head("Materials · Finishes", "Selections", "Each finish with the sample photos we agreed on.") +
+      (list.length ? `<div class="grid2">${list.map(x => `<button class="card" data-item="${esc(x.id)}" data-back="selections">
+        <div class="ph">${x.photos[0] ? `<img data-id="${esc(x.photos[0])}" alt="">` : ""}</div>
+        <div class="body"><span class="t">${esc(x.title)}</span>${pill(x.status)}</div></button>`).join("")}</div>` : `<p class="muted">No selections shared yet.</p>`);
+  },
+
+  item() {
+    const x = D.items.find(i => i.id === sel);
+    if (!x) return `<p class="muted">This item is no longer available.</p>`;
+    return `<button class="back" data-go="${back}">${BACK("Back")}</button>` +
+      head(`${x.type} · Version ${x.version}`, x.title) + pill(x.status) +
+      (x.photos.length ? `<div class="grid2" style="margin-top:14px">${x.photos.map((id, i) => `<div class="ph"><img data-id="${esc(id)}" alt="Sample photo ${i + 1}"><span>Sample ${i + 1}</span></div>`).join("")}</div>` : "") +
+      details(x.details) +
+      `<p class="small muted">Sent by ${esc(x.sentBy)} · ${when(x.sentAt)}</p>` +
+      (x.status === "Approved" ? `<div class="note"><b>Approved · ${when(x.decidedAt)}</b><br>By ${esc(x.decidedBy)}, confirmed with an email code.<br><span class="small muted">Any later change is issued as a new version for approval.</span></div>` : "") +
+      (x.status === "Rejected" ? `<div class="note bad"><b>Rejected · ${when(x.decidedAt)}</b><br>Reason: ${esc(x.reason)}<br><span class="small muted">Our team will revise it and send a new version.</span></div>` : "") +
+      (x.status === "Sent for approval" ? `<div class="stack"><button class="btn" data-decide="approve">Approve</button><button class="btn bad" data-decide="reject">Request changes</button><span class="small muted">We will email you a 6-digit code to confirm. Your decision is recorded with your name, date and time.</span></div>` : "");
+  },
+
+  concerns() {
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">${head("Questions · Issues", "Concerns")}<button class="btn small" id="newConcern" style="margin-bottom:16px">New concern</button></div>` +
+      (D.concerns.length ? `<div class="rows">${D.concerns.map(c => { const l = c.messages[c.messages.length - 1] || {};
+        return `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${esc((l.name || "") + ": " + (l.text || ""))}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status)}</button>`; }).join("")}</div>`
+      : `<p class="muted">No concerns yet. If anything on site worries you, tell us here and your PM will reply.</p>`);
+  },
+
+  concern() {
+    const c = D.concerns.find(k => k.id === sel);
+    if (!c) return `<p class="muted">Not found.</p>`;
+    return `<button class="back" data-go="concerns">${BACK("All concerns")}</button>` + head("Concern", c.subject) + pill(c.status) +
+      c.messages.map(m => `<div class="msg ${m.from === "client" ? "me" : "them"}"><div class="b">${esc(m.text)}${m.photo ? `<img data-id="${esc(m.photo)}" alt="Attached photo">` : ""}</div><span class="w">${esc(m.name)}${m.from === "team" ? " · O-Plus" : ""} · ${when(m.at)}</span></div>`).join("") +
+      (c.status !== "Resolved" ? `<label class="f" for="reply">Your reply</label><textarea class="f" id="reply" rows="3"></textarea>
+        <div class="stack"><button class="btn" id="sendReply">Send</button><button class="btn ghost" id="resolve">Mark as resolved</button></div>`
+      : `<p class="small muted" style="border-top:1px solid var(--line);padding-top:12px">This concern is resolved. If the issue returns, please open a new concern.</p>`);
+  },
+
+  history() {
+    const dot = e => /Approved|resolved/i.test(e) ? "var(--done)" : /Rejected/.test(e) ? "var(--problem)" : /concern|replied/i.test(e) ? "#E0B55C" : "var(--navy)";
+    return head("Record · Not editable", "History", "Everything shared, approved or rejected, newest first.") +
+      (D.history.length ? `<div class="rows">${D.history.map(h => `<div class="log"><span class="dot" style="background:${dot(h.event)}"></span><span><b style="font-weight:500">${esc(h.event)}${h.title ? " · " + esc(h.title) : ""}${h.version ? " (v" + esc(h.version) + ")" : ""}</b><br><span class="small muted">${when(h.at)} · ${esc(h.by)}</span></span></div>`).join("")}</div>` : `<p class="muted">Nothing yet.</p>`);
+  }
+};
+
+function itemRow(x) {
+  return `<button class="row" data-item="${esc(x.id)}" data-back="approvals"><span class="col"><span class="eyebrow m">${esc(x.type)}</span><span class="t">${esc(x.title)}</span><span class="s">${x.status === "Sent for approval" ? "Sent " + when(x.sentAt, true) : x.decidedAt ? when(x.decidedAt, true) : ""}</span></span>${pill(x.status)}</button>`;
+}
+
+function bind() {
+  const v = $("view");
+  v.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { if (b.dataset.filter) filter = b.dataset.filter; go(b.dataset.go); });
+  v.querySelectorAll(".chips [data-filter]").forEach(b => b.onclick = () => { filter = b.dataset.filter; render(); });
+  v.querySelectorAll("[data-item]").forEach(b => b.onclick = () => { sel = b.dataset.item; back = b.dataset.back || "approvals"; go("item"); });
+  v.querySelectorAll("[data-concern]").forEach(b => b.onclick = () => { sel = b.dataset.concern; go("concern"); });
+  v.querySelectorAll("[data-decide]").forEach(b => b.onclick = () => decide(b.dataset.decide));
+  if ($("newConcern")) $("newConcern").onclick = newConcern;
+  if ($("sendReply")) $("sendReply").onclick = () => busy($("sendReply"), async () => {
+    const text = $("reply").value.trim(); if (!text) return toast("Please write a reply.");
+    D = await api({ action: "portal.reply", token, concernId: sel, text }); render(); toast("Sent to the team.");
+  });
+  if ($("resolve")) $("resolve").onclick = () => busy($("resolve"), async () => {
+    D = await api({ action: "portal.resolve", token, concernId: sel }); render(); toast("Concern marked as resolved.");
+  });
+}
+
+async function busy(btn, fn) {
+  const t = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
+  try { await fn(); } catch (e) { toast(e.message); } finally { if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = t; } }
+}
+
+function decide(kind) {
+  const x = D.items.find(i => i.id === sel);
+  const s = sheet(`<div class="eyebrow">${kind === "approve" ? "Confirm approval" : "Request changes"}</div>
+    <div class="title" style="font-size:17px">${esc(x.title)}</div>
+    ${kind === "reject" ? `<label class="f" for="reason">What should we change?</label><textarea class="f" id="reason" rows="4"></textarea>` : `<p class="small">We will email a 6-digit code to ${esc(D.email || "your email")} to confirm it is you.</p>`}
+    <div id="codeBox" hidden><label class="f" for="code">Code from your email</label><input class="f code" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    <div class="err" id="err" hidden></div>
+    <div class="stack"><button class="btn ${kind === "reject" ? "red" : ""}" id="go">Send me a code</button><button class="btn ghost" id="cancel">Cancel</button></div>`);
+  let step = 1;
+  const err = t => { $("err").hidden = !t; $("err").textContent = t || ""; };
+  s.querySelector("#cancel").onclick = closeSheet;
+  s.querySelector("#go").onclick = () => busy($("go"), async () => {
+    err("");
+    const reason = kind === "reject" ? $("reason").value.trim() : "";
+    if (kind === "reject" && !reason) return err("Please add a reason.");
+    if (step === 1) {
+      const j = await api({ action: "portal.code", token, itemId: x.id, decision: kind });
+      $("codeBox").hidden = false; step = 2; $("code").focus();
+      toast("Code sent to " + j.sentTo);
+      setTimeout(() => $("go").textContent = kind === "approve" ? "Confirm approval" : "Send to the team", 0);
+      return;
+    }
+    const code = $("code").value.replace(/\D/g, "");
+    if (code.length !== 6) return err("Enter the 6-digit code.");
+    try { D = await api({ action: "portal.decide", token, itemId: x.id, decision: kind, reason, code }); }
+    catch (e) { return err(e.message); }
+    closeSheet(); render(); toast(kind === "approve" ? "Approval recorded. The team has been notified." : "Sent to the team.");
+  });
+}
+
+function newConcern() {
+  let photo = "";
+  const s = sheet(`<div class="eyebrow">New concern</div>
+    <label class="f" for="cs">Subject</label><input class="f" id="cs" maxlength="200" placeholder="For example: crack in the corridor wall">
+    <label class="f" for="cb">Details</label><textarea class="f" id="cb" rows="4" placeholder="What did you notice, and where?"></textarea>
+    <input type="file" id="cf" accept="image/*" hidden><div class="thumbs" id="ct"></div>
+    <div class="stack"><button class="btn ghost" id="cp">Attach a photo</button><button class="btn" id="csend">Send</button><button class="btn ghost" id="cc">Cancel</button></div>`);
+  s.querySelector("#cc").onclick = closeSheet;
+  s.querySelector("#cp").onclick = () => $("cf").click();
+  s.querySelector("#cf").onchange = async e => { if (!e.target.files[0]) return; photo = await compress(e.target.files[0]); $("ct").innerHTML = `<img src="${photo}" alt="Attached photo">`; };
+  s.querySelector("#csend").onclick = () => busy($("csend"), async () => {
+    const subject = $("cs").value.trim(), text = $("cb").value.trim();
+    if (!subject && !text) return toast("Please write your concern.");
+    D = await api({ action: "portal.concern", token, subject, text, photo });
+    closeSheet(); sel = D.concerns[0] && D.concerns[0].id; go("concern"); toast("Sent. Your PM will reply here.");
+  });
+}
+</script>
+</body>
+</html>
