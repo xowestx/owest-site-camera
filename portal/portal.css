@@ -108,3 +108,17 @@ nav.tabs .badge{position:absolute;top:8px;left:50%;margin-left:5px;min-width:16p
 .center{padding:60px 0;text-align:center;color:var(--muted)}
 .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .thumbs img{width:72px;height:72px;object-fit:cover;border:1px solid var(--line)}
+/* Arabic (client page toggle): right-to-left, IBM Plex Sans Arabic, no letter-spacing on Arabic labels. */
+.lang{background:none;border:1px solid var(--line);border-radius:999px;padding:2px 12px;min-height:30px;font-size:12px;font-weight:600;color:var(--navy)}
+html[dir=rtl] body{font-family:"IBM Plex Sans Arabic",Poppins,system-ui,sans-serif}
+html[dir=rtl] .eyebrow,html[dir=rtl] label.f,html[dir=rtl] .kv div span:first-child{letter-spacing:0;font-size:11px}
+html[dir=rtl] .row,html[dir=rtl] .cta,html[dir=rtl] .card{text-align:right}
+html[dir=rtl] .chev,html[dir=rtl] .back svg{transform:scaleX(-1)}
+html[dir=rtl] .meta>div+div{border-left:0;padding-left:0;border-right:1px solid var(--line);padding-right:12px}
+html[dir=rtl] .kv div span:last-child{text-align:left}
+html[dir=rtl] .ph span{left:auto;right:0}
+html[dir=rtl] .note{border-left:0;border-right:3px solid var(--done)}
+html[dir=rtl] .note.bad{border-right-color:var(--problem)}
+html[dir=rtl] nav.tabs .badge{left:auto;right:50%;margin-left:0;margin-right:5px}
+html[dir=rtl] .toast{border-left:0;border-right:3px solid var(--amber)}
+.ltr{direction:ltr;unicode-bidi:isolate}

@@ -86,12 +86,12 @@ const V = {
         <div><div class="eyebrow m">To answer</div><div class="big" style="color:var(--active)">${t.o}</div></div></div>` +
       `<div class="eyebrow" style="margin:6px 0 8px">Needs your action · oldest first</div>` +
       (H.actions.length ? `<div class="stack" style="margin-top:0">${H.actions.map(a => `<button class="cta" style="margin:0;${a.kind === "rejected" ? "border-color:var(--problem);background:#fff" : ""}" data-unit="${esc(a.unit)}" data-then="${a.kind}:${esc(a.id)}">
-          <span><span class="eyebrow m">${a.kind === "rejected" ? "Rejected" : "Concern"} · ${esc(a.unit)}</span><b>${esc(a.title)}</b><span class="small muted">${esc(a.detail || when(a.at))}</span></span>
-          <span class="small" style="font-weight:600;color:var(--navy)">${a.kind === "rejected" ? "Revise" : "Reply"}</span></button>`).join("")}</div>` : `<p class="muted small">Nothing waiting on you.</p>`) +
+          <span><span class="eyebrow m">${{ rejected: "Rejected", concern: "Concern", snags: "Snag list" }[a.kind]} · ${esc(a.unit)}</span><b>${esc(a.title)}</b><span class="small muted">${esc(a.detail || when(a.at))}</span></span>
+          <span class="small" style="font-weight:600;color:var(--navy)">${{ rejected: "Revise", concern: "Reply", snags: "Fix" }[a.kind]}</span></button>`).join("")}</div>` : `<p class="muted small">Nothing waiting on you.</p>`) +
       `<label class="f" for="q">Units</label><input class="f" id="q" placeholder="Search unit or client" value="${esc(q)}">
        <div class="rows" style="margin-top:8px">${units.slice(0, 60).map(u => `<button class="row" data-unit="${esc(u.unit)}"><span class="col"><span class="t">${esc(u.unit)}</span>
          <span class="s">${esc(u.client || "No client name")}${u.project ? " · " + esc(u.project) : ""}</span>
-         <span class="s" style="color:var(--ink)">${u.invited ? `${u.pending} with client · ${u.rejected} rejected · ${u.open} to answer` : "Portal not set up"}</span></span>${CHEV}</button>`).join("")}</div>` +
+         <span class="s" style="color:var(--ink)">${u.invited ? `${u.pending} with client · ${u.rejected} rejected · ${u.open} to answer${u.snags || u.snagsToCheck ? ` · ${u.snags} snags open` : ""}` : "Portal not set up"}</span></span>${CHEV}</button>`).join("")}</div>` +
       (units.length > 60 ? `<p class="small muted">Showing 60 of ${units.length}. Search to find a unit.</p>` : "");
   },
 
@@ -115,7 +115,36 @@ const V = {
         : `<p class="small muted">No items sent yet.</p>`) +
       `<div class="eyebrow" style="margin-top:18px">Concerns</div>` +
       (U.concerns.length ? `<div class="rows" style="margin-top:8px">${U.concerns.map(c => `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status === "Under review" ? "Under review" : c.status)}</button>`).join("")}</div>`
-        : `<p class="small muted">No concerns.</p>`);
+        : `<p class="small muted">No concerns.</p>`) +
+      snagSection();
+  },
+
+  snag() {
+    const x = U.snags.find(k => k.id === sel);
+    if (!x) return `<p class="muted">Not found.</p>`;
+    const ph = (ids, label) => ids.length ? `<div class="grid2" style="margin-top:12px">${ids.map(id => `<div class="ph"><img data-id="${esc(id)}" alt=""><span>${label}</span></div>`).join("")}</div>` : "";
+    return `<button class="back" id="toUnit">${BACK(U.unit)}</button>` +
+      head(`Snag #${x.no} · ${x.from === "team" ? "found by team" : "from client"}`, x.location || "Snag #" + x.no) + pill(x.status) +
+      `<p class="para">${esc(x.text)}</p>` + ph(x.photos, "Before") +
+      `<p class="small muted">${esc(x.reportedBy)} · ${when(x.reportedAt)}</p>` +
+      (x.status === "Open" && x.reopenNote ? `<div class="note bad"><b>Client: still not fixed</b><br>${esc(x.reopenNote)}</div>` : "") +
+      (x.fixPhotos.length ? `<div class="eyebrow" style="margin-top:18px">${x.status === "Open" ? "Previous fix" : "After"} · ${esc(x.fixedBy)} · ${when(x.fixedAt)}</div>` + ph(x.fixPhotos, "After") + (x.fixNote ? `<p class="para">${esc(x.fixNote)}</p>` : "") : "") +
+      (x.status === "Fixed" ? `<p class="small muted">Waiting for the client to confirm.</p>` : "") +
+      (x.status === "Closed" ? `<div class="note"><b>Closed · ${when(x.closedAt)}</b><br>Confirmed by ${esc(x.closedBy)}.</div>` : "") +
+      (x.status === "Open" ? `<div class="eyebrow" style="margin-top:18px">Mark as fixed</div>
+        <label class="f" for="fxn">Note for the client (optional)</label><textarea class="f" id="fxn" rows="3" placeholder="What was done"></textarea>
+        <input type="file" id="fxf" accept="image/*" multiple hidden><div class="thumbs" id="fxt"></div>
+        <div class="stack"><button class="btn ghost" id="fxp">Add after photos</button><button class="btn" id="fxgo">Mark as fixed</button>
+        <span class="small muted">The client sees the after photo and confirms, or sends it back.</span></div>` : "");
+  },
+
+  snagNew() {
+    return `<button class="back" id="toUnit">${BACK("Cancel")}</button>` + head(U.unit + " · Inspection", "Add a snag") +
+      `<label class="f" for="sl">Where</label><input class="f" id="sl" list="rooms" maxlength="120" placeholder="For example: Kitchen"><datalist id="rooms">${ROOMS.map(r => `<option value="${esc(r)}">`).join("")}</datalist>
+       <label class="f" for="st">What is wrong</label><textarea class="f" id="st" rows="3"></textarea>
+       <input type="file" id="sf" accept="image/*" multiple hidden><div class="thumbs" id="sth"></div>
+       <div class="stack"><button class="btn ghost" id="sp">Add photos</button><button class="btn" id="sgo">Save snag</button>
+       <span class="small muted">The client sees it in their snag list as found by O-Plus.</span></div>`;
   },
 
   item() {
@@ -151,12 +180,12 @@ function bind() {
   v.querySelectorAll("[data-unit]").forEach(b => b.onclick = async () => {
     await openUnit(b.dataset.unit);
     const t = b.dataset.then;
-    if (t && U) { const [kind, id] = t.split(":"); if (kind === "rejected") startItem(U.items.find(x => x.id === id)); else { sel = id; view = "concern"; render(); } }
+    if (t && U) { const [kind, id] = t.split(":"); if (kind === "rejected") startItem(U.items.find(x => x.id === id)); else if (kind === "snags") document.getElementById("snags")?.scrollIntoView(); else { sel = id; view = "concern"; render(); } }
   });
   if ($("q")) $("q").oninput = e => { q = e.target.value; const pos = e.target.selectionStart; render(); $("q").focus(); $("q").setSelectionRange(pos, pos); };
   v.querySelectorAll("[data-concern]").forEach(b => b.onclick = () => { sel = b.dataset.concern; view = "concern"; render(); scrollTo(0, 0); });
   v.querySelectorAll("[data-revise]").forEach(b => b.onclick = () => startItem(U.items.find(x => x.id === b.dataset.revise)));
-  if ($("toUnit")) $("toUnit").onclick = () => { view = "unit"; render(); };
+  if ($("toUnit")) $("toUnit").onclick = () => openUnit(U.unit);
   if ($("newItem")) $("newItem").onclick = () => startItem(null);
   if ($("copy")) $("copy").onclick = () => busy($("copy"), async () => {
     if (!U.invited) U = await call({ action: "portal.pm.invite", unit: U.unit, client: $("cn").value, email: $("ce").value, by: me, send: false });
@@ -191,6 +220,33 @@ function bind() {
       toast(U.emailed ? "Sent. " + (U.client || "The client") + " was emailed." : "Saved. The client has no email, so share the link.");
     });
   }
+  v.querySelectorAll("[data-snag]").forEach(b => b.onclick = () => { sel = b.dataset.snag; view = "snag"; render(); scrollTo(0, 0); });
+  if ($("addSnag")) $("addSnag").onclick = () => { view = "snagNew"; render(); scrollTo(0, 0); };
+  const pics = (input, box, list) => { $(input).onchange = async e => { for (const f of e.target.files) if (list.length < 4) list.push(await compress(f)); $(box).innerHTML = list.map(p => `<img src="${p}" alt="">`).join(""); }; };
+  const upload = async (btn, list) => { const ids = []; for (let i = 0; i < list.length; i++) { btn.textContent = `Uploading photo ${i + 1} of ${list.length}…`; ids.push((await call({ action: "portal.pm.upload", unit: U.unit, data: list[i] })).id); } return ids; };
+  if (view === "snagNew") {
+    const photos = [];
+    $("sp").onclick = () => $("sf").click(); pics("sf", "sth", photos);
+    $("sgo").onclick = () => busy($("sgo"), async () => {
+      if (!me) return pickName();
+      const location = $("sl").value.trim(), text = $("st").value.trim();
+      if (!text) return toast("Describe the snag.");
+      const photoIds = await upload($("sgo"), photos);
+      U = await call({ action: "portal.pm.snag", unit: U.unit, location, text, photoIds, by: me });
+      view = "unit"; render(); document.getElementById("snags").scrollIntoView(); toast("Snag saved.");
+    });
+  }
+  if (view === "snag" && $("fxgo")) {
+    const photos = [];
+    $("fxp").onclick = () => $("fxf").click(); pics("fxf", "fxt", photos);
+    $("fxgo").onclick = () => busy($("fxgo"), async () => {
+      if (!me) return pickName();
+      if (!photos.length) return toast("Add at least one photo of the fix.");
+      const photoIds = await upload($("fxgo"), photos);
+      U = await call({ action: "portal.pm.snagfix", unit: U.unit, snagId: sel, note: $("fxn").value.trim(), photoIds, by: me });
+      render(); toast("Marked as fixed. The client will be asked to check.");
+    });
+  }
   if (view === "concern" && $("sendRp")) {
     let photo = "";
     $("rph").onclick = () => $("rf").click();
@@ -202,6 +258,13 @@ function bind() {
       render(); toast("Reply sent. The client was notified.");
     });
   }
+}
+
+function snagSection() {
+  const l = U.snags || [], n = st => l.filter(x => x.status === st).length;
+  return `<div id="snags" style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="eyebrow">Snag list · ${n("Open")} open · ${n("Fixed")} to check · ${n("Closed")} closed</span><button class="btn ghost small" id="addSnag">Add snag</button></div>` +
+    (l.length ? `<div class="rows" style="margin-top:8px">${l.map(x => `<button class="row" data-snag="${esc(x.id)}"><span class="col"><span class="eyebrow m">#${x.no}${x.location ? " · " + esc(x.location) : ""}${x.from === "client" ? " · client" : ""}</span><span class="t" style="font-weight:500;font-size:14px">${esc(x.text)}</span><span class="s">${x.reopenNote && x.status === "Open" ? "Reopened by client" : when(x.reportedAt)}</span></span>${pill(x.status)}</button>`).join("")}</div>`
+      : `<p class="small muted">No snags. They appear here when you or the client add them at inspection or handover.</p>`);
 }
 
 function startItem(base) {
