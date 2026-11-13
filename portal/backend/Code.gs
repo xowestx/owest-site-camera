@@ -53,7 +53,8 @@ const PSN_HEADERS = ['Snag ID', 'Unit', 'No.', 'Location', 'Description', 'Photo
   'Fixed at', 'Fixed by', 'Fix note', 'Fix photo IDs', 'Closed at', 'Closed by', 'Reopen note'];
 const PH_HEADERS = ['Cert ID', 'Unit', 'Status', 'Handover date', 'Details', 'Notes', 'Issued at', 'Issued by', 'Signed at', 'Signed by', 'Signed with', 'Decline note', 'PDF ID'];
 const PL_HEADERS = ['At', 'Unit', 'Event', 'Ref', 'Version', 'Title', 'Detail', 'By', 'Confirmed with'];
-const P_TYPES = ['Selection', 'Scope of work', 'Date change'];
+const P_TYPES = ['Selection', 'Scope of work', 'Date change', 'Variation order'];
+const P_VO = 'Variation order';
 const S_PENDING = 'Sent for approval', S_OK = 'Approved', S_NO = 'Rejected', S_OLD = 'Replaced';
 const C_OPEN = 'Under review', C_REPLIED = 'Replied', C_DONE = 'Resolved';
 const SN_OPEN = 'Open', SN_FIXED = 'Fixed', SN_CLOSED = 'Closed';
@@ -666,7 +667,8 @@ function pmUpload_(b) {
 function pmItem_(b) {
   const u = unitInfo_(str_(b.unit));
   const type = P_TYPES.indexOf(str_(b.type)) >= 0 ? str_(b.type) : P_TYPES[0];
-  const title = str_(b.title).slice(0, 200), details = str_(b.details).slice(0, 4000);
+  let title = str_(b.title).slice(0, 200);
+  const details = str_(b.details).slice(0, 4000);
   const by = str_(b.by) || 'O West team';
   if (!title) throw new Error('Add a title.');
   const photos = (b.photoIds || []).map(str_).filter(Boolean).slice(0, 8);
@@ -678,6 +680,11 @@ function pmItem_(b) {
       version = Number(old.obj['Version'] || 1) + 1;
       setCells_(old, { 'Status': S_OLD });
     }
+    // a new variation order gets the next number for the unit: VO-01, VO-02 ... (a revision keeps its number)
+    if (type === P_VO && !b.replaces && !/^VO-\d+/.test(title)) {
+      const n = rows_(PT.items).filter(r => low_(r['Unit']) === u.unit.toLowerCase() && str_(r['Type']) === P_VO && Number(r['Version'] || 1) === 1).length + 1;
+      title = `VO-${n < 10 ? '0' + n : n} · ${title}`;
+    }
     id = 'I' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
     sheet_(PT.items, PI_HEADERS).appendRow([id, u.unit, type, title, details, photos.join(','), version, str_(b.replaces), S_PENDING, now_(), by, '', '', '']);
     log_(u.unit, S_PENDING, id, version, title, type, by, '');
@@ -687,7 +694,7 @@ function pmItem_(b) {
   if (c && str_(c['Client email'])) {
     MailApp.sendEmail({
       to: str_(c['Client email']), name: 'O West Extra Works',
-      subject: `For your approval: ${title} · ${u.unit}`,
+      subject: `${type === P_VO ? 'Variation order for your approval' : 'For your approval'}: ${title} · ${u.unit}`,
       htmlBody: mailHtml_(`${type.toUpperCase()} · VERSION ${version}`, title, [
         `Dear ${str_(c['Client name']) || 'Client'},`,
         `${by} has sent you an item to review for unit ${u.unit}. Please open your portal to approve it or request changes.`

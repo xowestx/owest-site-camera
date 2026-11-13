@@ -28,11 +28,12 @@
 let pmToken = "", me = "", H = null, U = null, DB = null, dashFilter = "all", view = "home", sel = null, q = "", form = null;
 try { pmToken = localStorage.getItem("oplus_pm") || ""; me = localStorage.getItem("oplus_me") || ""; } catch (e) {}
 const auth = () => ({ pmToken });
-const TYPES = ["Selection", "Scope of work", "Date change"];
+const TYPES = ["Selection", "Scope of work", "Date change", "Variation order"];
 const TEMPLATE = {
   "Selection": "Location: \nSupplier / code: \nSize: \nColour: \nQuantity: ",
   "Scope of work": "Description: \nQuantity: \nDuration: \nRequested: ",
-  "Date change": "Current date: \nNew date: \nReason: \nEffect on final handover: "
+  "Date change": "Current date: \nNew date: \nReason: \nEffect on final handover: ",
+  "Variation order": "Description: \nLocation: \nReason: \nRequested by: \nQuantity: \nEffect on handover date: "
 };
 
 $("me").onclick = pickName;
@@ -220,7 +221,8 @@ const V = {
     return `<button class="back" id="cancelItem">${BACK("Cancel")}</button>` +
       head(`${U.unit} · Version ${f.version}`, f.replaces ? "Revised version" : "New item") +
       `<label class="f">Type</label><div class="chips">${TYPES.map(t => `<button class="chip ${f.type === t ? "on" : ""}" data-type="${t}" ${f.replaces ? "disabled" : ""}>${t}</button>`).join("")}</div>
-       <label class="f" for="ft">Title</label><input class="f" id="ft" maxlength="200" value="${esc(f.title)}" placeholder="For example: Guest bathroom wall tiles">
+       <label class="f" for="ft">Title</label><input class="f" id="ft" maxlength="200" value="${esc(f.title)}" placeholder="${f.type === "Variation order" ? "For example: Extra power points in the living room" : "For example: Guest bathroom wall tiles"}">
+       ${f.type === "Variation order" && !f.replaces ? `<p class="small muted">It is numbered for you (VO-01, VO-02 …). Don't put prices here: the cost is agreed with the client separately.</p>` : ""}
        <label class="f" for="fd">Details for the client</label><textarea class="f" id="fd" rows="6">${esc(f.details)}</textarea>
        <p class="small muted">Keep "Label: value" lines and they show as a neat table. Delete lines you don't need.</p>
        <label class="f">Photos ${f.type === "Selection" ? "of the samples" : "(optional)"}</label>

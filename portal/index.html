@@ -89,7 +89,7 @@ const ERR_AR = {
 const tr = m => AR() && ERR_AR[m] || m;
 const auth = () => ({ token });
 const pending = () => D.items.filter(x => x.status === "Sent for approval");
-const TYPE_AR = { "Selection": "اختيار خامة", "Scope of work": "نطاق أعمال", "Date change": "تغيير موعد" };
+const TYPE_AR = { "Selection": "اختيار خامة", "Scope of work": "نطاق أعمال", "Date change": "تغيير موعد", "Variation order": "أعمال إضافية" };
 const type = t => AR() ? TYPE_AR[t] || t : t;
 const EVENT_AR = { "Sent for approval": "أُرسل للموافقة", "Approved": "تمت الموافقة", "Rejected": "طُلب تعديل", "New concern": "استفسار جديد",
   "Team replied": "رد الفريق", "Concern resolved": "تم حل الاستفسار", "Portal invitation sent": "تم إرسال دعوة البوابة", "New link made": "تم إنشاء رابط جديد",
@@ -143,8 +143,9 @@ const VIEWS = {
 
   approvals() {
     const fs = [["all", L("All", "الكل")], ["Sent for approval", L("Sent for approval", "بانتظار موافقتك")], ["Approved", L("Approved", "تمت الموافقة")], ["Rejected", L("Rejected", "مطلوب تعديل")]];
-    const list = D.items.filter(x => filter === "all" || x.status === filter);
-    return head(L("Scope · Dates · Selections", "نطاق الأعمال · المواعيد · الخامات"), L("Approvals", "الموافقات")) +
+    if (D.items.some(x => x.type === "Variation order")) fs.push(["vo", L("Variation orders", "الأعمال الإضافية")]);
+    const list = D.items.filter(x => filter === "all" || x.status === filter || (filter === "vo" && x.type === "Variation order"));
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">${head(L("Scope · Dates · Selections", "نطاق الأعمال · المواعيد · الخامات"), L("Approvals", "الموافقات"))}<button class="btn small ghost" id="askExtra" style="margin-bottom:16px">${L("Request extra work", "طلب أعمال إضافية")}</button></div>` +
       `<div class="chips">${fs.map(f => `<button class="chip ${filter === f[0] ? "on" : ""}" data-filter="${f[0]}">${f[1]}</button>`).join("")}</div>` +
       (list.length ? `<div class="rows">${list.map(itemRow).join("")}</div>` : `<p class="muted">${L("Nothing in this list yet.", "لا يوجد شيء في هذه القائمة بعد.")}</p>`);
   },
@@ -164,6 +165,7 @@ const VIEWS = {
       head(`${type(x.type)} · ${L("Version", "النسخة")} ${x.version}`, x.title) + pill(x.status) +
       (x.photos.length ? `<div class="grid2" style="margin-top:14px">${x.photos.map((id, i) => `<div class="ph"><img data-id="${esc(id)}" alt="${L("Sample photo", "صورة عينة")} ${i + 1}"><span>${L("Sample", "عينة")} ${i + 1}</span></div>`).join("")}</div>` : "") +
       details(x.details) +
+      (x.type === "Variation order" ? `<p class="small muted" style="border-inline-start:3px solid var(--amber);padding-inline-start:10px">${L("This is extra work outside your contract. Approving it adds it to your agreed scope. Any cost is agreed with your project manager separately.", "هذه أعمال إضافية خارج التعاقد. الموافقة عليها تضيفها إلى نطاق الأعمال المتفق عليه. أي تكلفة يتم الاتفاق عليها مع مدير المشروع بشكل منفصل.")}</p>` : "") +
       `<p class="small muted">${L("Sent by", "أرسله")} ${esc(x.sentBy)} · ${when(x.sentAt)}</p>` +
       (x.status === "Approved" ? `<div class="note"><b>${L("Approved", "تمت الموافقة")} · ${when(x.decidedAt)}</b><br>${L(`By ${esc(x.decidedBy)}, confirmed with an email code.`, `بواسطة ${esc(x.decidedBy)}، وتم التأكيد بكود عبر البريد الإلكتروني.`)}<br><span class="small muted">${L("Any later change is issued as a new version for approval.", "أي تغيير لاحق يُرسل كنسخة جديدة للموافقة.")}</span></div>` : "") +
       (x.status === "Rejected" ? `<div class="note bad"><b>${L("Rejected", "مطلوب تعديل")} · ${when(x.decidedAt)}</b><br>${L("Reason", "السبب")}: ${esc(x.reason)}<br><span class="small muted">${L("Our team will revise it and send a new version.", "سيقوم فريقنا بالتعديل وإرسال نسخة جديدة.")}</span></div>` : "") +
@@ -260,7 +262,8 @@ function bind() {
   v.querySelectorAll("[data-concern]").forEach(b => b.onclick = () => { sel = b.dataset.concern; go("concern"); });
   v.querySelectorAll("[data-snag]").forEach(b => b.onclick = () => { sel = b.dataset.snag; go("snag"); });
   v.querySelectorAll("[data-decide]").forEach(b => b.onclick = () => decide(b.dataset.decide));
-  if ($("newConcern")) $("newConcern").onclick = newConcern;
+  if ($("newConcern")) $("newConcern").onclick = () => newConcern(false);
+  if ($("askExtra")) $("askExtra").onclick = () => newConcern(true);
   if ($("newSnag")) $("newSnag").onclick = newSnag;
   if ($("snagOk")) $("snagOk").onclick = () => busy($("snagOk"), async () => {
     D = await api({ action: "portal.snag.close", token, snagId: sel }); render(); toast(L("Thank you. The snag is closed.", "شكراً لك. تم إغلاق الملاحظة."));
@@ -399,19 +402,22 @@ function snagReopen() {
   });
 }
 
-function newConcern() {
+/** A concern, or (extra = true) a request for extra work that the PM answers with a variation order. */
+function newConcern(extra) {
   let photo = "";
-  const s = sheet(`<div class="eyebrow">${L("New concern", "استفسار جديد")}</div>
-    <label class="f" for="cs">${L("Subject", "الموضوع")}</label><input class="f" id="cs" maxlength="200" placeholder="${L("For example: crack in the corridor wall", "مثال: شرخ في حائط الطرقة")}">
-    <label class="f" for="cb">${L("Details", "التفاصيل")}</label><textarea class="f" id="cb" rows="4" placeholder="${L("What did you notice, and where?", "ماذا لاحظت، وأين؟")}"></textarea>
+  const s = sheet(`<div class="eyebrow">${extra ? L("Request extra work", "طلب أعمال إضافية") : L("New concern", "استفسار جديد")}</div>
+    ${extra ? `<p class="small muted">${L("Tell us what you would like added. Your PM will reply here and send a variation order for your approval.", "أخبرنا بما تريد إضافته. سيرد مدير المشروع هنا ويرسل لك أمر أعمال إضافية للموافقة.")}</p>` : ""}
+    <label class="f" for="cs">${extra ? L("What do you want added?", "ما الذي تريد إضافته؟") : L("Subject", "الموضوع")}</label><input class="f" id="cs" maxlength="180" placeholder="${extra ? L("For example: extra socket in the kitchen", "مثال: بريزة إضافية في المطبخ") : L("For example: crack in the corridor wall", "مثال: شرخ في حائط الطرقة")}">
+    <label class="f" for="cb">${L("Details", "التفاصيل")}</label><textarea class="f" id="cb" rows="4" placeholder="${extra ? L("Where, how many, any reference photo", "المكان، العدد، وأي صورة مرجعية") : L("What did you notice, and where?", "ماذا لاحظت، وأين؟")}"></textarea>
     <input type="file" id="cf" accept="image/*" hidden><div class="thumbs" id="ct"></div>
     <div class="stack"><button class="btn ghost" id="cp">${L("Attach a photo", "إرفاق صورة")}</button><button class="btn" id="csend">${L("Send", "إرسال")}</button><button class="btn ghost" id="cc">${L("Cancel", "إلغاء")}</button></div>`);
   s.querySelector("#cc").onclick = closeSheet;
   s.querySelector("#cp").onclick = () => $("cf").click();
   s.querySelector("#cf").onchange = async e => { if (!e.target.files[0]) return; photo = await compress(e.target.files[0]); $("ct").innerHTML = `<img src="${photo}" alt="">`; };
   s.querySelector("#csend").onclick = () => busy($("csend"), async () => {
-    const subject = $("cs").value.trim(), text = $("cb").value.trim();
-    if (!subject && !text) return toast(L("Please write your concern.", "برجاء كتابة استفسارك."));
+    const raw = $("cs").value.trim(), text = $("cb").value.trim();
+    const subject = raw && extra ? "Extra work request: " + raw : raw || (extra ? "Extra work request" : "");
+    if (!raw && !text) return toast(L("Please write your concern.", "برجاء كتابة استفسارك."));
     D = await api({ action: "portal.concern", token, subject, text, photo });
     closeSheet(); sel = D.concerns[0] && D.concerns[0].id; go("concern"); toast(L("Sent. Your PM will reply here.", "تم الإرسال. سيرد مدير المشروع هنا."));
   });
