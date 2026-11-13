@@ -84,7 +84,7 @@ const ERR_AR = {
   "We have no email for you yet. Please ask your project manager to add it.": "لا يوجد بريد إلكتروني مسجل لك. برجاء طلب إضافته من مدير المشروع.",
   "This item was already decided or replaced. Please reload.": "تم البت في هذا البند أو استبداله. برجاء إعادة التحميل.",
   "No connection. Please check your internet and try again.": "لا يوجد اتصال. برجاء التحقق من الإنترنت والمحاولة مرة أخرى.",
-  "The photo is too large.": "الصورة كبيرة جداً.", "This snag is not marked as fixed yet. Please reload.": "هذه الملاحظة لم تُسجل كمُصلحة بعد. برجاء إعادة التحميل."
+  "The photo is too large.": "الصورة كبيرة جداً.", "This certificate was already signed or replaced. Please reload.": "تم توقيع هذه الشهادة أو استبدالها. برجاء إعادة التحميل.", "This snag is not marked as fixed yet. Please reload.": "هذه الملاحظة لم تُسجل كمُصلحة بعد. برجاء إعادة التحميل."
 };
 const tr = m => AR() && ERR_AR[m] || m;
 const auth = () => ({ token });
@@ -93,7 +93,7 @@ const TYPE_AR = { "Selection": "اختيار خامة", "Scope of work": "نطا
 const type = t => AR() ? TYPE_AR[t] || t : t;
 const EVENT_AR = { "Sent for approval": "أُرسل للموافقة", "Approved": "تمت الموافقة", "Rejected": "طُلب تعديل", "New concern": "استفسار جديد",
   "Team replied": "رد الفريق", "Concern resolved": "تم حل الاستفسار", "Portal invitation sent": "تم إرسال دعوة البوابة", "New link made": "تم إنشاء رابط جديد",
-  "Snag reported": "ملاحظة استلام جديدة", "Snag fixed": "تم إصلاح ملاحظة استلام", "Snag closed": "تم إغلاق ملاحظة استلام", "Snag reopened": "أُعيد فتح ملاحظة استلام" };
+  "Handover certificate sent": "أُرسلت شهادة الاستلام", "Handover certificate signed": "تم توقيع شهادة الاستلام", "Handover certificate declined": "لم تُوقّع شهادة الاستلام", "Snag reported": "ملاحظة استلام جديدة", "Snag fixed": "تم إصلاح ملاحظة استلام", "Snag closed": "تم إغلاق ملاحظة استلام", "Snag reopened": "أُعيد فتح ملاحظة استلام" };
 const plural = (n, en1, enN, ar) => AR() ? `${n} ${ar}` : `${n} ${n === 1 ? en1 : enN}`;
 
 document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
@@ -111,7 +111,7 @@ function render() {
   document.querySelector("#tabs .in").style.gridTemplateColumns = `repeat(${showSnags ? 6 : 5},minmax(0,1fr))`;
   const chk = snags.filter(x => x.status === "Fixed").length;
   $("snagBadge").hidden = !chk; $("snagBadge").textContent = chk;
-  const tab = { item: back, concern: "concerns", snag: "snags" }[view] || view;
+  const tab = { item: back, concern: "concerns", snag: "snags", cert: "home" }[view] || view;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === tab));
   $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span class="ltr">${esc(D.unit)}</span></div>`;
   bind();
@@ -120,7 +120,7 @@ function render() {
 
 const VIEWS = {
   home() {
-    const s = D.status || {}, p = pending().length, open = D.concerns.filter(c => c.status !== "Resolved").length, f = fixes();
+    const s = D.status || {}, p = pending().length, open = D.concerns.filter(c => c.status !== "Resolved").length, f = fixes(), ct = cert();
     return head(L("O-Plus · Extra works", "O-Plus · الأعمال الإضافية"), L("Dear ", "أهلاً ") + (D.client || L("client", "بك")),
         L("This portal is the agreed record of your unit: scope, dates, selections and our replies.", "هذه البوابة هي السجل المتفق عليه لوحدتك: نطاق الأعمال والمواعيد والخامات وردودنا.")) +
       `<div class="meta">
@@ -128,9 +128,11 @@ const VIEWS = {
         <div><div class="eyebrow m">${L("Handover", "التسليم")}</div><div class="v">${s.handover ? when(s.handover, true) : "—"}</div></div>
         <div><div class="eyebrow m">${L("PM", "مدير المشروع")}</div><div class="v">${esc(s.pm || D.pm || "—")}</div></div>
       </div>` + stepper(s.stage) +
+      (ct && ct.status === "Sent for signature" ? `<button class="cta" data-go="cert"><span><span class="eyebrow">${L("Handover", "التسليم")}</span><b>${L("Your handover certificate is ready to sign", "شهادة الاستلام جاهزة للتوقيع")}</b><span class="small muted">${L("Review it and sign with an email code", "راجعها ووقّع بكود عبر البريد الإلكتروني")}</span></span>${CHEV}</button>` : "") +
       (p ? `<button class="cta" data-go="approvals" data-filter="Sent for approval"><span><span class="eyebrow">${L("Action needed", "مطلوب منك")}</span><b>${L(`${p} item${p > 1 ? "s" : ""} need${p > 1 ? "" : "s"} your approval`, `${p} بند بانتظار موافقتك`)}</b><span class="small muted">${L("Approve, or tell us what to change", "وافق، أو أخبرنا بما تريد تعديله")}</span></span>${CHEV}</button>` : "") +
       (f ? `<button class="cta" data-go="snags" data-sfilter="Fixed"><span><span class="eyebrow">${L("Snag list", "ملاحظات الاستلام")}</span><b>${L(`${f} fix${f > 1 ? "es" : ""} ready for your check`, `${f} إصلاح جاهز لمراجعتك`)}</b><span class="small muted">${L("See the after photo and confirm", "شاهد صورة ما بعد الإصلاح وأكّد")}</span></span>${CHEV}</button>` : "") +
       `<div class="rows">
+        ${ct && ct.status === "Signed" ? `<button class="row" data-go="cert"><span class="col"><span class="t">${L("Handover certificate", "شهادة الاستلام")}</span><span class="s">${L("Signed", "تم التوقيع")} · ${when(ct.signedAt, true)}</span></span>${pill("Signed")}</button>` : ""}
         <button class="row" data-go="selections"><span class="col"><span class="t">${L("Selections", "الخامات")}</span><span class="s">${L("Finishes with sample photos", "التشطيبات مع صور العينات")}</span></span>${CHEV}</button>
         <button class="row" data-go="concerns"><span class="col"><span class="t">${L("Concerns", "الاستفسارات")}</span><span class="s">${open ? L(open + " open", open + " مفتوح") : L("Ask us anything about your unit", "اسألنا عن أي شيء يخص وحدتك")}</span></span>${CHEV}</button>
         ${s.report && s.report.url ? `<a class="row" href="${esc(s.report.url)}" target="_blank" rel="noopener" style="text-decoration:none"><span class="col"><span class="t">${L("Weekly report", "التقرير الأسبوعي")}</span><span class="s">${L("Latest", "الأحدث")} · ${esc(s.report.period)}</span></span>${CHEV}</a>` : ""}
@@ -214,6 +216,23 @@ const VIEWS = {
       (x.status === "Open" ? `<p class="small muted" style="border-top:1px solid var(--line);padding-top:12px">${L("Our team is on it. We will email you when it is fixed, with a photo.", "فريقنا يعمل عليها. سنرسل لك بريداً عند الإصلاح مع صورة.")}</p>` : "");
   },
 
+  cert() {
+    const x = cert();
+    if (!x) return `<p class="muted">${L("No certificate yet.", "لا توجد شهادة بعد.")}</p>`;
+    const ok = D.items.filter(i => i.status === "Approved"), sn = D.snags || [];
+    return `<button class="back" data-go="home">${BACK(L("Home", "الرئيسية"))}</button>` +
+      head(L("Handover · ", "التسليم · ") + D.unit, L("Handover certificate", "شهادة الاستلام")) + pill(x.status) +
+      `<div class="kv"><div><span>${L("Unit", "الوحدة")}</span><span class="ltr">${esc(D.unit)}</span></div><div><span>${L("Client", "العميل")}</span><span>${esc(D.client || "")}</span></div>
+        <div><span>${L("Handover date", "تاريخ التسليم")}</span><span>${when(x.date, true)}</span></div><div><span>${L("Project manager", "مدير المشروع")}</span><span>${esc((D.status && D.status.pm) || x.issuedBy)}</span></div></div>` +
+      details(x.details) +
+      `<div class="eyebrow" style="margin-top:16px">${L("Approved works and selections", "الأعمال والخامات المعتمدة")}</div>` +
+      (ok.length ? `<div class="rows" style="margin-top:6px">${ok.map(i => `<div class="row"><span class="col"><span class="eyebrow m">${esc(type(i.type))} · v${i.version}</span><span class="t" style="font-size:14px">${esc(i.title)}</span></span><span class="s">${when(i.decidedAt, true)}</span></div>`).join("")}</div>` : `<p class="small muted">${L("As agreed in the contract.", "حسب التعاقد.")}</p>`) +
+      `<div class="eyebrow" style="margin-top:16px">${L("Snag list", "ملاحظات الاستلام")}</div><p class="small">${sn.length ? L(`${sn.length} snag${sn.length > 1 ? "s" : ""} recorded, all fixed and confirmed by you.`, `${sn.length} ملاحظة، تم إصلاحها كلها وتأكيدها منك.`) : L("No snags recorded.", "لا توجد ملاحظات.")}</p>` +
+      (x.notes ? `<div class="eyebrow" style="margin-top:16px">${L("Notes", "ملاحظات")}</div><p class="para">${esc(x.notes)}</p>` : "") +
+      (x.status === "Sent for signature" ? `<div class="stack"><button class="btn" id="certSign">${L("Sign and accept handover", "التوقيع واستلام الوحدة")}</button><button class="btn bad" id="certNo">${L("Something is missing", "يوجد شيء ناقص")}</button><span class="small muted">${L("We will email you a 6-digit code to confirm. Your signature is recorded with your name, date and time, and you receive the certificate as a PDF.", "سنرسل لك كوداً من 6 أرقام للتأكيد. يُسجَّل توقيعك باسمك والتاريخ والوقت، وتصلك الشهادة بصيغة PDF.")}</span></div>` : "") +
+      (x.status === "Signed" ? `<div class="note"><b>${L("Signed", "تم التوقيع")} · ${when(x.signedAt)}</b><br>${L(`By ${esc(x.signedBy)}, confirmed with an email code.`, `بواسطة ${esc(x.signedBy)}، وتم التأكيد بكود عبر البريد الإلكتروني.`)}</div><div class="stack"><button class="btn" id="certPdf">${L("Download PDF", "تحميل PDF")}</button></div>` : "");
+  },
+
   history() {
     const dot = e => /Approved|resolved|closed/i.test(e) ? "var(--done)" : /Rejected|reopened/i.test(e) ? "var(--problem)" : /concern|replied|snag/i.test(e) ? "#E0B55C" : "var(--navy)";
     return head(L("Record · Not editable", "السجل · غير قابل للتعديل"), L("History", "السجل"), L("Everything shared, approved or rejected, newest first.", "كل ما تمت مشاركته أو الموافقة عليه أو رفضه، الأحدث أولاً.")) +
@@ -221,6 +240,8 @@ const VIEWS = {
   }
 };
 
+/** The certificate that matters: the one waiting or signed (a declined one is history). */
+const cert = () => (D.certs || []).find(c => c.status !== "Declined") || null;
 const fixes = () => (D.snags || []).filter(x => x.status === "Fixed").length;
 function snagRow(x) {
   return `<button class="row" data-snag="${esc(x.id)}"><span class="col"><span class="eyebrow m">#${x.no}${x.location ? " · " + esc(x.location) : ""}</span><span class="t" style="font-weight:500;font-size:14px">${esc(x.text)}</span><span class="s">${x.status === "Closed" ? L("Closed ", "أُغلقت ") + when(x.closedAt, true) : x.status === "Fixed" ? L("Fixed ", "أُصلحت ") + when(x.fixedAt, true) : L("Reported ", "أُضيفت ") + when(x.reportedAt, true)}</span></span>${pill(x.status === "Fixed" ? "Please check" : x.status)}</button>`;
@@ -245,6 +266,12 @@ function bind() {
     D = await api({ action: "portal.snag.close", token, snagId: sel }); render(); toast(L("Thank you. The snag is closed.", "شكراً لك. تم إغلاق الملاحظة."));
   });
   if ($("snagNo")) $("snagNo").onclick = snagReopen;
+  if ($("certSign")) $("certSign").onclick = signCert;
+  if ($("certNo")) $("certNo").onclick = declineCert;
+  if ($("certPdf")) $("certPdf").onclick = () => busy($("certPdf"), async () => {
+    const j = await api({ action: "portal.cert.pdf", token, certId: cert().id });
+    const a = document.createElement("a"); a.href = j.data; a.download = j.name; document.body.appendChild(a); a.click(); a.remove();
+  });
   if ($("sendReply")) $("sendReply").onclick = () => busy($("sendReply"), async () => {
     const text = $("reply").value.trim(); if (!text) return toast(L("Please write a reply.", "برجاء كتابة رد."));
     D = await api({ action: "portal.reply", token, concernId: sel, text }); render(); toast(L("Sent to the team.", "تم الإرسال للفريق."));
@@ -286,6 +313,45 @@ function decide(kind) {
     try { D = await api({ action: "portal.decide", token, itemId: x.id, decision: kind, reason, code }); }
     catch (e) { return err(tr(e.message)); }
     closeSheet(); render(); toast(kind === "approve" ? L("Approval recorded. The team has been notified.", "تم تسجيل الموافقة وإبلاغ الفريق.") : L("Sent to the team.", "تم الإرسال للفريق."));
+  });
+}
+
+function signCert() {
+  const x = cert();
+  const s = sheet(`<div class="eyebrow">${L("Sign handover certificate", "توقيع شهادة الاستلام")}</div><div class="title" style="font-size:17px">${esc(D.unit)}</div>
+    <p class="small">${L(`We will email a 6-digit code to ${esc(D.email || "your email")} to confirm it is you.`, `سنرسل كوداً من 6 أرقام إلى <span class="ltr">${esc(D.email || "بريدك")}</span> للتأكد من هويتك.`)}</p>
+    <div id="codeBox" hidden><label class="f" for="code">${L("Code from your email", "الكود المرسل لبريدك")}</label><input class="f code ltr" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    <div class="err" id="err" hidden></div>
+    <div class="stack"><button class="btn" id="go">${L("Send me a code", "أرسل لي الكود")}</button><button class="btn ghost" id="cancel">${L("Cancel", "إلغاء")}</button></div>`);
+  let step = 1;
+  const err = t => { $("err").hidden = !t; $("err").textContent = t || ""; };
+  s.querySelector("#cancel").onclick = closeSheet;
+  s.querySelector("#go").onclick = () => busy($("go"), async () => {
+    err("");
+    if (step === 1) {
+      const j = await api({ action: "portal.code", token, certId: x.id });
+      $("codeBox").hidden = false; step = 2; $("code").focus();
+      toast(L("Code sent to ", "تم إرسال الكود إلى ") + j.sentTo);
+      setTimeout(() => $("go").textContent = L("Sign and accept", "التوقيع والاستلام"), 0);
+      return;
+    }
+    const code = $("code").value.replace(/\D/g, "");
+    if (code.length !== 6) return err(L("Enter the 6-digit code.", "أدخل الكود المكون من 6 أرقام."));
+    try { D = await api({ action: "portal.cert.sign", token, certId: x.id, code }); }
+    catch (e) { return err(tr(e.message)); }
+    closeSheet(); render(); toast(L("Signed. The certificate is on its way to your email.", "تم التوقيع. ستصلك الشهادة على بريدك الإلكتروني."));
+  });
+}
+
+function declineCert() {
+  const s = sheet(`<div class="eyebrow">${L("Not ready to sign", "غير جاهز للتوقيع")}</div><div class="title" style="font-size:17px">${L("What is missing?", "ما الناقص؟")}</div>
+    <textarea class="f" id="dn" rows="4" style="margin-top:12px"></textarea><div class="err" id="derr" hidden></div>
+    <div class="stack"><button class="btn red" id="dgo">${L("Send to the team", "إرسال للفريق")}</button><button class="btn ghost" id="dc">${L("Cancel", "إلغاء")}</button></div>`);
+  s.querySelector("#dc").onclick = closeSheet;
+  s.querySelector("#dgo").onclick = () => busy($("dgo"), async () => {
+    const note = $("dn").value.trim();
+    if (!note) { $("derr").hidden = false; $("derr").textContent = L("Please tell us what is missing.", "برجاء توضيح الناقص."); return; }
+    D = await api({ action: "portal.cert.decline", token, certId: cert().id, note }); closeSheet(); go("home"); toast(L("Sent to the team. We will fix it and send a new certificate.", "تم الإرسال للفريق. سنقوم بالإصلاح وإرسال شهادة جديدة."));
   });
 }
 

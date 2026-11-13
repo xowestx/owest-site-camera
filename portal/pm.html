@@ -173,7 +173,7 @@ const V = {
       `<div class="eyebrow" style="margin-top:18px">Concerns</div>` +
       (U.concerns.length ? `<div class="rows" style="margin-top:8px">${U.concerns.map(c => `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status === "Under review" ? "Under review" : c.status)}</button>`).join("")}</div>`
         : `<p class="small muted">No concerns.</p>`) +
-      snagSection();
+      snagSection() + certSection();
   },
 
   snag() {
@@ -193,6 +193,17 @@ const V = {
         <input type="file" id="fxf" accept="image/*" multiple hidden><div class="thumbs" id="fxt"></div>
         <div class="stack"><button class="btn ghost" id="fxp">Add after photos</button><button class="btn" id="fxgo">Mark as fixed</button>
         <span class="small muted">The client sees the after photo and confirms, or sends it back.</span></div>` : "");
+  },
+
+  certNew() {
+    const today = new Date(Date.now() + 2 * 3600e3).toISOString().slice(0, 10);
+    return `<button class="back" id="toUnit">${BACK("Cancel")}</button>` + head(U.unit + " · Handover", "Handover certificate", "The client reviews it in the portal and signs with an email code. A PDF is then emailed to the client and the team.") +
+      `<label class="f" for="hd">Handover date</label><input class="f" id="hd" type="date" value="${today}">
+       <label class="f" for="hx">Handed over to the client</label><textarea class="f" id="hx" rows="6">Keys: \nAccess cards: \nRemote controls: \nElectricity meter reading: \nWater meter reading: \nWarranty: </textarea>
+       <p class="small muted">Keep "Label: value" lines and they show as a table. Delete lines you don't need.</p>
+       <label class="f" for="hn">Notes (optional)</label><textarea class="f" id="hn" rows="3" placeholder="Anything agreed for after handover"></textarea>
+       <div class="stack"><button class="btn" id="hgo">Send to client for signature</button>
+       <span class="small muted">The certificate lists the approved items and confirms every snag is closed.</span></div>`;
   },
 
   snagNew() {
@@ -283,6 +294,17 @@ function bind() {
   if ($("addSnag")) $("addSnag").onclick = () => { view = "snagNew"; render(); scrollTo(0, 0); };
   const pics = (input, box, list) => { $(input).onchange = async e => { for (const f of e.target.files) if (list.length < 4) list.push(await compress(f)); $(box).innerHTML = list.map(p => `<img src="${p}" alt="">`).join(""); }; };
   const upload = async (btn, list) => { const ids = []; for (let i = 0; i < list.length; i++) { btn.textContent = `Uploading photo ${i + 1} of ${list.length}…`; ids.push((await call({ action: "portal.pm.upload", unit: U.unit, data: list[i] })).id); } return ids; };
+  if ($("hnew")) $("hnew").onclick = () => { view = "certNew"; render(); scrollTo(0, 0); };
+  if ($("hpdf")) $("hpdf").onclick = () => busy($("hpdf"), async () => {
+    const j = await call({ action: "portal.pm.certpdf", unit: U.unit, certId: $("hpdf").dataset.cert });
+    const a = document.createElement("a"); a.href = j.data; a.download = j.name; document.body.appendChild(a); a.click(); a.remove();
+  });
+  if (view === "certNew") $("hgo").onclick = () => busy($("hgo"), async () => {
+    if (!me) return pickName();
+    const details = $("hx").value.split("\n").filter(l => !/^[^:]{1,40}:\s*$/.test(l.trim())).join("\n");
+    U = await call({ action: "portal.pm.cert", unit: U.unit, date: $("hd").value, details, notes: $("hn").value.trim(), by: me });
+    view = "unit"; render(); toast("Sent. The client was emailed to sign.");
+  });
   if (view === "snagNew") {
     const photos = [];
     $("sp").onclick = () => $("sf").click(); pics("sf", "sth", photos);
@@ -324,6 +346,17 @@ function snagSection() {
   return `<div id="snags" style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="eyebrow">Snag list · ${n("Open")} open · ${n("Fixed")} to check · ${n("Closed")} closed</span><button class="btn ghost small" id="addSnag">Add snag</button></div>` +
     (l.length ? `<div class="rows" style="margin-top:8px">${l.map(x => `<button class="row" data-snag="${esc(x.id)}"><span class="col"><span class="eyebrow m">#${x.no}${x.location ? " · " + esc(x.location) : ""}${x.from === "client" ? " · client" : ""}</span><span class="t" style="font-weight:500;font-size:14px">${esc(x.text)}</span><span class="s">${x.reopenNote && x.status === "Open" ? "Reopened by client" : when(x.reportedAt)}</span></span>${pill(x.status)}</button>`).join("")}</div>`
       : `<p class="small muted">No snags. They appear here when you or the client add them at inspection or handover.</p>`);
+}
+
+function certSection() {
+  const l = U.certs || [], c = l.find(x => x.status !== "Declined"), d = l.find(x => x.status === "Declined");
+  const open = (U.snags || []).filter(x => x.status !== "Closed").length;
+  let body;
+  if (c && c.status === "Signed") body = `<div class="note"><b>Signed by ${esc(c.signedBy)} · ${when(c.signedAt)}</b><br>Handover ${when(c.date, true)}.</div><button class="btn ghost small" id="hpdf" data-cert="${esc(c.id)}">Download PDF</button>`;
+  else if (c) body = `<p class="small">Sent ${when(c.issuedAt)} by ${esc(c.issuedBy)} · handover ${when(c.date, true)}. Waiting for the client to sign.</p>`;
+  else body = (d ? `<div class="note bad"><b>Client did not sign · ${when(d.issuedAt, true)}</b><br>${esc(d.declineNote)}</div>` : "") +
+    (open ? `<p class="small muted">Close all snags first: ${open} still open or waiting for the client's check.</p>` : !U.invited ? `<p class="small muted">Send the portal invitation first.</p>` : `<button class="btn" id="hnew">${d ? "Issue a new certificate" : "Issue handover certificate"}</button>`);
+  return `<div class="eyebrow" style="margin:18px 0 8px">Handover certificate${c ? " · " + esc(c.status) : ""}</div>` + body;
 }
 
 function startItem(base) {

@@ -37,10 +37,10 @@ async function api(payload) {
 const TONE = {
   "Sent for approval": "waiting", "Approved": "done", "Rejected": "problem", "Replaced": "idle",
   "Under review": "active", "Replied": "waiting", "Resolved": "done",
-  "Open": "active", "Fixed": "waiting", "Please check": "waiting", "Closed": "done"
+  "Open": "active", "Fixed": "waiting", "Please check": "waiting", "Closed": "done", "Sent for signature": "waiting", "Signed": "done", "Declined": "problem"
 };
 const STATUS_AR = { "Sent for approval": "بانتظار موافقتك", "Approved": "تمت الموافقة", "Rejected": "مطلوب تعديل", "Replaced": "تم الاستبدال",
-  "Under review": "قيد المراجعة", "Replied": "تم الرد", "Resolved": "تم الحل", "Open": "مفتوحة", "Fixed": "تم الإصلاح", "Please check": "برجاء المراجعة", "Closed": "مغلقة" };
+  "Under review": "قيد المراجعة", "Replied": "تم الرد", "Resolved": "تم الحل", "Open": "مفتوحة", "Fixed": "تم الإصلاح", "Please check": "برجاء المراجعة", "Closed": "مغلقة", "Sent for signature": "بانتظار توقيعك", "Signed": "تم التوقيع", "Declined": "لم تُوقّع" };
 const pill = s => `<span class="pill ${TONE[s] || "idle"}">${esc(AR() ? STATUS_AR[s] || s : s)}</span>`;
 const CHEV = `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`;
 const BACK = label => `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>${esc(label)}`;
@@ -60,7 +60,7 @@ function details(text) {
   const lines = String(text || "").split(/\n+/).map(s => s.trim()).filter(Boolean);
   if (!lines.length) return "";
   const kv = lines.filter(l => /^[^:]{1,40}:\s*\S/.test(l));
-  if (kv.length === lines.length) return `<div class="kv">${kv.map(l => { const i = l.indexOf(":"); return `<div><span>${esc(l.slice(0, i))}</span><span>${esc(l.slice(i + 1).trim())}</span></div>`; }).join("")}</div>`;
+  if (kv.length === lines.length) return `<div class="kv">${kv.map(l => { const i = l.indexOf(":"); return `<div><span>${esc(l.slice(0, i))}</span><span dir="auto">${esc(l.slice(i + 1).trim())}</span></div>`; }).join("")}</div>`;
   return `<p class="para">${esc(lines.join("\n"))}</p>`;
 }
 
