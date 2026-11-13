@@ -73,6 +73,7 @@ function portal_(b) {
     if (a === 'portal.pm.reply') return pmReply_(b);
     if (a === 'portal.pm.snag') return pmSnag_(b);
     if (a === 'portal.pm.snagfix') return pmSnagFix_(b);
+    if (a === 'portal.pm.dash') return pmDash_();
   } else {
     const c = clientByToken_(b.token);
     if (a === 'portal.open') { touchClient_(c); return clientView_(c); }
@@ -287,6 +288,139 @@ function pmSnagFix_(b) {
   return pmUnit_(unit);
 }
 
+/* =========================== management dashboard =========================== */
+/* ClickUp is read by an hourly job into the "Portal Dashboard" tab (one row per task), so the
+   dashboard opens fast and never calls ClickUp while someone waits. Amounts are read only to
+   weight progress across a unit's tasks; no money is shown. */
+
+const DASH_TAB = 'Portal Dashboard';
+const DASH_COLS = ['Unit', 'Task ID', 'Status', 'Construction status', 'POC', 'Site in', 'Site due', 'PM', 'Weight', 'Checked'];
+const DASH_FRESH_MS = 3 * 3600 * 1000;
+const DASH_DONE = ['handed over', 'declined', 'deleted', 'closed', 'cancelled'];
+
+/** Hourly (trigger made by Set up) and from the menu. Re-reads tasks older than 3 hours, for at most 4.5 minutes. */
+function dashRefresh() {
+  const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
+  if (!token) return;
+  const started = Date.now(), sh = sheet_(DASH_TAB, DASH_COLS);
+  const byId = {};
+  rows_(DASH_TAB).forEach(r => { const id = str_(r['Task ID']); if (id) byId[id] = DASH_COLS.map(c => r[c]); });
+  const want = {};
+  camRows_('ClickUp Tasks').forEach(r => { const id = str_(r['Task ID']), u = normUnit_(r['Unit']); if (id && u) want[id] = u; });
+  Object.keys(byId).forEach(id => { if (!want[id]) delete byId[id]; });
+  // a handed-over task changes rarely: re-read it once a day
+  const age = id => !byId[id] ? Infinity : started - Number(byId[id][9] || 0);
+  const due = id => age(id) > (byId[id] && DASH_DONE.indexOf(low_(byId[id][2])) >= 0 ? 8 * DASH_FRESH_MS : DASH_FRESH_MS);
+  const ids = Object.keys(want).filter(due).sort((a, b) => age(b) - age(a));
+  for (let i = 0; i < ids.length && Date.now() - started < 270000; i += 25) {
+    const batch = ids.slice(i, i + 25);
+    let limited = false;
+    UrlFetchApp.fetchAll(batch.map(id => ({ url: `https://api.clickup.com/api/v2/task/${id}`, headers: { Authorization: token }, muteHttpExceptions: true }))).forEach((r, n) => {
+      const id = batch[n], code = r.getResponseCode();
+      if (code === 404) { byId[id] = [want[id], id, 'deleted', '', '', '', '', '', 0, Date.now()]; return; }
+      if (code === 429) { limited = true; return; }
+      if (code !== 200) return;
+      let t; try { t = JSON.parse(r.getContentText()); } catch (e) { return; }
+      const f = {}; (t.custom_fields || []).forEach(c => f[c.id] = c);
+      const v = k => str_(f[k] && f[k].value), num = k => { const x = parseFloat(v(k)); return isNaN(x) ? '' : x; };
+      const d = k => { const x = Number(v(k)); return x ? fmt_(new Date(x), 'yyyy-MM-dd') : ''; };
+      byId[id] = [want[id], id, low_(t.status && t.status.status), low_(dropName_(f[P_CU.cstatus])), num(P_CU.poc),
+        d(P_CU.siteIn), d(P_CU.siteDue), dropName_(f[P_CU.pm]), num(P_CU.amount) || 0, Date.now()];
+    });
+    if (limited) Utilities.sleep(20000);
+  }
+  const out = Object.keys(byId).map(id => byId[id]).sort((a, b) => (a[0] + a[1]).localeCompare(b[0] + b[1]));
+  withLock_(() => {
+    if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, DASH_COLS.length).clearContent();
+    if (out.length) sh.getRange(2, 1, out.length, DASH_COLS.length).setValues(out);
+  });
+  CacheService.getScriptCache().remove('pdash');
+}
+
+/** Planned % on a straight line from Site in to Site due. */
+function plannedPoc_(start, end, today) {
+  if (!start || !end || end <= start) return null;
+  const t = d => new Date(d + 'T00:00:00').getTime();
+  return Math.max(0, Math.min(100, Math.round((t(today) - t(start)) / (t(end) - t(start)) * 100)));
+}
+
+function pmDash_() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('pdash');
+  if (hit) return JSON.parse(hit);
+  const today = fmt_(new Date(), 'yyyy-MM-dd'), dayMs = 86400000;
+  const back = n => fmt_(new Date(Date.now() - n * dayMs), 'yyyy-MM-dd');
+  const d7 = back(6), d14 = back(13);
+  const tasks = groupBy_(rows_(DASH_TAB).filter(r => str_(r['Unit']) && DASH_DONE.slice(1).indexOf(low_(r['Status'])) < 0), r => str_(r['Unit']).toUpperCase());
+  const lastSync = rows_(DASH_TAB).reduce((m, r) => Math.max(m, Number(r['Checked']) || 0), 0);
+
+  // Site Camera (read only): last visit per unit, manpower per unit / contractor / day
+  const lastVisit = {}, visits7 = {};
+  camRows_('Visits').forEach(r => {
+    const u = str_(r['Unit']).toUpperCase(), d = day_(r['Date']);
+    if (!u || !d || low_(r['Status']) === 'deleted') return;
+    if (!lastVisit[u] || d > lastVisit[u]) lastVisit[u] = d;
+    if (d >= d7) visits7[u] = (visits7[u] || 0) + 1;
+  });
+  const mpUnit = {}, mpCont = {}, mpDay = {};
+  camRows_('Manpower').forEach(r => {
+    const d = day_(r['Date']), n = Number(r['Count']) || 0;
+    if (!d || d < d14 || !n || low_(r['Status']) === 'deleted') return;
+    mpDay[d] = (mpDay[d] || 0) + n;
+    if (d < d7) return;
+    const u = str_(r['Unit']).toUpperCase(), c = str_(r['Contractor']) || 'Not named';
+    mpUnit[u] = (mpUnit[u] || 0) + n; mpCont[c] = (mpCont[c] || 0) + n;
+  });
+
+  // Portal: approvals, concerns, snags per unit
+  const cnt = (rows, col, val) => { const o = {}; rows.forEach(r => { if (str_(r[col]) === val) { const u = str_(r['Unit']).toUpperCase(); o[u] = (o[u] || 0) + 1; } }); return o; };
+  const pend = cnt(rows_(PT.items), 'Status', S_PENDING), rej = cnt(rows_(PT.items), 'Status', S_NO);
+  const conc = cnt(rows_(PT.concerns), 'Status', C_OPEN), snagO = cnt(rows_(PT.snags), 'Status', SN_OPEN);
+
+  const stageCount = [0, 0, 0, 0, 0, 0], units = [];
+  Object.keys(tasks).forEach(u => {
+    const live = tasks[u].map(r => ({ status: low_(r['Status']), cs: low_(r['Construction status']), poc: r['POC'] === '' ? null : Number(r['POC']),
+      start: day_(r['Site in']), end: day_(r['Site due']), pm: str_(r['PM']), w: Number(r['Weight']) || 0 }));
+    const site = live.filter(t => t.status === 'site execution');
+    let stage;
+    if (site.length) stage = site.every(t => t.cs === 'completed' || t.cs === 'handedover') ? 4 : 3;
+    else if (live.every(t => t.status === 'handed over')) stage = 5;
+    else stage = Math.max.apply(null, live.map(t => P_CU_STAGE[t.status] == null ? 0 : P_CU_STAGE[t.status]));
+    stageCount[stage]++;
+    if (stage < 3 || stage > 4) return; // the table is for units on site
+    const withPoc = site.filter(t => t.poc != null), w = withPoc.reduce((a, t) => a + t.w, 0);
+    const poc = !withPoc.length ? null : Math.round(w > 0 ? withPoc.reduce((a, t) => a + t.poc * t.w, 0) / w : withPoc.reduce((a, t) => a + t.poc, 0) / withPoc.length);
+    const start = site.map(t => t.start).filter(Boolean).sort()[0] || '', end = site.map(t => t.end).filter(Boolean).sort().pop() || '';
+    const planned = plannedPoc_(start, end, today);
+    const late = end && end < today && stage === 3 ? Math.round((new Date(today) - new Date(end)) / dayMs) : 0;
+    units.push({
+      unit: u, stage: stage, poc: poc, planned: planned, gap: poc != null && planned != null ? poc - planned : null,
+      start: start, end: end, late: late, pm: site.map(t => t.pm).filter((x, i, a) => x && a.indexOf(x) === i).join(', '),
+      lastVisit: lastVisit[u] || '', visits7: visits7[u] || 0, manpower7: mpUnit[u] || 0,
+      pending: pend[u] || 0, rejected: rej[u] || 0, concerns: conc[u] || 0, snags: snagO[u] || 0
+    });
+  });
+  units.sort((a, b) => (b.late - a.late) || ((a.gap == null ? 0 : a.gap) - (b.gap == null ? 0 : b.gap)) || a.unit.localeCompare(b.unit));
+
+  const days = []; for (let i = 13; i >= 0; i--) { const d = back(i); days.push({ date: d, count: mpDay[d] || 0 }); }
+  const pms = groupBy_(units, x => x.pm || 'No PM');
+  const out = {
+    today: today, synced: lastSync ? fmt_(new Date(lastSync), 'yyyy-MM-dd HH:mm') : '', stages: stageCount, units: units,
+    totals: {
+      onSite: units.length, late: units.filter(x => x.late > 0).length, behind: units.filter(x => x.gap != null && x.gap <= -15).length,
+      noVisit: units.filter(x => !x.lastVisit || x.lastVisit < d7).length, manpowerToday: mpDay[today] || 0,
+      manpower7: days.slice(7).reduce((a, d) => a + d.count, 0), pending: Object.keys(pend).reduce((a, k) => a + pend[k], 0),
+      concerns: Object.keys(conc).reduce((a, k) => a + conc[k], 0), snags: Object.keys(snagO).reduce((a, k) => a + snagO[k], 0)
+    },
+    manpowerDays: days,
+    contractors: Object.keys(mpCont).map(c => ({ name: c, count: mpCont[c] })).sort((a, b) => b.count - a.count).slice(0, 12),
+    pms: Object.keys(pms).map(p => ({ name: p, units: pms[p].length, late: pms[p].filter(x => x.late > 0).length,
+      behind: pms[p].filter(x => x.gap != null && x.gap <= -15).length, open: pms[p].reduce((a, x) => a + x.concerns + x.snags + x.rejected, 0) }))
+      .sort((a, b) => b.units - a.units)
+  };
+  try { cache.put('pdash', JSON.stringify(out), 600); } catch (e) {}
+  return out;
+}
+
 /* =========================== team side =========================== */
 
 function pmHome_() {
@@ -466,7 +600,7 @@ function portalImg_(b) {
 const P_CU = {
   poc: '640aa77a-6d8d-4b4d-b8a6-b4dfd74baa9f', siteDue: '192b3218-0025-48f1-a418-488d0e87e5ee',
   pm: 'f91d9a67-0ed7-4e6a-81c3-1b7bf673546f', cstatus: 'eb44d8ec-34af-462d-b01e-87f84b918f55',
-  amount: 'f480622e-13eb-43c9-a141-f74a78d866e9'
+  amount: 'f480622e-13eb-43c9-a141-f74a78d866e9', siteIn: 'e099ba01-7bd4-402b-9d0f-2263884b39b0'
 };
 const P_STAGES = ['Initiation', 'Design', 'Quotation', 'Construction', 'Quality Inspection', 'Hand Over'];
 const P_CU_STAGE = { 'new case': 0, 'on hold': 0, 'client feedback': 1, 'design revision': 1, 'design execution': 1, 'quotation issued': 2, 'cost revision': 2, 'site execution': 3, 'handed over': 5 };
@@ -673,6 +807,9 @@ function portalSetup() {
   }
   folderPath_([PORTAL_ROOT]);
   if (!('Team emails' in settings_())) sheet_('Settings', ['Setting', 'Value']).appendRow(['Team emails', '']);
+  sheet_(DASH_TAB, DASH_COLS);
+  if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dashRefresh'))
+    ScriptApp.newTrigger('dashRefresh').timeBased().everyHours(1).create();
   MailApp.getRemainingDailyQuota();
   try { SpreadsheetApp.getUi().alert('Client portal is ready. Next: set the team password, connect ClickUp, and fill "Team emails" in Settings.'); } catch (e) {}
 }
@@ -717,6 +854,7 @@ function onOpen() {
     .addItem('Set up (run once)', 'portalSetup')
     .addItem('Set team password', 'menuSetPassword')
     .addItem('Connect ClickUp (API token)', 'menuSetClickUpToken')
+    .addItem('Refresh dashboard now', 'dashRefresh')
     .addToUi();
 }
 
