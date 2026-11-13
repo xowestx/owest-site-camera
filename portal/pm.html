@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>O-Plus Team Portal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#001641">
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/oplus-mark-white.png">
+<link rel="preconnect" href="https://script.google.com">
+<link rel="stylesheet" href="portal.css">
+</head>
+<body>
+<header class="band"><div class="in">
+  <img class="mark" src="assets/oplus-mark-white.png" alt="O-Plus">
+  <span class="rule"></span>
+  <img class="lock" src="assets/owest-lockup-white.png" alt="O West by Orascom Development">
+</div></header>
+<div class="strip"><div class="in">
+  <span class="eyebrow">Team portal · PM</span>
+  <button class="small muted" id="me" style="background:none;border:0;padding:0;text-decoration:underline"></button>
+</div></div>
+
+<main class="in" id="view"><div class="center">Loading…</div></main>
+
+<script src="portal.js"></script>
+<script>
+let pmToken = "", me = "", H = null, U = null, view = "home", sel = null, q = "", form = null;
+try { pmToken = localStorage.getItem("oplus_pm") || ""; me = localStorage.getItem("oplus_me") || ""; } catch (e) {}
+const auth = () => ({ pmToken });
+const TYPES = ["Selection", "Scope of work", "Date change"];
+const TEMPLATE = {
+  "Selection": "Location: \nSupplier / code: \nSize: \nColour: \nQuantity: ",
+  "Scope of work": "Description: \nQuantity: \nDuration: \nRequested: ",
+  "Date change": "Current date: \nNew date: \nReason: \nEffect on final handover: "
+};
+
+$("me").onclick = pickName;
+if (!pmToken) login(); else home();
+
+function login() {
+  $("view").innerHTML = head("Team access", "Sign in", "Use the team password set in the portal sheet.") +
+    `<label class="f" for="pw">Password</label><input class="f" id="pw" type="password" autocomplete="current-password">
+     <div class="err" id="err" hidden></div><div class="stack"><button class="btn" id="go">Sign in</button></div>`;
+  $("go").onclick = () => busy($("go"), async () => {
+    try { const j = await api({ action: "login", password: $("pw").value }); pmToken = j.token; try { localStorage.setItem("oplus_pm", pmToken); } catch (e) {} home(); }
+    catch (e) { $("err").hidden = false; $("err").textContent = e.message; }
+  });
+  $("pw").onkeydown = e => { if (e.key === "Enter") $("go").click(); };
+}
+
+async function call(p) {
+  try { return await api(Object.assign(p, auth())); }
+  catch (e) { if (e.code === "auth") { try { localStorage.removeItem("oplus_pm"); } catch (x) {} pmToken = ""; login(); } throw e; }
+}
+
+async function home() {
+  view = "home"; render();
+  try { H = await call({ action: "portal.pm.home" }); if (!me) pickName(); render(); } catch (e) { if (pmToken) fail(e.message); }
+}
+async function openUnit(unit) {
+  view = "unit"; U = null; render(); scrollTo(0, 0);
+  try { U = await call({ action: "portal.pm.unit", unit }); render(); } catch (e) { fail(e.message); }
+}
+function fail(t) { $("view").innerHTML = `<div class="center">${esc(t)}</div>`; }
+
+function render() {
+  $("me").textContent = me || "Choose your name";
+  if (!pmToken) return;
+  const body = (V[view] || V.home)();
+  $("view").innerHTML = body + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span>Team only</span></div>`;
+  bind();
+  loadImages($("view"), auth());
+}
+
+const V = {
+  home() {
+    if (!H) return `<div class="center">Loading units…</div>`;
+    const t = H.units.reduce((a, u) => (a.p += u.pending, a.r += u.rejected, a.o += u.open, a), { p: 0, r: 0, o: 0 });
+    const k = q.toLowerCase();
+    const units = H.units.filter(u => !k || (u.unit + " " + u.client + " " + u.project).toLowerCase().includes(k))
+      .sort((a, b) => (b.invited - a.invited) || (b.pending + b.rejected + b.open - a.pending - a.rejected - a.open) || a.unit.localeCompare(b.unit));
+    return head("Today · " + when(new Date().toISOString().slice(0, 10), true), "My units") +
+      `<div class="meta"><div><div class="eyebrow m">With client</div><div class="big">${t.p}</div></div>
+        <div><div class="eyebrow m">Rejected</div><div class="big" style="color:var(--problem)">${t.r}</div></div>
+        <div><div class="eyebrow m">To answer</div><div class="big" style="color:var(--active)">${t.o}</div></div></div>` +
+      `<div class="eyebrow" style="margin:6px 0 8px">Needs your action · oldest first</div>` +
+      (H.actions.length ? `<div class="stack" style="margin-top:0">${H.actions.map(a => `<button class="cta" style="margin:0;${a.kind === "rejected" ? "border-color:var(--problem);background:#fff" : ""}" data-unit="${esc(a.unit)}" data-then="${a.kind}:${esc(a.id)}">
+          <span><span class="eyebrow m">${a.kind === "rejected" ? "Rejected" : "Concern"} · ${esc(a.unit)}</span><b>${esc(a.title)}</b><span class="small muted">${esc(a.detail || when(a.at))}</span></span>
+          <span class="small" style="font-weight:600;color:var(--navy)">${a.kind === "rejected" ? "Revise" : "Reply"}</span></button>`).join("")}</div>` : `<p class="muted small">Nothing waiting on you.</p>`) +
+      `<label class="f" for="q">Units</label><input class="f" id="q" placeholder="Search unit or client" value="${esc(q)}">
+       <div class="rows" style="margin-top:8px">${units.slice(0, 60).map(u => `<button class="row" data-unit="${esc(u.unit)}"><span class="col"><span class="t">${esc(u.unit)}</span>
+         <span class="s">${esc(u.client || "No client name")}${u.project ? " · " + esc(u.project) : ""}</span>
+         <span class="s" style="color:var(--ink)">${u.invited ? `${u.pending} with client · ${u.rejected} rejected · ${u.open} to answer` : "Portal not set up"}</span></span>${CHEV}</button>`).join("")}</div>` +
+      (units.length > 60 ? `<p class="small muted">Showing 60 of ${units.length}. Search to find a unit.</p>` : "");
+  },
+
+  unit() {
+    if (!U) return `<button class="back" data-home>${BACK("My units")}</button><div class="center">Loading unit…</div>`;
+    const s = U.status || {};
+    return `<button class="back" data-home>${BACK("My units")}</button>` +
+      head(`${U.client || "Client"}${s.stageName ? " · " + s.stageName : ""}${s.poc != null ? " · " + s.poc + "%" : ""}`, U.unit) +
+      (U.invited
+        ? `<p class="small muted">Portal link made${U.invitedAt ? " · invitation sent " + when(U.invitedAt) : " · invitation not emailed yet"}${U.lastOpened ? " · last opened by client " + when(U.lastOpened) : " · not opened yet"}</p>`
+        : `<p class="small muted">This unit has no portal yet. Check the client email, then send the invitation.</p>`) +
+      `<label class="f" for="cn">Client name</label><input class="f" id="cn" value="${esc(U.client)}">
+       <label class="f" for="ce">Client email</label><input class="f" id="ce" type="email" value="${esc(U.email)}">
+       <div class="grid2" style="margin-top:12px"><button class="btn ghost small" id="copy" style="width:100%">Copy client link</button><button class="btn ghost small" id="invite" style="width:100%">${U.invitedAt ? "Resend invitation" : "Send invitation"}</button></div>
+       ${U.invited ? `<button class="small muted" id="newLink" style="background:none;border:0;padding:8px 0;text-decoration:underline">Make a new link (the old one stops working)</button>` : ""}
+       <div class="stack"><button class="btn" id="newItem">Send new item for approval</button></div>` +
+      `<div class="eyebrow" style="margin-top:18px">Items</div>` +
+      (U.items.length ? `<div class="rows" style="margin-top:8px">${U.items.map(x => `<div class="row" style="align-items:flex-start"><span class="col"><span class="eyebrow m">${esc(x.type)} · v${x.version}</span><span class="t">${esc(x.title)}</span>
+          <span class="s">${x.status === "Rejected" ? "Client: " + esc(x.reason) + " · " + when(x.decidedAt) : x.decidedAt ? esc(x.decidedBy) + " · " + when(x.decidedAt) : "Sent by " + esc(x.sentBy) + " · " + when(x.sentAt)}</span>
+          ${x.status === "Rejected" ? `<button class="btn ghost small" data-revise="${esc(x.id)}" style="align-self:flex-start;margin-top:6px">Revise and resend</button>` : ""}</span>${pill(x.status)}</div>`).join("")}</div>`
+        : `<p class="small muted">No items sent yet.</p>`) +
+      `<div class="eyebrow" style="margin-top:18px">Concerns</div>` +
+      (U.concerns.length ? `<div class="rows" style="margin-top:8px">${U.concerns.map(c => `<button class="row" data-concern="${esc(c.id)}"><span class="col"><span class="t">${esc(c.subject)}</span><span class="s">${when(c.updatedAt)}</span></span>${pill(c.status === "Under review" ? "Under review" : c.status)}</button>`).join("")}</div>`
+        : `<p class="small muted">No concerns.</p>`);
+  },
+
+  item() {
+    const f = form;
+    return `<button class="back" id="cancelItem">${BACK("Cancel")}</button>` +
+      head(`${U.unit} · Version ${f.version}`, f.replaces ? "Revised version" : "New item") +
+      `<label class="f">Type</label><div class="chips">${TYPES.map(t => `<button class="chip ${f.type === t ? "on" : ""}" data-type="${t}" ${f.replaces ? "disabled" : ""}>${t}</button>`).join("")}</div>
+       <label class="f" for="ft">Title</label><input class="f" id="ft" maxlength="200" value="${esc(f.title)}" placeholder="For example: Guest bathroom wall tiles">
+       <label class="f" for="fd">Details for the client</label><textarea class="f" id="fd" rows="6">${esc(f.details)}</textarea>
+       <p class="small muted">Keep "Label: value" lines and they show as a neat table. Delete lines you don't need.</p>
+       <label class="f">Photos ${f.type === "Selection" ? "of the samples" : "(optional)"}</label>
+       <div class="thumbs" id="thumbs">${f.photos.map(p => `<img src="${p}" alt="">`).join("")}</div>
+       <input type="file" id="fp" accept="image/*" multiple hidden>
+       <div class="stack"><button class="btn ghost" id="addPh">Add photos</button><button class="btn" id="sendItem">Send to client</button>
+       <span class="small muted">The client gets an email and the item shows in their portal as Sent for approval.</span></div>`;
+  },
+
+  concern() {
+    const c = U.concerns.find(k => k.id === sel);
+    if (!c) return `<p class="muted">Not found.</p>`;
+    return `<button class="back" id="toUnit">${BACK(U.unit)}</button>` + head("Concern · " + U.unit, c.subject) + pill(c.status) +
+      c.messages.map(m => `<div class="msg ${m.from === "team" ? "me" : "them"}"><div class="b">${esc(m.text)}${m.photo ? `<img data-id="${esc(m.photo)}" alt="Attached photo">` : ""}</div><span class="w">${esc(m.name)}${m.from === "team" ? " · O-Plus" : " · client"} · ${when(m.at)}</span></div>`).join("") +
+      (c.status !== "Resolved" ? `<label class="f" for="rp">Reply to client</label><textarea class="f" id="rp" rows="4" placeholder="What we found, what we will do, and when"></textarea>
+        <input type="file" id="rf" accept="image/*" hidden><div class="thumbs" id="rt"></div>
+        <div class="stack"><button class="btn ghost" id="rph">Attach site photo</button><button class="btn" id="sendRp">Send reply</button></div>`
+      : `<p class="small muted">The client marked this concern as resolved.</p>`);
+  }
+};
+
+function bind() {
+  const v = $("view");
+  v.querySelectorAll("[data-home]").forEach(b => b.onclick = home);
+  v.querySelectorAll("[data-unit]").forEach(b => b.onclick = async () => {
+    await openUnit(b.dataset.unit);
+    const t = b.dataset.then;
+    if (t && U) { const [kind, id] = t.split(":"); if (kind === "rejected") startItem(U.items.find(x => x.id === id)); else { sel = id; view = "concern"; render(); } }
+  });
+  if ($("q")) $("q").oninput = e => { q = e.target.value; const pos = e.target.selectionStart; render(); $("q").focus(); $("q").setSelectionRange(pos, pos); };
+  v.querySelectorAll("[data-concern]").forEach(b => b.onclick = () => { sel = b.dataset.concern; view = "concern"; render(); scrollTo(0, 0); });
+  v.querySelectorAll("[data-revise]").forEach(b => b.onclick = () => startItem(U.items.find(x => x.id === b.dataset.revise)));
+  if ($("toUnit")) $("toUnit").onclick = () => { view = "unit"; render(); };
+  if ($("newItem")) $("newItem").onclick = () => startItem(null);
+  if ($("copy")) $("copy").onclick = () => busy($("copy"), async () => {
+    if (!U.invited) U = await call({ action: "portal.pm.invite", unit: U.unit, client: $("cn").value, email: $("ce").value, by: me, send: false });
+    await copyText(U.link); toast("Client link copied. You can paste it on WhatsApp."); render();
+  });
+  if ($("invite")) $("invite").onclick = () => busy($("invite"), async () => {
+    if (!me) return pickName();
+    U = await call({ action: "portal.pm.invite", unit: U.unit, client: $("cn").value, email: $("ce").value, by: me, send: true });
+    render(); toast("Invitation emailed to " + U.email + ".");
+  });
+  if ($("newLink")) $("newLink").onclick = () => busy($("newLink"), async () => {
+    if (!confirm("Make a new link? The client's current link will stop working.")) return;
+    U = await call({ action: "portal.pm.invite", unit: U.unit, client: $("cn").value, email: $("ce").value, by: me, send: false, newLink: true });
+    render(); toast("New link made. Send it to the client.");
+  });
+  // new item form
+  if (view === "item") {
+    v.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { keep(); if (form.details === TEMPLATE[form.type]) form.details = TEMPLATE[b.dataset.type]; form.type = b.dataset.type; render(); });
+    $("cancelItem").onclick = () => { view = "unit"; render(); };
+    $("addPh").onclick = () => $("fp").click();
+    $("fp").onchange = async e => { keep(); for (const f of e.target.files) form.photos.push(await compress(f)); render(); };
+    $("sendItem").onclick = () => busy($("sendItem"), async () => {
+      keep();
+      if (!me) return pickName();
+      if (!form.title.trim()) return toast("Add a title.");
+      if (!U.invited) return toast("Send the portal invitation first.");
+      const ids = [];
+      for (let i = 0; i < form.photos.length; i++) { $("sendItem").textContent = `Uploading photo ${i + 1} of ${form.photos.length}…`; ids.push((await call({ action: "portal.pm.upload", unit: U.unit, data: form.photos[i] })).id); }
+      const details = form.details.split("\n").filter(l => !/^[^:]{1,40}:\s*$/.test(l.trim())).join("\n");
+      U = await call({ action: "portal.pm.item", unit: U.unit, type: form.type, title: form.title, details, photoIds: ids, replaces: form.replaces, by: me });
+      view = "unit"; form = null; render(); scrollTo(0, 0);
+      toast(U.emailed ? "Sent. " + (U.client || "The client") + " was emailed." : "Saved. The client has no email, so share the link.");
+    });
+  }
+  if (view === "concern" && $("sendRp")) {
+    let photo = "";
+    $("rph").onclick = () => $("rf").click();
+    $("rf").onchange = async e => { if (!e.target.files[0]) return; photo = await compress(e.target.files[0]); $("rt").innerHTML = `<img src="${photo}" alt="">`; };
+    $("sendRp").onclick = () => busy($("sendRp"), async () => {
+      if (!me) return pickName();
+      const text = $("rp").value.trim(); if (!text) return toast("Write a reply.");
+      U = await call({ action: "portal.pm.reply", unit: U.unit, concernId: sel, text, photo, by: me });
+      render(); toast("Reply sent. The client was notified.");
+    });
+  }
+}
+
+function startItem(base) {
+  form = base
+    ? { type: base.type, title: base.title, details: base.details, photos: [], replaces: base.id, version: base.version + 1 }
+    : { type: "Selection", title: "", details: TEMPLATE.Selection, photos: [], replaces: "", version: 1 };
+  view = "item"; render(); scrollTo(0, 0);
+}
+function keep() { if ($("ft")) { form.title = $("ft").value; form.details = $("fd").value; } }
+
+function pickName() {
+  const names = (H && H.engineers) || [];
+  const s = sheet(`<div class="eyebrow">Who is using this phone?</div><div class="title" style="font-size:17px">Your name</div>
+    <p class="small muted">Shown to the client on items you send and replies you write.</p>
+    <label class="f" for="nm">Name</label>
+    <input class="f" id="nm" list="nms" value="${esc(me)}" placeholder="e.g. Eng. Karim"><datalist id="nms">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+    <div class="stack"><button class="btn" id="saveNm">Save</button></div>`);
+  s.querySelector("#saveNm").onclick = () => { const n = $("nm").value.trim(); if (!n) return; me = n; try { localStorage.setItem("oplus_me", me); } catch (e) {} closeSheet(); render(); };
+}
+
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); }
+  catch (e) { prompt("Copy the client link:", t); }
+}
+async function busy(btn, fn) {
+  const t = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
+  try { await fn(); } catch (e) { toast(e.message); } finally { if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = t; } }
+}
+</script>
+</body>
+</html>
