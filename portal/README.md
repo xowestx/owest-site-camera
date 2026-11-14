@@ -18,7 +18,16 @@ It is **separate from O West Site Camera**. It has its own Apps Script and its o
 - **The record:** the "Portal Log" tab gets a row for every send, approval, rejection, concern and reply. It is protected, so only the sheet owner can edit it.
 - **Snag list (handover):** from Quality Inspection on, the client gets a Snags tab. The client or the PM adds a snag with a room and photos. The PM marks it fixed with an after photo. The client then confirms it is fixed (closed) or sends it back with a note. Emails are grouped: at most one per unit every 30 minutes, so a walk-through of 20 snags is not 20 emails.
 - **Arabic:** the client page has an English / عربي button in the top bar. It switches the page to Arabic, right to left, and remembers the choice on that phone. What the PM types (titles, details, replies) shows as written. Emails and the team page stay in English.
+- **Variation orders:** a fourth item type for extra work outside the contract. Each new one is numbered per unit (VO-01, VO-02 …), and the client approves or rejects it with the email code like any other item. A revision keeps its number. No prices: the client page says the cost is agreed with the PM separately. Clients can also tap **Request extra work** on Approvals; it arrives as a concern titled "Extra work request", and the PM answers with a variation order.
+- **Documents:** on the unit page, **Add document** shares a PDF or photo (up to 15 MB) under Drawings, Warranties, Manuals, Certificates or Other. Files are saved privately in Drive under `O West Client Portal/<unit>/Documents` and the client downloads them from **Documents** on their Home page. The signed handover certificate is listed there too. Removing a document hides it from the client (the file stays in Drive). Don't share contracts or anything with prices.
+- **Handover certificate:** when every snag is closed, the PM taps **Issue handover certificate** on the unit page (handover date, what was handed over such as keys and meter readings, notes). The client reviews it in the portal (approved items, snag summary) and signs with the 6-digit email code, or taps "Something is missing" to send it back. On signing, a branded PDF is saved in the unit's Drive folder and emailed to the client and the team. A signed certificate is final. Records are in the "Portal Handover" tab.
 - **Overview (management dashboard):** on the team page, tap **Overview**. It shows units on site, late units (past the handover date), units 15+ points behind plan (planned % runs in a straight line from Site in to Site due), units with no Site Camera visit in 7 days, manpower for the last 14 days, top contractors by worker-days, a PM table and a unit list, with filters. ClickUp is read by an hourly job into the "Portal Dashboard" tab, so the page opens fast. Use **O-Plus Portal → Refresh dashboard now** to read it right away. No amounts or prices are shown.
+- **Chat (like WhatsApp):** one conversation per unit between the client and the team, with text, photos, voice notes (up to 3 minutes), quick replies and reply-to-a-message. Ticks show ✓ sent and ✓✓ seen, and the client sees who read it and when. The chat refreshes every few seconds while it is open. Everything is kept in the "Portal Chat" tab, and the files are saved privately in Drive under `O West Client Portal/<unit>/Chat`.
+  - **Reply promise:** the client sees "Usually replies within 1 hour", or the time the office opens again. A job runs every 15 minutes. If a client waits past the promise in working hours, it emails "Team emails". At twice the promise, it also emails "Escalation emails". Waiting time counts working hours only.
+  - **Urgent:** the client can tap + → **Urgent call**. This emails the team and the escalation list at once and asks for a call within 30 minutes.
+  - **Unseen replies:** if a team message is not seen for 10 minutes, the client gets one email with a button that opens the chat.
+  - **Settings:** Reply within (minutes) is 60, Working hours is 09:00-18:00, Working days is Sat,Sun,Mon,Tue,Wed,Thu, and Escalation emails is empty, which means Team emails.
+- **App on the phone:** the client page can be installed. On Android an **Add** banner appears. On iPhone the banner says to tap Share and then "Add to Home Screen". It opens full screen with the O-Plus icon and needs no link. The unread count shows on the icon where the phone supports it.
 - **Home page data:** progress %, stage, handover date and PM come from the unit's ClickUp tasks (cached for 3 hours). The newest site photos and the latest weekly report come from Site Camera.
 - **Emails:** the client is emailed when they are invited, when an item is sent and when the PM replies. The team ("Team emails" in Settings) is emailed on every approval, rejection, concern and client reply.
 
@@ -31,7 +40,7 @@ Use the same Google account that owns the Site Camera sheet (x.owest.x), so the 
 3. Reload the sheet. Run the menu **O-Plus Portal → Set up (run once)** and allow the permissions.
 4. **O-Plus Portal → Set team password**. PMs sign in with this password.
 5. **O-Plus Portal → Connect ClickUp**. Paste a ClickUp API token. This is only for progress, handover date and PM.
-6. In the **Settings** tab, fill **Team emails** (comma separated).
+6. In the **Settings** tab, fill **Team emails** (comma separated) and, if you want, **Escalation emails** (the manager), the reply promise and the working hours.
 7. In Apps Script, go to Deploy → New deployment → Web app. Set Execute as **Me** and Who has access **Anyone**. Copy the `/exec` URL.
 8. Put that URL in `portal/portal.js` (`API_URL`), then commit. GitHub Pages updates in about a minute.
 
@@ -40,6 +49,8 @@ Use the same Google account that owns the Site Camera sheet (x.owest.x), so the 
 1. Open the team page and sign in. Choose your name once on each phone.
 2. Open a unit and check the client email. Tap **Send invitation**, or **Copy client link** to paste it on WhatsApp.
 3. Use **Send new item for approval**: pick the type, title, details ("Label: value" lines show as a table) and sample photos.
-4. **Needs your action** lists rejected items to revise and concerns to answer, oldest first.
-5. **Snags:** on the unit page, use **Add snag** at inspection. Open a snag and use **Mark as fixed** with at least one after photo. Units with open snags show in **Needs your action**.
-6. If a link leaks, use **Make a new link**. The old link stops working at once.
+4. **Chats:** the **Chats** tab lists every client conversation, with clients who are waiting first, unread counts and the waiting time. Waiting chats also appear at the top of **Needs your action**. You can also open a chat from the unit page with **Chat with client**.
+5. **Needs your action** lists rejected items to revise and concerns to answer, oldest first.
+6. **Snags:** on the unit page, use **Add snag** at inspection. Open a snag and use **Mark as fixed** with at least one after photo. Units with open snags show in **Needs your action**.
+7. **Handover:** once all snags are closed, use **Issue handover certificate** at the bottom of the unit page.
+8. If a link leaks, use **Make a new link**. The old link stops working at once.
