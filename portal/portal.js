@@ -1,7 +1,7 @@
 /* O-Plus Client Portal: shared helpers for index.html (client) and pm.html (team). */
 
 // The portal's own Apps Script Web App (/exec URL). Separate from Site Camera's API.
-const API_URL = "PASTE_PORTAL_EXEC_URL_HERE";
+const API_URL = "https://script.google.com/macros/s/AKfycbw-xsRGbsq-RwQhzx8OclVngxF-tPNwjo8HFiEari0CoXn63w2vD2OtBVDXCBKTHlye/exec";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
