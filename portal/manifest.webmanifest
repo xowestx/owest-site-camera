@@ -1,0 +1,15 @@
+{
+  "name": "O-Plus Client Portal",
+  "short_name": "O-Plus",
+  "description": "Your unit's approvals, chat and records with O West Extra Works.",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#001641",
+  "theme_color": "#001641",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -20,6 +20,20 @@ function when(s, dateOnly) {
   return out;
 }
 
+/** "today 9:15 PM", "tomorrow 9:00 AM", "yesterday 3:10 PM", or "Mon 9:00 AM" within a week, else the date. */
+function shortWhen(s) {
+  const m = String(s || "").match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return when(s);
+  const day = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const h = +m[2], t = `${h % 12 || 12}:${m[3]} ${AR() ? (h < 12 ? "ص" : "م") : (h < 12 ? "AM" : "PM")}`;
+  const diff = Math.round((new Date(m[1] + "T00:00:00") - new Date(day(new Date()) + "T00:00:00")) / 864e5);
+  if (diff === 0) return (AR() ? "اليوم " : "today ") + t;
+  if (diff === 1) return (AR() ? "غداً " : "tomorrow ") + t;
+  if (diff === -1) return (AR() ? "أمس " : "yesterday ") + t;
+  if (Math.abs(diff) < 7) return new Date(m[1] + "T12:00:00").toLocaleDateString(AR() ? "ar-EG" : "en-GB", { weekday: "long" }) + " " + t;
+  return when(s);
+}
+
 async function api(payload) {
   if (/PASTE_/.test(API_URL)) throw new Error("The portal is not connected yet (API_URL in portal.js).");
   const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 60000);

@@ -24,8 +24,9 @@
 <main class="in" id="view"><div class="center">Loading…</div></main>
 
 <script src="portal.js"></script>
+<script src="portal-chat.js"></script>
 <script>
-let pmToken = "", me = "", H = null, U = null, DB = null, dashFilter = "all", view = "home", sel = null, q = "", form = null;
+let IB = null, pmToken = "", me = "", H = null, U = null, DB = null, dashFilter = "all", view = "home", sel = null, q = "", form = null;
 try { pmToken = localStorage.getItem("oplus_pm") || ""; me = localStorage.getItem("oplus_me") || ""; } catch (e) {}
 const auth = () => ({ pmToken });
 const TYPES = ["Selection", "Scope of work", "Date change", "Variation order"];
@@ -56,7 +57,7 @@ async function call(p) {
 
 async function home() {
   view = "home"; render();
-  try { H = await call({ action: "portal.pm.home" }); if (!me) pickName(); render(); } catch (e) { if (pmToken) fail(e.message); }
+  try { [H, IB] = await Promise.all([call({ action: "portal.pm.home" }), call({ action: "portal.pm.inbox" }).catch(() => IB)]); if (!me) pickName(); render(); } catch (e) { if (pmToken) fail(e.message); }
 }
 async function openUnit(unit) {
   view = "unit"; U = null; render(); scrollTo(0, 0);
@@ -67,6 +68,7 @@ function fail(t) { $("view").innerHTML = `<div class="center">${esc(t)}</div>`; 
 function render() {
   $("me").textContent = me || "Choose your name";
   if (!pmToken) return;
+  if (Chat.isOpen()) Chat.close();
   const body = (V[view] || V.home)();
   // the overview uses the full width on a desktop; everything else stays phone width
   document.querySelectorAll(".in").forEach(el => el.classList.toggle("wide", view === "dash"));
@@ -76,7 +78,8 @@ function render() {
 }
 
 /** "My units" / "Overview" switch at the top of the team page. */
-const switcher = on => `<div class="chips" style="margin-bottom:14px"><button class="chip ${on === "home" ? "on" : ""}" data-switch="home">My units</button><button class="chip ${on === "dash" ? "on" : ""}" data-switch="dash">Overview</button></div>`;
+const switcher = on => { const n = IB ? IB.inbox.reduce((a, x) => a + x.unread, 0) : 0;
+  return `<div class="chips" style="margin-bottom:14px"><button class="chip ${on === "home" ? "on" : ""}" data-switch="home">My units</button><button class="chip ${on === "inbox" ? "on" : ""}" data-switch="inbox">Chats${n ? ` · ${n}` : ""}</button><button class="chip ${on === "dash" ? "on" : ""}" data-switch="dash">Overview</button></div>`; };
 
 async function openDash() {
   view = "dash"; render(); scrollTo(0, 0);
@@ -87,6 +90,17 @@ const STAGE_SHORT = ["Initiation", "Design", "Quotation", "Site work", "Inspecti
 const fmtN = n => Number(n || 0).toLocaleString("en-US");
 
 const V = {
+  inbox() {
+    if (!IB) return switcher("inbox") + `<div class="center">Loading chats…</div>`;
+    const late = IB.inbox.filter(x => x.late).length;
+    return switcher("inbox") + head("Client chats", "Chats", `Clients waiting longest first. The promise to clients is a reply within ${IB.rules.within} minutes in working hours.${late ? "" : ""}`) +
+      (IB.inbox.length ? `<div class="rows inbox">${IB.inbox.map(x => `<button class="row" data-chat="${esc(x.unit)}"><span class="col">
+          <span class="t">${esc(x.unit)}${x.client ? ` <span class="small muted" style="font-weight:400">· ${esc(x.client)}</span>` : ""}</span>
+          <span class="s">${x.last.from === "team" ? (x.seenByClient ? "✓✓ " : "✓ ") : ""}${esc(x.last.from === "team" ? "You" : x.last.name)}: ${esc(lastText(x.last))}</span>
+          ${x.waiting ? `<span class="wait ${x.late ? "late" : ""}">${x.urgent ? "URGENT · " : ""}${waitText(x)}</span>` : ""}</span>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><span class="small muted">${shortWhen(x.last.at).replace(/^today /, "")}</span>${x.unread ? `<span class="n">${x.unread}</span>` : ""}</span></button>`).join("")}</div>`
+        : `<p class="muted small">No client has written yet. When a client writes in their portal, the chat shows here.</p>`);
+  },
   dash() {
     if (!DB) return switcher("dash") + `<div class="center">Loading the overview…</div>`;
     const t = DB.totals;
@@ -142,10 +156,10 @@ const V = {
       `<div class="meta"><div><div class="eyebrow m">With client</div><div class="big">${t.p}</div></div>
         <div><div class="eyebrow m">Rejected</div><div class="big" style="color:var(--problem)">${t.r}</div></div>
         <div><div class="eyebrow m">To answer</div><div class="big" style="color:var(--active)">${t.o}</div></div></div>` +
-      `<div class="eyebrow" style="margin:6px 0 8px">Needs your action · oldest first</div>` +
-      (H.actions.length ? `<div class="stack" style="margin-top:0">${H.actions.map(a => `<button class="cta" style="margin:0;${a.kind === "rejected" ? "border-color:var(--problem);background:#fff" : ""}" data-unit="${esc(a.unit)}" data-then="${a.kind}:${esc(a.id)}">
+      `<div class="eyebrow" style="margin:6px 0 8px">Needs your action · oldest first</div>` + waitingChats() +
+      (H.actions.length ? `<div class="stack" style="margin-top:${waitingChats() ? 10 : 0}px">${H.actions.map(a => `<button class="cta" style="margin:0;${a.kind === "rejected" ? "border-color:var(--problem);background:#fff" : ""}" data-unit="${esc(a.unit)}" data-then="${a.kind}:${esc(a.id)}">
           <span><span class="eyebrow m">${{ rejected: "Rejected", concern: "Concern", snags: "Snag list" }[a.kind]} · ${esc(a.unit)}</span><b>${esc(a.title)}</b><span class="small muted">${esc(a.detail || when(a.at))}</span></span>
-          <span class="small" style="font-weight:600;color:var(--navy)">${{ rejected: "Revise", concern: "Reply", snags: "Fix" }[a.kind]}</span></button>`).join("")}</div>` : `<p class="muted small">Nothing waiting on you.</p>`) +
+          <span class="small" style="font-weight:600;color:var(--navy)">${{ rejected: "Revise", concern: "Reply", snags: "Fix" }[a.kind]}</span></button>`).join("")}</div>` : (waitingChats() ? "" : `<p class="muted small">Nothing waiting on you.</p>`)) +
       `<label class="f" for="q">Units</label><input class="f" id="q" placeholder="Search unit or client" value="${esc(q)}">
        <div class="rows" style="margin-top:8px">${units.slice(0, 60).map(u => `<button class="row" data-unit="${esc(u.unit)}"><span class="col"><span class="t">${esc(u.unit)}</span>
          <span class="s">${esc(u.client || "No client name")}${u.project ? " · " + esc(u.project) : ""}</span>
@@ -165,7 +179,7 @@ const V = {
        <label class="f" for="ce">Client email</label><input class="f" id="ce" type="email" value="${esc(U.email)}">
        <div class="grid2" style="margin-top:12px"><button class="btn ghost small" id="copy" style="width:100%">Copy client link</button><button class="btn ghost small" id="invite" style="width:100%">${U.invitedAt ? "Resend invitation" : "Send invitation"}</button></div>
        ${U.invited ? `<button class="small muted" id="newLink" style="background:none;border:0;padding:8px 0;text-decoration:underline">Make a new link (the old one stops working)</button>` : ""}
-       <div class="stack"><button class="btn" id="newItem">Send new item for approval</button></div>` +
+       <div class="stack"><button class="btn" id="newItem">Send new item for approval</button>${U.invited ? `<button class="btn ghost" data-chat="${esc(U.unit)}">Chat with client${unitUnread(U.unit) ? ` · ${unitUnread(U.unit)} new` : ""}</button>` : ""}</div>` +
       `<div class="eyebrow" style="margin-top:18px">Items</div>` +
       (U.items.length ? `<div class="rows" style="margin-top:8px">${U.items.map(x => `<div class="row" style="align-items:flex-start"><span class="col"><span class="eyebrow m">${esc(x.type)} · v${x.version}</span><span class="t">${esc(x.title)}</span>
           <span class="s">${x.status === "Rejected" ? "Client: " + esc(x.reason) + " · " + when(x.decidedAt) : x.decidedAt ? esc(x.decidedBy) + " · " + when(x.decidedAt) : "Sent by " + esc(x.sentBy) + " · " + when(x.sentAt)}</span>
@@ -256,7 +270,8 @@ const V = {
 function bind() {
   const v = $("view");
   v.querySelectorAll("[data-home]").forEach(b => b.onclick = home);
-  v.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => b.dataset.switch === "dash" ? openDash() : home());
+  v.querySelectorAll("[data-switch]").forEach(b => b.onclick = () => ({ dash: openDash, inbox: openInbox }[b.dataset.switch] || home)());
+  v.querySelectorAll("[data-chat]").forEach(b => b.onclick = () => openChatPm(b.dataset.chat));
   v.querySelectorAll("[data-dfilter]").forEach(b => b.onclick = () => { dashFilter = b.dataset.dfilter; render(); if (b.classList.contains("tile")) document.querySelector(".urows").scrollIntoView({ behavior: "smooth" }); });
   v.querySelectorAll("[data-unit]").forEach(b => b.onclick = async () => {
     await openUnit(b.dataset.unit);
@@ -427,8 +442,40 @@ async function busy(btn, fn) {
   try { await fn(); } catch (e) { toast(e.message); } finally { if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = t; } }
 }
 
+/* ---------- chat ---------- */
+const lastText = l => l.kind === "voice" ? `Voice note (${l.secs}s)` : l.kind === "photo" ? "Photo" + (l.text ? " · " + l.text : "") : l.kind === "urgent" ? "URGENT: please call me" : l.text;
+const waitText = x => x.waitMin < 1 ? (IB.rules.open ? "Just now" : "Waiting since " + shortWhen(x.waitingSince) + " (outside working hours)") : `Waiting ${x.waitMin < 60 ? x.waitMin + " min" : Math.floor(x.waitMin / 60) + " h " + (x.waitMin % 60) + " min"} in working hours`;
+const unitUnread = u => { const x = IB && IB.inbox.find(i => i.unit === u); return x ? x.unread : 0; };
+function waitingChats() {
+  const w = IB ? IB.inbox.filter(x => x.waiting) : [];
+  return w.length ? `<div class="stack" style="margin:0">${w.map(x => `<button class="cta" style="margin:0;${x.late || x.urgent ? "border-color:var(--problem);background:#fff" : ""}" data-chat="${esc(x.unit)}">
+    <span><span class="eyebrow m">${x.urgent ? "Urgent call · " : "Chat · "}${esc(x.unit)}</span><b>${esc(x.last.from === "client" ? x.last.name : x.client || "Client")}: ${esc(lastText(x.last)).slice(0, 80)}</b>
+    <span class="small ${x.late ? "" : "muted"}" style="${x.late ? "color:var(--problem);font-weight:600" : ""}">${waitText(x)}${x.late ? " · past the reply promise" : ""}</span></span>
+    <span class="small" style="font-weight:600;color:var(--navy)">Reply</span></button>`).join("")}</div>` : "";
+}
+async function openInbox() {
+  view = "inbox"; render(); scrollTo(0, 0);
+  try { IB = await call({ action: "portal.pm.inbox" }); render(); } catch (e) { fail(e.message); }
+}
+function openChatPm(unit) {
+  if (!me) return pickName();
+  const from = view === "unit" ? "unit" : view === "inbox" ? "inbox" : "home";
+  const x = IB && IB.inbox.find(i => i.unit === unit);
+  Chat.open($("view"), {
+    side: "team", title: unit + (x && x.client ? " · " + x.client : U && U.unit === unit && U.client ? " · " + U.client : ""), avatar: `<img src="assets/oplus-mark-white.png" alt="" style="filter:invert(1)">`,
+    quick: ["Received, I will check and reply today.", "The team is on site today.", "I will call you now.", "Done. Please see the photos.", "وصلت، هراجع وأرد عليك النهارده.", "الفريق في الموقع النهارده.", "هكلمك دلوقتي.", "تم، برجاء مراجعة الصور."],
+    empty: "No messages yet. Write to the client: they get an email if they don't open it within 10 minutes.",
+    statusLine: c => c.read.client ? "Client opened the chat " + shortWhen(c.read.client) : "The client has not opened the chat yet",
+    call: p => call(Object.assign({}, p, { action: { get: "portal.pm.chat", send: "portal.pm.chat.send", file: "portal.pm.chat.file" }[p.action], unit, by: me })),
+    onSeen: () => { if (IB) IB.inbox.forEach(i => { if (i.unit === unit) i.unread = 0; }); },
+    onBack: () => { if (from === "unit") openUnit(unit); else if (from === "inbox") openInbox(); else home(); }
+  });
+}
+// a link from an alert email: pm.html#chat=OW/...
+const deep = decodeURIComponent((location.hash.match(/chat=([^&]+)/) || [])[1] || "");
+
 // start only after everything above is defined
-if (!pmToken) login(); else home();
+if (!pmToken) login(); else if (deep) { history.replaceState(null, "", location.pathname); home().then(() => openChatPm(deep)); } else home();
 </script>
 </body>
 </html>

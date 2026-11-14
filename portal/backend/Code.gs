@@ -17,6 +17,7 @@
  *   Portal Clients   one row per unit that has a portal link
  *   Portal Items     scope items, date changes and selections sent for approval (one row per version)
  *   Portal Concerns  client concerns; Portal Messages holds the conversation
+ *   Portal Chat      the WhatsApp-style chat per unit (text, photos, voice notes); Portal Chat Read holds who has seen what
  *   Portal Log       the agreed record: every send, approval, rejection and reply. Protected: only the owner can edit.
  *   Settings         "Team emails": who is told about approvals, rejections and new concerns
  *
@@ -41,7 +42,7 @@ function doPost(e) {
   } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
 }
 
-const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', certs: 'Portal Handover', docs: 'Portal Documents', log: 'Portal Log' };
+const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal Concerns', messages: 'Portal Messages', snags: 'Portal Snags', certs: 'Portal Handover', docs: 'Portal Documents', chat: 'Portal Chat', chatRead: 'Portal Chat Read', log: 'Portal Log' };
 const PORTAL_URL = 'https://xowestx.github.io/owest-site-camera/portal/';
 const PORTAL_ASSETS = 'https://xowestx.github.io/owest-site-camera/portal/assets/';
 const PORTAL_ROOT = 'O West Client Portal';
@@ -85,6 +86,10 @@ function portal_(b) {
     if (a === 'portal.pm.doc') return pmDoc_(b);
     if (a === 'portal.pm.docremove') return pmDocRemove_(b);
     if (a === 'portal.pm.docget') return docGet_(unitInfo_(str_(b.unit)).unit, b.docId);
+    if (a === 'portal.pm.chat') return chatView_(unitInfo_(str_(b.unit)).unit, 'team', str_(b.by), b.after);
+    if (a === 'portal.pm.chat.send') return chatSend_(unitInfo_(str_(b.unit)).unit, 'team', str_(b.by) || 'O West team', b);
+    if (a === 'portal.pm.chat.file') return chatFile_(unitInfo_(str_(b.unit)).unit, b.id);
+    if (a === 'portal.pm.inbox') return pmInbox_();
     if (a === 'portal.pm.certpdf') return certPdf_(unitInfo_(str_(b.unit)).unit, b.certId);
   } else {
     const c = clientByToken_(b.token);
@@ -101,6 +106,9 @@ function portal_(b) {
     if (a === 'portal.cert.decline') return clientCertDecline_(c, b);
     if (a === 'portal.cert.pdf') return certPdf_(c.unit, b.certId);
     if (a === 'portal.doc') return docGet_(c.unit, b.docId);
+    if (a === 'portal.chat') return chatView_(c.unit, 'client', c.name, b.after);
+    if (a === 'portal.chat.send') return chatSend_(c.unit, 'client', c.name || 'Client', b);
+    if (a === 'portal.chat.file') return chatFile_(c.unit, b.id);
   }
   throw new Error('Unknown portal action.');
 }
@@ -113,6 +121,14 @@ function clientByToken_(token) {
   const r = rows_(PT.clients).find(x => str_(x['Token']) === t);
   if (!r) { const e = new Error('This link is no longer active. Please ask your project manager for a new one.'); e.code = 'link'; throw e; }
   return { unit: str_(r['Unit']), name: str_(r['Client name']), email: str_(r['Client email']), pm: str_(r['Invited by']), token: t };
+}
+
+/** Messages from the other side that this side has not opened yet. */
+function chatUnread_(unit, side) {
+  const other = side === 'client' ? 'team' : 'client';
+  const ref = findRow_(PT.chatRead, PCR_HEADERS, 'Unit', unit);
+  const seen = ref ? ts_(ref.obj[side === 'client' ? 'Client read at' : 'Team read at']) : '';
+  return chatRows_(unit).filter(r => str_(r['From']) === other && ts_(r['At']) > seen).length;
 }
 
 function touchClient_(c) {
@@ -130,7 +146,7 @@ function clientView_(c) {
     email: maskEmail_(c.email), status: unitStatus_(c.unit),
     items: unitItems_(c.unit).filter(x => x.status !== S_OLD),
     concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit), certs: unitCerts_(c.unit), docs: unitDocs_(c.unit),
-    history: unitLog_(c.unit)
+    history: unitLog_(c.unit), chatUnread: chatUnread_(c.unit, 'client')
   };
 }
 
@@ -224,10 +240,10 @@ function addSnag_(unit, b, by, from, photoIds) {
 }
 
 /** One email per unit per half hour, so a walk-through of 30 snags is not 30 emails. */
-function snagMailDue_(key) {
+function snagMailDue_(key, gap) {
   const cache = CacheService.getScriptCache();
   if (cache.get(key)) return false;
-  cache.put(key, '1', SNAG_MAIL_GAP);
+  cache.put(key, '1', gap || SNAG_MAIL_GAP);
   return true;
 }
 
@@ -1019,12 +1035,226 @@ function mailHtml_(eyebrow, title, lines, button) {
   </table></div>`;
 }
 
+/* =========================== chat (WhatsApp-style, one conversation per unit) =========================== */
+/* Text, photos and voice notes. "Seen" = the other side opened the chat after the message arrived.
+   chatWatch (every 15 min) emails the client about unseen team messages, and alerts the team when a client
+   waits longer than the reply promise in working hours (Settings: Reply within (minutes), Working hours, Working days, Escalation emails). */
+
+const PCH_HEADERS = ['Msg ID', 'Unit', 'At', 'From', 'Name', 'Kind', 'Text', 'File ID', 'Mime', 'Seconds', 'Reply to'];
+const PCR_HEADERS = ['Unit', 'Client read at', 'Team read at', 'Team read by', 'Client mailed at', 'Alert at', 'Alert level'];
+const CHAT_KINDS = ['text', 'photo', 'voice', 'urgent'];
+const VOICE_TYPES = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/aac': 'aac' };
+const VOICE_MAX_B64 = 4 * 1024 * 1024; // about 3 MB: well over 3 minutes at 32 kbit/s
+const CHAT_CLIENT_MAIL_AFTER = 10; // minutes a team message waits unseen before the client gets an email
+
+function ts_(v) { return v instanceof Date ? fmt_(v, 'yyyy-MM-dd HH:mm:ss') : str_(v); }
+function nowS_() { return fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss'); }
+function parseTs_(s) {
+  const m = str_(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  // stored in Cairo time; turn back into an instant (Cairo is UTC+2, +3 in summer: use the script's own offset)
+  const guess = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  const off = Number(fmt_(guess, 'Z').replace(/^([+-])(\d\d)(\d\d)$/, (x, s, h, mm) => (s === '-' ? -1 : 1) * (h * 60 + +mm)));
+  return new Date(guess.getTime() - off * 60000);
+}
+
+function chatRules_() {
+  const S = settings_();
+  const wh = str_(S['Working hours'] || '09:00-18:00').match(/(\d{1,2}):?(\d{2})?\s*-\s*(\d{1,2}):?(\d{2})?/) || [0, 9, 0, 18, 0];
+  const days = str_(S['Working days'] || 'Sat,Sun,Mon,Tue,Wed,Thu').split(/[,\s]+/).map(d => d.slice(0, 3).toLowerCase()).filter(Boolean);
+  return {
+    within: Math.max(5, Number(S['Reply within (minutes)']) || 60),
+    start: +wh[1] * 60 + +(wh[2] || 0), end: +wh[3] * 60 + +(wh[4] || 0), days: days,
+    escalate: str_(S['Escalation emails']) || str_(S['Team emails'])
+  };
+}
+
+/** Is this instant inside working hours? Also tells when work starts again. */
+function workState_(d, R) {
+  const dow = fmt_(d, 'EEE').toLowerCase(), mins = +fmt_(d, 'HH') * 60 + +fmt_(d, 'mm');
+  const open = R.days.indexOf(dow) >= 0 && mins >= R.start && mins < R.end;
+  if (open) return { open: true };
+  for (let i = 0; i < 8; i++) {
+    const day = new Date(d.getTime() + i * 864e5);
+    if (R.days.indexOf(fmt_(day, 'EEE').toLowerCase()) < 0) continue;
+    if (i === 0 && mins >= R.start) continue;
+    return { open: false, next: fmt_(day, 'yyyy-MM-dd') + ' ' + ('0' + Math.floor(R.start / 60)).slice(-2) + ':' + ('0' + R.start % 60).slice(-2) };
+  }
+  return { open: false, next: '' };
+}
+
+/** Working minutes between two instants (only the time inside working hours counts). */
+function workMinutes_(from, to, R) {
+  let total = 0, key = fmt_(from, 'yyyy-MM-dd');
+  for (let i = 0; i < 60; i++) {
+    const d0 = parseTs_(key + ' 00:00:00');
+    if (d0 > to) break;
+    if (R.days.indexOf(fmt_(d0, 'EEE').toLowerCase()) >= 0) {
+      const a = Math.max(from.getTime(), d0.getTime() + R.start * 60000), b = Math.min(to.getTime(), d0.getTime() + R.end * 60000);
+      if (b > a) total += (b - a) / 60000;
+    }
+    key = fmt_(new Date(d0.getTime() + 26 * 3600e3), 'yyyy-MM-dd');
+  }
+  return Math.round(total);
+}
+
+function chatRows_(unit) {
+  const k = unit.toLowerCase();
+  return rows_(PT.chat).filter(r => low_(r['Unit']) === k);
+}
+function chatMsg_(r) {
+  return { id: str_(r['Msg ID']), at: ts_(r['At']), from: str_(r['From']), name: str_(r['Name']), kind: str_(r['Kind']) || 'text',
+    text: str_(r['Text']), file: str_(r['File ID']), mime: str_(r['Mime']), secs: Number(r['Seconds'] || 0), replyTo: str_(r['Reply to']) };
+}
+function chatRead_(unit) {
+  const ref = findRow_(PT.chatRead, PCR_HEADERS, 'Unit', unit);
+  return ref || (sheet_(PT.chatRead, PCR_HEADERS).appendRow([unit, '', '', '', '', '', 0]), findRow_(PT.chatRead, PCR_HEADERS, 'Unit', unit));
+}
+
+/** The conversation for one side. Opening it marks the other side's messages as seen. */
+function chatView_(unit, side, by, after) {
+  const all = chatRows_(unit).map(chatMsg_);
+  const other = side === 'client' ? 'team' : 'client';
+  const ref = chatRead_(unit);
+  const lastOther = all.filter(m => m.from === other).map(m => m.at).sort().pop() || '';
+  const mineKey = side === 'client' ? 'Client read at' : 'Team read at';
+  if (lastOther && ts_(ref.obj[mineKey]) < lastOther) {
+    const patch = {}; patch[mineKey] = nowS_();
+    if (side === 'team') { patch['Team read by'] = by || 'O West team'; patch['Alert level'] = 0; }
+    setCells_(ref, patch); Object.assign(ref.obj, patch);
+  }
+  const R = chatRules_(), ws = workState_(new Date(), R);
+  const n = Math.max(0, Number(after) || 0);
+  return {
+    chat: {
+      unit: unit, total: all.length, msgs: all.slice(n), from: n,
+      read: { client: ts_(ref.obj['Client read at']), team: ts_(ref.obj['Team read at']), teamBy: str_(ref.obj['Team read by']) },
+      rules: { within: R.within, open: ws.open, next: ws.next || '' }
+    }
+  };
+}
+
+function chatSend_(unit, side, name, b) {
+  const kind = CHAT_KINDS.indexOf(str_(b.kind)) >= 0 ? str_(b.kind) : 'text';
+  const text = str_(b.text).slice(0, 4000);
+  let file = '', mime = '', secs = 0;
+  if (kind === 'photo') { file = savePortalPhoto_(unit, b.data, 'chat'); mime = 'image/jpeg'; }
+  else if (kind === 'voice') {
+    const m = str_(b.data).match(/^data:(audio\/[\w.+-]+)(?:;[^,]*)?;base64,(.+)$/);
+    if (!m) throw new Error('The voice note could not be read. Please record it again.');
+    const base = m[1].split(';')[0];
+    if (!VOICE_TYPES[base]) throw new Error('This voice note format is not supported.');
+    if (m[2].length > VOICE_MAX_B64) throw new Error('The voice note is too long. Please keep it under 3 minutes.');
+    const blob = Utilities.newBlob(Utilities.base64Decode(m[2]), base, `${safeUnit_(unit)}_voice_${fmt_(new Date(), 'yyyyMMdd_HHmmss')}.${VOICE_TYPES[base]}`);
+    file = folderPath_([PORTAL_ROOT, safeUnit_(unit), 'Chat']).createFile(blob).getId();
+    mime = base; secs = Math.min(600, Math.max(1, Math.round(Number(b.secs) || 1)));
+  } else if (!text) throw new Error('Please write a message.');
+  const id = 'M' + fmt_(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
+  withLock_(() => {
+    sheet_(PT.chat, PCH_HEADERS).appendRow([id, unit, nowS_(), side, name, kind, text, file, mime, secs || '', str_(b.replyTo).slice(0, 40)]);
+    // sending a message also means you have read everything before it
+    const ref = chatRead_(unit);
+    const patch = side === 'client' ? { 'Client read at': nowS_() } : { 'Team read at': nowS_(), 'Team read by': name, 'Alert level': 0 };
+    setCells_(ref, patch);
+  });
+  const preview = kind === 'voice' ? `Voice note (${secs}s)` : kind === 'photo' ? 'Photo' + (text ? ': ' + text : '') : text;
+  if (side === 'client') {
+    if (kind === 'urgent') {
+      const R = chatRules_();
+      log_(unit, 'Urgent call requested', id, '', 'Client asked for a call', text, name, '');
+      const to = [settings_()['Team emails'], R.escalate].filter(Boolean).join(',');
+      if (to) try {
+        MailApp.sendEmail({ to: to, name: 'O-Plus Client Portal', subject: `URGENT · ${unit} · ${name} asked for a call`,
+          htmlBody: mailHtml_('URGENT · CALL THE CLIENT', `${name} asked for a call within 30 minutes`, [text || 'No details given.', 'Call the client, then reply in the portal chat so it stays on the record.'], { label: 'Open the chat', url: PORTAL_URL + 'pm.html#chat=' + encodeURIComponent(unit) }) });
+      } catch (e) { console.error(e); }
+    } else if (snagMailDue_('pchatmail:' + unit, 600)) {
+      notifyTeam_(`${unit} · New message from ${name}`, 'CLIENT CHAT', `${name} wrote in the portal`, [preview, 'Reply in the team portal. The client sees when you have read it.']);
+    }
+  }
+  return chatView_(unit, side, name, b.after);
+}
+
+/** Photos and voice notes are served only to the client of that unit, or to the team. */
+function chatFile_(unit, id) {
+  const r = chatRows_(unit).find(x => str_(x['File ID']) === str_(id));
+  if (!r) throw new Error('File not found.');
+  const f = DriveApp.getFileById(str_(id));
+  return { id: str_(id), mime: str_(r['Mime']), data: `data:${str_(r['Mime']) || 'application/octet-stream'};base64,` + Utilities.base64Encode(f.getBlob().getBytes()) };
+}
+
+/** Team inbox: every unit with a conversation, the ones where the client is waiting first. */
+function pmInbox_() {
+  const R = chatRules_(), now = new Date();
+  const reads = {}; rows_(PT.chatRead).forEach(r => reads[low_(r['Unit'])] = r);
+  const clients = {}; rows_(PT.clients).forEach(r => clients[low_(r['Unit'])] = r);
+  const by = groupBy_(rows_(PT.chat).map(r => Object.assign(chatMsg_(r), { unit: str_(r['Unit']) })), m => m.unit.toLowerCase());
+  const list = Object.keys(by).map(k => {
+    const ms = by[k], last = ms[ms.length - 1], rd = reads[k] || {};
+    const teamRead = ts_(rd['Team read at']);
+    const lastTeam = ms.filter(m => m.from === 'team').map(m => m.at).pop() || '';
+    const waiting = ms.filter(m => m.from === 'client' && m.at > lastTeam);
+    const waitMin = waiting.length ? workMinutes_(parseTs_(waiting[0].at), now, R) : 0;
+    return {
+      unit: last.unit, client: clients[k] ? str_(clients[k]['Client name']) : '',
+      last: { from: last.from, name: last.name, kind: last.kind, text: last.text.slice(0, 120), at: last.at, secs: last.secs },
+      unread: ms.filter(m => m.from === 'client' && m.at > teamRead).length,
+      waiting: waiting.length, waitingSince: waiting.length ? waiting[0].at : '', waitMin: waitMin,
+      late: waiting.length > 0 && waitMin >= R.within, urgent: waiting.some(m => m.kind === 'urgent'),
+      seenByClient: last.from === 'team' && ts_(rd['Client read at']) >= last.at
+    };
+  });
+  list.sort((a, b) => (b.urgent - a.urgent) || (b.waiting > 0) - (a.waiting > 0) || (a.waiting && b.waiting ? (a.waitingSince < b.waitingSince ? -1 : 1) : (a.last.at < b.last.at ? 1 : -1)));
+  return { inbox: list, rules: { within: R.within, open: workState_(now, R).open } };
+}
+
+/** Every 15 minutes: nudge the client by email about unseen replies, and alert the team when a client waits too long. */
+function chatWatch() {
+  const R = chatRules_(), now = new Date(), open = workState_(now, R).open;
+  const S = settings_();
+  const clients = {}; rows_(PT.clients).forEach(r => clients[low_(r['Unit'])] = r);
+  const by = groupBy_(rows_(PT.chat).map(r => Object.assign(chatMsg_(r), { unit: str_(r['Unit']) })), m => m.unit.toLowerCase());
+  Object.keys(by).forEach(k => {
+    try {
+      const ms = by[k], unit = ms[0].unit, ref = chatRead_(unit), rd = ref.obj;
+      // 1. the client has team messages they have not opened for 10+ minutes: one email per batch
+      const unseen = ms.filter(m => m.from === 'team' && m.at > ts_(rd['Client read at']) && m.at > ts_(rd['Client mailed at']));
+      const c = clients[k];
+      if (unseen.length && c && str_(c['Client email']) && (now - parseTs_(unseen[unseen.length - 1].at)) / 60000 >= CHAT_CLIENT_MAIL_AFTER) {
+        MailApp.sendEmail({ to: str_(c['Client email']), name: 'O West Extra Works',
+          subject: `New message from ${unseen[unseen.length - 1].name} · ${unit}`,
+          htmlBody: mailHtml_('O-PLUS · CLIENT PORTAL', `You have ${unseen.length} new message${unseen.length > 1 ? 's' : ''}`,
+            unseen.slice(-3).map(m => `${m.name}: ${m.kind === 'voice' ? 'Voice note' : m.kind === 'photo' ? 'Photo' + (m.text ? ' · ' + m.text : '') : m.text}`),
+            { label: 'Open the chat', url: PORTAL_URL + '#t=' + str_(c['Token']) + '&v=chat' }) });
+        setCells_(ref, { 'Client mailed at': nowS_() });
+      }
+      // 2. the client is waiting for a reply: alert at the promise, escalate at twice the promise (working time only)
+      if (!open) return;
+      const lastTeam = ms.filter(m => m.from === 'team').map(m => m.at).pop() || '';
+      const waiting = ms.filter(m => m.from === 'client' && m.at > lastTeam);
+      if (!waiting.length) return;
+      const mins = workMinutes_(parseTs_(waiting[0].at), now, R), level = Number(rd['Alert level'] || 0);
+      const want = mins >= R.within * 2 ? 2 : mins >= R.within ? 1 : 0;
+      if (want > level) {
+        const to = want === 2 ? [S['Team emails'], R.escalate].filter(Boolean).join(',') : S['Team emails'];
+        if (to) MailApp.sendEmail({ to: to, name: 'O-Plus Client Portal',
+          subject: `${want === 2 ? 'ESCALATION' : 'Reply needed'} · ${unit} · client waiting ${hm_(mins)}`,
+          htmlBody: mailHtml_(want === 2 ? 'ESCALATION · CLIENT WAITING' : 'CLIENT WAITING FOR A REPLY', `${waiting[0].name} has waited ${hm_(mins)}`,
+            waiting.slice(-3).map(m => m.kind === 'voice' ? 'Voice note' : m.kind === 'photo' ? 'Photo' : m.text).concat([`The promise to clients is a reply within ${hm_(R.within)} in working hours.`]),
+            { label: 'Reply now', url: PORTAL_URL + 'pm.html#chat=' + encodeURIComponent(unit) }) });
+        setCells_(ref, { 'Alert at': nowS_(), 'Alert level': want });
+        if (want === 2) log_(unit, 'Chat escalated', '', '', 'Client waited ' + hm_(mins), '', 'Portal', '');
+      }
+    } catch (e) { console.error(e); }
+  });
+}
+function hm_(m) { m = Math.round(m); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); }
+
 /* =========================== setup =========================== */
 
 /** Run once (or from the menu): makes the portal tabs and protects the record. */
 function portalSetup() {
   SpreadsheetApp.getActive().setSpreadsheetTimeZone(TZ);
-  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS); sheet_(PT.certs, PH_HEADERS); sheet_(PT.docs, PD_HEADERS);
+  sheet_(PT.clients, PC_HEADERS); sheet_(PT.items, PI_HEADERS); sheet_(PT.concerns, PCN_HEADERS); sheet_(PT.messages, PMS_HEADERS); sheet_(PT.snags, PSN_HEADERS); sheet_(PT.certs, PH_HEADERS); sheet_(PT.docs, PD_HEADERS); sheet_(PT.chat, PCH_HEADERS); sheet_(PT.chatRead, PCR_HEADERS);
   const log = sheet_(PT.log, PL_HEADERS);
   if (!log.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
     const p = log.protect().setDescription('Client portal record: written by the portal only');
@@ -1032,10 +1262,14 @@ function portalSetup() {
     if (p.canDomainEdit()) p.setDomainEdit(false);
   }
   folderPath_([PORTAL_ROOT]);
-  if (!('Team emails' in settings_())) sheet_('Settings', ['Setting', 'Value']).appendRow(['Team emails', '']);
+  const S0 = settings_();
+  [['Team emails', ''], ['Escalation emails', ''], ['Reply within (minutes)', 60], ['Working hours', '09:00-18:00'], ['Working days', 'Sat,Sun,Mon,Tue,Wed,Thu']]
+    .forEach(x => { if (!(x[0] in S0)) sheet_('Settings', ['Setting', 'Value']).appendRow(x); });
   sheet_(DASH_TAB, DASH_COLS);
   if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dashRefresh'))
     ScriptApp.newTrigger('dashRefresh').timeBased().everyHours(1).create();
+  if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'chatWatch'))
+    ScriptApp.newTrigger('chatWatch').timeBased().everyMinutes(15).create();
   MailApp.getRemainingDailyQuota();
   try { SpreadsheetApp.getUi().alert('Client portal is ready. Next: set the team password, connect ClickUp, and fill "Team emails" in Settings.'); } catch (e) {}
 }

@@ -10,6 +10,12 @@
 <link rel="icon" href="assets/oplus-mark-white.png">
 <link rel="preconnect" href="https://script.google.com">
 <link rel="stylesheet" href="portal.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="O-Plus">
 </head>
 <body>
 <header class="band"><div class="in">
@@ -26,14 +32,15 @@
 
 <nav class="tabs" id="tabs" hidden><div class="in">
   <button data-v="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3v-9z"/></svg><span data-t="Home|الرئيسية"></span></button>
+  <button data-v="chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 01-11.6 7.1L4 20l1-4A8 8 0 1120 12z"/></svg><span data-t="Chat|المحادثة"></span><span class="badge" id="chatBadge" hidden></span></button>
   <button data-v="approvals"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg><span data-t="Approvals|الموافقات"></span><span class="badge" id="badge" hidden></span></button>
-  <button data-v="selections"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg><span data-t="Selections|الخامات"></span></button>
   <button data-v="concerns"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5z"/></svg><span data-t="Concerns|الاستفسارات"></span></button>
   <button data-v="snags" id="snagTab" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3H8z"/><path d="M8 5H5v16h14V5h-3"/><path d="M9 14l2 2 4-4"/></svg><span data-t="Snags|الاستلام"></span><span class="badge" id="snagBadge" hidden></span></button>
   <button data-v="history"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-t="History|السجل"></span></button>
 </div></nav>
 
 <script src="portal.js"></script>
+<script src="portal-chat.js"></script>
 <script>
 let token = "", D = null, view = "home", filter = "all", snagFilter = "all", sel = null, back = "approvals";
 /** L("English", "عربي"): the text in the language the client chose. */
@@ -44,9 +51,12 @@ function start() {
   applyLang();
   const m = location.hash.match(/t=([A-Za-z0-9]+)/);
   try {
-    if (m) { token = m[1]; localStorage.setItem("oplus_t", token); history.replaceState(null, "", location.pathname); }
+    if (m) { token = m[1]; localStorage.setItem("oplus_t", token); }
     else token = localStorage.getItem("oplus_t") || "";
   } catch (e) { if (m) token = m[1]; }
+  // the link stays in the address bar: "Add to Home Screen" on an iPhone saves this exact address
+  if (/[#&]v=chat/.test(location.hash)) view = "chat";
+  if (token) history.replaceState(null, "", location.pathname + "#t=" + token);
   if (!token) return fail(L("Please open the portal from the link in your email.", "برجاء فتح البوابة من الرابط المرسل في بريدك الإلكتروني."));
   $("view").innerHTML = `<div class="center">${L("Loading your portal…", "جاري التحميل…")}</div>`;
   load();
@@ -100,6 +110,8 @@ document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.da
 function go(v, extra) { view = v; if (extra) Object.assign(window, extra); render(); scrollTo(0, 0); }
 
 function render() {
+  if (view === "chat") return openChat();
+  if (Chat.isOpen()) Chat.close();
   $("tabs").hidden = false;
   $("unitLine").textContent = L("Client portal", "بوابة العميل") + " · " + D.unit;
   $("clientLine").textContent = D.client || "";
@@ -108,10 +120,13 @@ function render() {
   // The snag list appears from Quality Inspection on, or as soon as there is a snag.
   const snags = D.snags || [], showSnags = snags.length > 0 || (D.status && D.status.stage >= 4);
   $("snagTab").hidden = !showSnags;
+  const un = D.chatUnread || 0;
+  $("chatBadge").hidden = !un; $("chatBadge").textContent = un;
+  try { if (navigator.setAppBadge) un + p ? navigator.setAppBadge(un + p) : navigator.clearAppBadge(); } catch (e) {}
   document.querySelector("#tabs .in").style.gridTemplateColumns = `repeat(${showSnags ? 6 : 5},minmax(0,1fr))`;
   const chk = snags.filter(x => x.status === "Fixed").length;
   $("snagBadge").hidden = !chk; $("snagBadge").textContent = chk;
-  const tab = { item: back, concern: "concerns", snag: "snags", cert: "home", docs: "home" }[view] || view;
+  const tab = { item: back === "selections" ? "home" : back, selections: "home", concern: "concerns", snag: "snags", cert: "home", docs: "home" }[view] || view;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === tab));
   $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span class="ltr">${esc(D.unit)}</span></div>`;
   bind();
@@ -127,7 +142,7 @@ const VIEWS = {
         <div><div class="eyebrow m">${L("Progress", "نسبة الإنجاز")}</div><div class="big">${s.poc == null ? "—" : s.poc + "%"}</div></div>
         <div><div class="eyebrow m">${L("Handover", "التسليم")}</div><div class="v">${s.handover ? when(s.handover, true) : "—"}</div></div>
         <div><div class="eyebrow m">${L("PM", "مدير المشروع")}</div><div class="v">${esc(s.pm || D.pm || "—")}</div></div>
-      </div>` + stepper(s.stage) +
+      </div>` + stepper(s.stage) + installBanner() + chatCard() +
       (ct && ct.status === "Sent for signature" ? `<button class="cta" data-go="cert"><span><span class="eyebrow">${L("Handover", "التسليم")}</span><b>${L("Your handover certificate is ready to sign", "شهادة الاستلام جاهزة للتوقيع")}</b><span class="small muted">${L("Review it and sign with an email code", "راجعها ووقّع بكود عبر البريد الإلكتروني")}</span></span>${CHEV}</button>` : "") +
       (p ? `<button class="cta" data-go="approvals" data-filter="Sent for approval"><span><span class="eyebrow">${L("Action needed", "مطلوب منك")}</span><b>${L(`${p} item${p > 1 ? "s" : ""} need${p > 1 ? "" : "s"} your approval`, `${p} بند بانتظار موافقتك`)}</b><span class="small muted">${L("Approve, or tell us what to change", "وافق، أو أخبرنا بما تريد تعديله")}</span></span>${CHEV}</button>` : "") +
       (f ? `<button class="cta" data-go="snags" data-sfilter="Fixed"><span><span class="eyebrow">${L("Snag list", "ملاحظات الاستلام")}</span><b>${L(`${f} fix${f > 1 ? "es" : ""} ready for your check`, `${f} إصلاح جاهز لمراجعتك`)}</b><span class="small muted">${L("See the after photo and confirm", "شاهد صورة ما بعد الإصلاح وأكّد")}</span></span>${CHEV}</button>` : "") +
@@ -437,6 +452,53 @@ function newConcern(extra) {
     closeSheet(); sel = D.concerns[0] && D.concerns[0].id; go("concern"); toast(L("Sent. Your PM will reply here.", "تم الإرسال. سيرد مدير المشروع هنا."));
   });
 }
+
+/* ---------- chat ---------- */
+const within = n => n % 60 === 0 ? L(n === 60 ? "1 hour" : n / 60 + " hours", n === 60 ? "ساعة" : n / 60 + " ساعات") : L(n + " minutes", n + " دقيقة");
+const initials = n => String(n || "PM").replace(/^(Eng\.|م\.)\s*/i, "").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+function pmName() { return (D.status && D.status.pm) || D.pm || L("Your PM", "مدير المشروع"); }
+function openChat() {
+  $("tabs").hidden = true;
+  Chat.open($("view"), {
+    side: "client", L, title: pmName() + " · O-Plus", avatar: esc(initials(pmName())),
+    quick: AR() ? ["فيه أي جديد النهارده؟", "الفريق هيكون في الموقع إمتى؟", "ممكن تكلمني؟", "شكراً 👍"] : ["Any update today?", "When is the team on site?", "Please call me", "Thank you 👍"],
+    empty: L("Write to your project manager here, just like WhatsApp: messages, photos and voice notes. Everything stays on your unit's record, and you will see when it has been read.",
+      "اكتب لمدير المشروع هنا مثل واتساب تماماً: رسائل وصور ورسائل صوتية. كل شيء يُحفظ في سجل وحدتك، وسترى متى تمت قراءة رسالتك."),
+    statusLine: c => c.rules.open ? L(`Usually replies within ${within(c.rules.within)}`, `يرد عادةً خلال ${within(c.rules.within)}`)
+      : L(`Outside working hours · replies ${shortWhen(c.rules.next)}`, `خارج مواعيد العمل · الرد ${shortWhen(c.rules.next)}`),
+    call: p => api(Object.assign({}, p, { action: { get: "portal.chat", send: "portal.chat.send", file: "portal.chat.file" }[p.action], token })),
+    onSeen: () => { if (D) D.chatUnread = 0; try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch (e) {} },
+    onBack: () => { view = "home"; render(); load(); }
+  });
+}
+function chatCard() {
+  const n = D.chatUnread || 0;
+  return `<button class="chatcta" data-go="chat"><span class="av"><img src="assets/oplus-mark-white.png" alt=""></span>
+    <span class="col"><b>${L("Chat with ", "تحدث مع ") + esc(pmName())}</b><span class="s">${n ? L(`${n} new message${n > 1 ? "s" : ""}`, `${n} رسالة جديدة`) : L("Messages, photos and voice notes", "رسائل وصور ورسائل صوتية")}</span></span>
+    ${n ? `<span class="n">${n}</span>` : CHEV}</button>`;
+}
+
+/* ---------- install as an app ---------- */
+let installEvt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (D && view === "home") render(); });
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+function installBanner() {
+  let off = false; try { off = localStorage.getItem("oplus_noinstall") === "1"; } catch (e) {}
+  if (standalone() || off) return "";
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (!ios && !installEvt) return "";
+  return `<div class="install"><img src="assets/icon-192.png" alt=""><span class="col"><b>${L("Add O-Plus to your home screen", "أضف O-Plus إلى شاشتك الرئيسية")}</b>
+    <span>${ios ? L("Tap Share, then “Add to Home Screen”. It opens like an app, no link needed.", "اضغط مشاركة ثم ”إضافة إلى الشاشة الرئيسية“. يفتح مثل التطبيق بدون رابط.")
+      : L("It opens like an app, no link needed.", "يفتح مثل التطبيق بدون رابط.")}</span></span>
+    ${ios ? "" : `<button class="btn" id="installGo">${L("Add", "إضافة")}</button>`}<button class="x" id="installX" aria-label="${L("Close", "إغلاق")}">×</button></div>`;
+}
+document.addEventListener("click", async e => {
+  if (e.target.closest("#installX")) { try { localStorage.setItem("oplus_noinstall", "1"); } catch (x) {} render(); }
+  if (e.target.closest("#installGo") && installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); }
+});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+// coming back to the app: refresh counts
+document.addEventListener("visibilitychange", () => { if (!document.hidden && D && view !== "chat" && !$("sheet")) load(); });
 
 start();
 </script>

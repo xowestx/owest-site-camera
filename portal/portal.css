@@ -75,7 +75,7 @@ main.in{padding-top:20px;padding-bottom:110px;min-height:60vh}
 .btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;border-radius:8px;border:0;background:var(--navy);color:#fff;font-size:15px;font-weight:600;text-decoration:none}
 .btn.ghost{background:#fff;border:1.5px solid var(--line);color:var(--navy)}
 .btn.bad{background:#fff;border:1.5px solid var(--line);color:var(--problem)}
-.btn.red{background:var(--problem)}
+.btn.red{background:var(--problem);color:#fff!important}
 .btn.small{min-height:40px;font-size:13px;width:auto;padding:0 16px}
 .btn:disabled{opacity:.5}
 .stack{display:flex;flex-direction:column;gap:10px;margin:14px 0}
@@ -164,3 +164,101 @@ html[dir=rtl] .toast{border-left:0;border-right:3px solid var(--amber)}
 .prog{position:relative;display:block;height:8px;background:var(--panel);border-radius:0 4px 4px 0}
 .prog i{display:block;height:100%;background:var(--navy);border-radius:0 4px 4px 0}
 .prog em{position:absolute;top:-4px;width:2px;height:16px;background:var(--amber);margin-left:-1px}
+/* ---------- chat (WhatsApp-style) ---------- */
+body.chatmode .band,body.chatmode .strip,body.chatmode nav.tabs,body.chatmode .foot{display:none!important}
+body.chatmode main.in{padding:0;max-width:none}
+.chatwrap{position:fixed;inset:0;display:flex;flex-direction:column;background:#EEF1F6;z-index:4}
+.chathead{background:var(--navy);color:#fff;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top,0)) 12px 8px 4px;min-height:60px;border-bottom:3px solid var(--amber)}
+.chathead .av{width:38px;height:38px;border-radius:999px;background:#fff;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;flex:none;overflow:hidden}
+.chathead .av img{height:26px}
+.chathead .who{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.chathead .who b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chathead .who span{font-size:11.5px;color:#C9CFDA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb{background:none;border:0;color:inherit;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:999px;flex:none;font-size:22px;padding:0}
+.cb svg{width:22px;height:22px}
+.chatlog{flex:1;overflow-y:auto;padding:10px 10px 14px;-webkit-overflow-scrolling:touch;max-width:760px;width:100%;margin:0 auto}
+.chempty{margin:40px 16px;text-align:center;color:var(--muted);font-size:13px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}
+.dsep{text-align:center;margin:12px 0 8px}
+.dsep span{background:#fff;border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;border-radius:999px;padding:3px 12px}
+.bub{position:relative;max-width:80%;width:fit-content;margin:3px 0;padding:7px 10px 5px;border-radius:10px;font-size:14px;line-height:1.45;box-shadow:0 1px 1px rgba(0,22,65,.08)}
+.bub.them{background:#fff;border-top-left-radius:3px}
+.bub.me{background:var(--navy);color:#fff;margin-left:auto;border-top-right-radius:3px}
+.bub.me a{color:#FFE3A1}
+.bub .bn{font-size:11.5px;font-weight:700;color:var(--active);margin-bottom:2px}
+.bub .bt{white-space:pre-wrap;word-break:break-word}
+.bub .bm{display:flex;align-items:center;justify-content:flex-end;gap:3px;font-size:10.5px;opacity:.75;margin-top:2px}
+.bub.me .bm{opacity:.85}
+.tk{display:inline-flex}.tk svg{width:16px;height:12px}
+.tk.seen{color:var(--amber);opacity:1}
+.bub .bimg{display:block;width:240px;max-width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:var(--panel);margin:2px 0;cursor:zoom-in}
+.bub .bq{border-left:3px solid var(--amber);background:rgba(0,22,65,.06);border-radius:4px;padding:4px 8px;margin:2px 0 5px;font-size:12px;display:flex;flex-direction:column}
+.bub.me .bq{background:rgba(255,255,255,.12)}
+.bub .bq span{opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.bub .rb{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;border-radius:999px;background:#fff;color:var(--muted);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,22,65,.15);opacity:.0;transition:opacity .15s}
+.bub .rb svg{width:15px;height:15px}
+.bub.them .rb{right:-38px}.bub.me .rb{left:-38px}
+.bub:hover .rb,.bub:focus-within .rb{opacity:1}
+@media (pointer:coarse){.bub .rb{opacity:.55}}
+.bub.urgent{border:2px solid var(--problem)}
+.burg{display:flex;align-items:center;gap:6px;color:var(--problem)}
+.bub.me .burg{color:#FFB4A8}
+.burg svg{width:18px;height:18px}
+.voice{display:flex;align-items:center;gap:10px;background:none;border:0;color:inherit;padding:4px 0;min-width:200px}
+.voice .pp{width:34px;height:34px;border-radius:999px;background:var(--amber);color:var(--navy);display:flex;align-items:center;justify-content:center;flex:none}
+.voice .pp svg{width:16px;height:16px}
+.voice .track{flex:1;height:4px;border-radius:999px;background:rgba(127,140,160,.35);position:relative;overflow:hidden}
+.voice .track i{position:absolute;left:0;top:0;bottom:0;width:0;background:currentColor}
+.voice .dur{font-size:11.5px;min-width:32px}
+.seenline{text-align:right;font-size:11px;color:var(--muted);margin:2px 4px 6px}
+.retry{background:none;border:0;color:#FFB4A8;font-size:11px;text-decoration:underline;padding:0}
+.chatfoot{background:#fff;border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0))}
+.chatfoot>*{max-width:760px;margin-left:auto;margin-right:auto}
+.quick{display:flex;gap:6px;overflow-x:auto;padding:2px 4px 6px;scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.quick .chip{white-space:nowrap;flex:none;min-height:32px;font-size:12.5px}
+.composer,.recbar{display:flex;align-items:flex-end;gap:4px}
+.composer textarea{flex:1;border:1px solid var(--line);border-radius:22px;padding:10px 14px;font-size:15px;resize:none;min-height:44px;max-height:120px;background:var(--panel);line-height:1.4}
+.composer .cb{color:var(--navy)}
+.cb.go{background:var(--navy);color:#fff;width:44px;height:44px}
+.cb.go svg{width:20px;height:20px}
+.recbar{align-items:center;padding:0 4px;min-height:48px}
+.recbar .cb:first-child{color:var(--problem)}
+.recbar #chRecT{font-weight:600;color:var(--navy);min-width:40px}
+.recbar .small{flex:1}
+.rdot{width:10px;height:10px;border-radius:999px;background:var(--problem);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+.quote{display:flex;align-items:center;gap:6px;border-left:3px solid var(--amber);background:var(--panel);border-radius:6px;padding:4px 4px 4px 10px;margin-bottom:6px;font-size:12px}
+.quote>span{flex:1;display:flex;flex-direction:column;min-width:0}
+.quote>span span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quote .cb{width:32px;height:32px;color:var(--muted)}
+.attach{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 4px}
+.attach button{display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:16px 6px;font-size:12.5px;font-weight:600;color:var(--navy)}
+.attach svg{width:26px;height:26px}
+.attach .u{color:var(--problem);border-color:#E9B8AF}
+.lightbox{position:fixed;inset:0;background:rgba(0,10,30,.92);display:flex;align-items:center;justify-content:center;z-index:30}
+.lightbox img{max-width:100%;max-height:100%}
+.lightbox .cb{position:absolute;top:calc(10px + env(safe-area-inset-top,0));right:10px;color:#fff;font-size:30px}
+html[dir=rtl] .bub.them{border-top-left-radius:10px;border-top-right-radius:3px}
+html[dir=rtl] .bub.me{margin-left:0;margin-right:auto;border-top-right-radius:10px;border-top-left-radius:3px}
+html[dir=rtl] .bub.them .rb{right:auto;left:-38px}html[dir=rtl] .bub.me .rb{left:auto;right:-38px}
+html[dir=rtl] .chathead .cb svg{transform:scaleX(-1)}
+html[dir=rtl] .seenline{text-align:left}
+html[dir=rtl] .bub .bq,html[dir=rtl] .quote{border-left:0;border-right:3px solid var(--amber)}
+html[dir=rtl] .voice .track i{left:auto;right:0}
+/* chat entry points and install banner */
+.chatcta{display:flex;align-items:center;gap:12px;width:100%;text-align:start;border:1px solid var(--line);background:#fff;border-radius:8px;padding:12px 14px;margin:6px 0 10px}
+.chatcta .av{width:40px;height:40px;border-radius:999px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex:none}
+.chatcta .av img{height:26px}
+.chatcta .col{flex:1;min-width:0;display:flex;flex-direction:column}
+.chatcta b{color:var(--navy);font-size:15px}
+.chatcta .s{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chatcta .n{background:var(--amber);color:var(--navy);font-weight:700;font-size:12px;min-width:22px;height:22px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.install{display:flex;gap:12px;align-items:center;background:var(--navy);color:#fff;border-radius:8px;padding:12px 14px;margin:0 0 14px}
+.install img{width:40px;height:40px;border-radius:9px;flex:none}
+.install .col{flex:1;display:flex;flex-direction:column;font-size:12.5px;line-height:1.4}
+.install b{font-size:14px}
+.install .x{background:none;border:0;color:#C9CFDA;font-size:20px;padding:0 4px;align-self:flex-start}
+.install .btn{background:var(--amber);color:var(--navy);min-height:36px;font-size:13px;width:auto;padding:0 14px}
+.inbox .row .n{background:var(--amber);color:var(--navy);font-weight:700;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+.wait{font-size:11.5px;font-weight:600;color:var(--active)}
+.wait.late{color:var(--problem)}
