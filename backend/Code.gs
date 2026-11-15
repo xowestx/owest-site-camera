@@ -57,6 +57,9 @@ function doPost(e) {
     if (b.action === 'report') return json_(Object.assign({ ok: true }, report_(b)));
     if (b.action === 'login') return json_(Object.assign({ ok: true }, login_(b)));
     if (b.action === 'sync') { requireAdmin_(b.token); return json_(Object.assign({ ok: true }, syncClickUp_())); }
+    if (b.action === 'dashLogin') return json_(Object.assign({ ok: true }, dashLogin_(b)));
+    if (b.action === 'dash') { requireDash_(b.token); return json_(Object.assign({ ok: true }, dash_(b))); }
+    if (b.action === 'dashPhotos') { requireDash_(b.token); return json_(Object.assign({ ok: true }, dashPhotos_(b))); }
     return json_({ ok: false, error: 'Unknown action.' });
   } catch (err) { return json_({ ok: false, error: msg_(err), code: err && err.code }); }
 }
@@ -106,6 +109,90 @@ function menuSetPassword() {
   const salt = Utilities.getUuid();
   props.setProperties({ ADMIN_SALT: salt, ADMIN_HASH: sha_(pw + salt), ADMIN_SECRET: Utilities.getUuid() + Utilities.getUuid() });
   ui.alert('Manager password saved.');
+}
+
+/* =========================== office dashboard (read only) =========================== */
+/* dashboard.html on the website. Its own password (sheet menu: Set dashboard password); the manager code works too. */
+
+function dashLogin_(b) {
+  const props = PropertiesService.getScriptProperties();
+  const hash = props.getProperty('DASH_HASH');
+  if (!hash) throw new Error('No dashboard password yet. Sheet menu: O West Camera > Set dashboard password.');
+  const cache = CacheService.getScriptCache();
+  const fails = Number(cache.get('dashFails') || 0);
+  if (fails >= 8) throw new Error('Too many wrong tries. Wait 10 minutes.');
+  const pw = str_(b.password);
+  const okDash = sha_(pw + props.getProperty('DASH_SALT')) === hash;
+  const okAdmin = props.getProperty('ADMIN_HASH') && sha_(pw + props.getProperty('ADMIN_SALT')) === props.getProperty('ADMIN_HASH');
+  if (!okDash && !okAdmin) { cache.put('dashFails', String(fails + 1), 600); throw new Error('Wrong password.'); }
+  cache.remove('dashFails');
+  const exp = Date.now() + TOKEN_DAYS * 86400000;
+  return { token: 'd' + exp + '.' + dashSign_('d' + exp), expires: exp };
+}
+
+function dashSign_(v) {
+  const key = PropertiesService.getScriptProperties().getProperty('DASH_SECRET') || '';
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(v, key)).replace(/=+$/, '');
+}
+
+function requireDash_(token) {
+  const t = str_(token);
+  if (t.charAt(0) === 'd') {
+    const i = t.indexOf('.'), exp = Number(t.slice(1, i));
+    if (i > 0 && exp > Date.now() && dashSign_(t.slice(0, i)) === t.slice(i + 1)) return;
+    const e = new Error('Please log in again.'); e.code = 'auth'; throw e;
+  }
+  requireAdmin_(t);
+}
+
+function menuSetDashPassword() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Dashboard password', 'Password for the office dashboard (at least 6 characters).\nPhones logged in with the old one will need the new one.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const pw = r.getResponseText().trim();
+  if (pw.length < 6) return ui.alert('Too short. Use at least 6 characters.');
+  const salt = Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperties({ DASH_SALT: salt, DASH_HASH: sha_(pw + salt), DASH_SECRET: Utilities.getUuid() + Utilities.getUuid() });
+  ui.alert('Dashboard password saved.\nLink: https://xowestx.github.io/owest-site-camera/dashboard.html');
+}
+
+/** Everything the dashboard shows for a date range, in one small answer. */
+function dash_(b) {
+  const today = fmt_(new Date(), 'yyyy-MM-dd');
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(str_(b.from)) ? str_(b.from) : today;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(str_(b.to)) ? str_(b.to) : from;
+  const units = rows_(T.units).filter(r => str_(r['Unit']) && low_(r['Active']) !== 'no')
+    .map(r => [str_(r['Unit']), str_(r['Client name']), str_(r['Project'])]);
+  const all = closedVisits_(() => true);
+  const last = {};
+  all.forEach(v => { const k = v.unit; const t = v.closed || v.date; if (!last[k] || t > last[k][0]) last[k] = [t, v.by]; });
+  const inRange = all.filter(v => v.date >= from && v.date <= to);
+  const crew = crewByVisit_(inRange);
+  const visits = inRange.map(v => ({
+    id: v.id, d: v.date, u: v.unit, by: v.by, t1: (v.started || '').slice(11, 16), t2: (v.closed || '').slice(11, 16),
+    items: v.items, work: v.workDone, notes: v.notes, mp: v.manpower, ph: v.photos,
+    crew: (crew[v.id] || []).map(m => [m.contractor, m.trade, m.count, m.item])
+  }));
+  const trades = {};
+  rows_(T.trades).forEach(r => { const en = str_(r['Trade']); if (en) trades[en] = str_(r['Arabic']); });
+  return { now: fmt_(new Date(), 'yyyy-MM-dd HH:mm'), from: from, to: to, units: units, visits: visits, last: last, trades: trades };
+}
+
+/** Small thumbnails of one visit's photos (Drive files are private, so the server sends them). */
+function dashPhotos_(b) {
+  const id = str_(b.visitId);
+  const ph = (photosByVisit_([{ id: id }])[id] || []).slice(0, 24);
+  if (!ph.length) return { photos: [] };
+  const token = ScriptApp.getOAuthToken();
+  const res = UrlFetchApp.fetchAll(ph.map(p => ({ url: 'https://drive.google.com/thumbnail?sz=w480&id=' + p.fileId, headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true })));
+  return {
+    photos: ph.map((p, i) => {
+      const r = res[i];
+      const ok = r && r.getResponseCode() === 200 && /^image\//.test(String(r.getHeaders()['Content-Type'] || ''));
+      return { src: ok ? 'data:image/jpeg;base64,' + Utilities.base64Encode(r.getBlob().getBytes()) : '', item: p.item, time: p.time, note: p.note,
+        full: 'https://drive.google.com/file/d/' + p.fileId + '/view' };
+    }).filter(p => p.src)
+  };
 }
 
 /* =========================== reports on demand (website) =========================== */
@@ -1386,6 +1473,7 @@ function onOpen() {
     .addItem('Delete selected visits (photos + manpower)', 'menuDeleteVisits')
     .addSeparator()
     .addItem('Set manager password', 'menuSetPassword')
+    .addItem('Set dashboard password', 'menuSetDashPassword')
     .addItem('Connect ClickUp (API token)', 'menuSetClickUpToken')
     .addItem('Connect AI writer (Gemini key)', 'menuSetAiKey')
     .addItem('Sync from ClickUp now', 'menuSync')
