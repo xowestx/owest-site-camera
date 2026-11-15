@@ -170,7 +170,7 @@ function dash_(b) {
   const crew = crewByVisit_(inRange);
   const visits = inRange.map(v => ({
     id: v.id, d: v.date, u: v.unit, by: v.by, t1: (v.started || '').slice(11, 16), t2: (v.closed || '').slice(11, 16),
-    items: v.items, work: v.workDone, notes: v.notes, mp: v.manpower, ph: v.photos,
+    items: v.items, work: v.workDone, mp: v.manpower, ph: v.photos,
     crew: (crew[v.id] || []).map(m => [m.contractor, m.trade, m.count, m.item])
   }));
   const trades = {};
