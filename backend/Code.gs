@@ -1309,7 +1309,12 @@ function minutes_(a, b) {
 function savePdf_(html, folder, name) {
   const pdf = Utilities.newBlob(html, 'text/html', 'r.html').getAs('application/pdf').setName(name);
   const old = folder.getFilesByName(name);
-  while (old.hasNext()) old.next().setTrashed(true);
+  while (old.hasNext()) {
+    const f = old.next();
+    // a PDF already shared by link may be in a client's WhatsApp: never delete it, keep it working
+    if (f.getSharingAccess() === DriveApp.Access.ANYONE_WITH_LINK) continue;
+    f.setTrashed(true);
+  }
   return folder.createFile(pdf);
 }
 
