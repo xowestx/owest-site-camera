@@ -150,7 +150,7 @@ pay(){
   if(p.st=='Client confirmed'&&(role=='finance'||role=='head'))a=`<button class="btn sm" data-a="payrec" data-i="${p.id}">Mark received</button>`;
   if(p.st=='Scheduled'&&(role=='finance'||role=='head'))a=`<button class="btn ghost sm" data-a="payask" data-i="${p.id}">Request now</button>`;
   return `<tr><td>${esc(p.name)}${p.remind&&p.remind.length?`<div class="muted">${p.remind.join(' · ')}</div>`:''}</td><td>${p.pct}</td><td>${esc(p.due)}</td><td>${pill(p.st)}</td><td>${a}</td></tr>`}).join('')}</table>
- ${isTeam()?`<div class="card" style="margin-top:12px"><h2>Demo: fast-forward time</h2><button class="btn ghost sm" data-a="tick">+ 2 days with no client response</button><span class="muted"> Day ${S.day} since request</span>${S.lastMail?`<div class="email"><div class="h">Email sent automatically · to ${S.lastMail.to}</div><div class="b">${S.lastMail.b}</div></div>`:''}</div>`:''}
+ ${isTeam()?`<div class="card" style="margin-top:12px"><h2>Demo: fast-forward time</h2><button class="btn ghost sm" data-a="tick">Fast-forward: client did not respond</button><span class="muted"> Day ${S.day} since request</span>${S.lastMail?`<div class="email"><div class="h">Email sent automatically · to ${S.lastMail.to}</div><div class="b">${S.lastMail.b}</div></div>`:''}</div>`:''}
  <p class="muted">Amounts stay in the official statement from Finance. The portal shows shares and dates only.</p>`},
 chat(){
  return `<div class="card"><div class="chat">${S.chat.map((m,i)=>`<div class="msg ${m.role==role?'me':''}"><div class="by">${esc(m.by)}${m.conv?` · <b style="color:var(--ok)">✓ ${m.conv}</b>`:''}</div>${esc(m.t)}
@@ -200,11 +200,11 @@ document.addEventListener('click',e=>{
  case 'payask':pay().st='Requested';pay().remind=[];S.day=0;log('Payment requested: '+pay().name);mail('Ahmed Hassan','O-Plus requests: '+pay().name+' due '+pay().due+'. Please confirm in your portal.');toast('Request sent to client');break;
  case 'payconf':pay().st='Client confirmed';log('Client confirmed '+pay().name);toast('Finance notified');break;
  case 'payrec':pay().st='Received';log('Received '+pay().name);mail('Ahmed Hassan','We received '+pay().name+'. Thank you.');toast('Receipt emailed to client');break;
- case 'tick':{S.day+=2;const p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');if(!p){toast('No open payment request');break}
-  p.remind=p.remind||[];
+ case 'tick':{const p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');if(!p){toast('No open payment request');break}
+  p.remind=p.remind||[];S.day=S.day<2?2:S.day<5?5:7;
   if(S.day==2){p.remind.push('Reminder 1 · day 2');mail('Ahmed Hassan','Friendly reminder: '+p.name+' is waiting for your confirmation in the portal.')}
-  else if(S.day==4||S.day==6){p.remind.push('Reminder 2 · day '+S.day);mail('Ahmed Hassan','Second reminder: '+p.name+' is still pending.')}
-  else{p.st='Overdue';p.remind.push('Escalated · day '+S.day);mail('PM Karim Adel + Finance','Client has not responded to '+p.name+' for '+S.day+' days. Please call the client.')}
+  else if(S.day==5){p.remind.push('Reminder 2 · day 5');mail('Ahmed Hassan','Second reminder: '+p.name+' is still pending.')}
+  else{if(p.st!='Overdue'){p.st='Overdue';p.remind.push('Escalated · day 7')}mail('PM Karim Adel + Finance','Client has not responded to '+p.name+' for 7 days. Please call the client.')}
   log('Auto email: '+p.name+' day '+S.day);toast('Automatic email sent');break}
  case 'send':if(!val('ct'))return;S.chat.push({by:ROLES[role].name,role,t:val('ct')});break;
  case 'conv':{const m=S.chat[i];if(b.dataset.k=='sel'){S.sel.unshift({id:Date.now(),sec:role=='pm'?'site':'design',title:m.t.slice(0,60),opt:'As agreed in chat',color:'#cfd6e3',due:'in 3 days',st:'Waiting',by:ROLES[role].name,src:1});m.conv='Converted to Selection'}
