@@ -71,17 +71,19 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px
 <div class="toast" id="toast"></div>
 <script>
 const ROLES={
- client:{name:'Ahmed Hassan',title:'Client (unit owner)',tabs:['overview','design','site','mods','pay','chat','files']},
- pm:{name:'Eng. Karim Adel',title:'Project Manager',tabs:['overview','site','mods','pay','chat','files','reports']},
- design:{name:'Nour Samir',title:'Interior Designer',tabs:['overview','design','chat','files']},
- cost:{name:'Hany Fawzy',title:'Cost Control',tabs:['mods','reports']},
+ client:{name:'Ahmed Hassan',title:'Client (unit owner)',tabs:['overview','req','design','site','mods','pay','chat','files']},
+ pm:{name:'Eng. Karim Adel',title:'Project Manager',tabs:['overview','req','site','mods','pay','chat','files','reports']},
+ design:{name:'Nour Samir',title:'Interior Designer',tabs:['overview','req','design','chat','files']},
+ cost:{name:'Hany Fawzy',title:'Cost Control',tabs:['req','mods','reports']},
  extra:{name:'Head of Extra Work',title:'Head of Extra Work',tabs:['mods','reports']},
- finance:{name:'Mona Ali',title:'Finance',tabs:['pay','reports']},
- head:{name:'Head of Projects',title:'Head of Projects (all)',tabs:['overview','design','site','mods','pay','chat','files','reports','access']}
+ finance:{name:'Mona Ali',title:'Finance',tabs:['req','pay','reports']},
+ head:{name:'Head of Projects',title:'Head of Projects (all)',tabs:['overview','req','design','site','mods','pay','chat','files','reports','access']}
 };
-const TABN={overview:'Overview',design:'Design selections',site:'Site selections (PM)',mods:'Extra modifications',pay:'Payments',chat:'Chat',files:'Files',reports:'Reports',access:'Who sees what'};
+const TABN={overview:'Overview',req:'Requests',design:'Design selections',site:'Site selections (PM)',mods:'Extra modifications',pay:'Payments',chat:'Chat',files:'Files',reports:'Reports',access:'Who sees what'};
 const STAGES=['Quotation paid','Kick-off','Design & selections','Execution','Snagging','Handover'];
-const SEED={stage:2,day:0,
+const TEAM={pm:'Eng. Karim Adel',design:'Nour Samir',finance:'Mona Ali',cost:'Hany Fawzy'};
+const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change or add something',to:'design',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
+const SEED={stage:2,day:0,req:[{id:'R-01',type:'pay',t:'My cheque for installment 2 will be one week late.',to:'finance',st:'Open',due:'1 working day'}],
  sel:[
   {id:1,sec:'design',title:'Living room flooring',opt:'Porcelain 120x60 · Calacatta matt',color:'#e9e4dc',due:'20 Nov 2026',st:'Waiting',by:'Nour Samir'},
   {id:2,sec:'design',title:'Kitchen cabinets colour',opt:'Sage green, brass handles',color:'#8fa38c',due:'22 Nov 2026',st:'Approved',by:'Nour Samir'},
@@ -101,7 +103,7 @@ const SEED={stage:2,day:0,
  log:[]};
 let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
-function load(){try{S=JSON.parse(localStorage.getItem('opdemo'))}catch(e){}if(!S)S=JSON.parse(JSON.stringify(SEED));try{role=localStorage.getItem('oprole')||'client'}catch(e){}}
+function load(){try{S=JSON.parse(localStorage.getItem('opdemo'))}catch(e){}if(!S)S=JSON.parse(JSON.stringify(SEED));if(!S.req)S.req=JSON.parse(JSON.stringify(SEED.req));try{role=localStorage.getItem('oprole')||'client'}catch(e){}}
 function save(){try{localStorage.setItem('opdemo',JSON.stringify(S));localStorage.setItem('oprole',role)}catch(e){}}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',3200)}
 function log(t){S.log.unshift({t,who:ROLES[role].name});}
@@ -115,7 +117,7 @@ function render(){
  $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
  const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
  $('#who').innerHTML=`Viewing as <b>${R.name}</b> · ${R.title}<span class="muted">Sees only: ${R.tabs.map(t=>TABN[t]).join(', ')}</span>`;
- const badge={design:S.sel.filter(x=>x.sec=='design'&&x.st=='Waiting').length,site:S.sel.filter(x=>x.sec=='site'&&x.st=='Waiting').length,
+ const badge={req:S.req.filter(r=>r.st=='Open'&&(role=='client'?0:(role=='head'||role=='pm'||r.to==role))).length,design:S.sel.filter(x=>x.sec=='design'&&x.st=='Waiting').length,site:S.sel.filter(x=>x.sec=='site'&&x.st=='Waiting').length,
   mods:S.mods.filter(m=>(role=='cost'&&m.st=='Costing')||(role=='client'&&m.st=='Awaiting client')||(role=='extra'&&m.st=='Client approved')).length,
   pay:S.pay.filter(p=>(role=='client'&&p.st=='Requested')||(role=='finance'&&p.st=='Client confirmed')).length};
  $('#tabs').innerHTML=R.tabs.map(t=>`<button class="${t==tab?'on':''}" data-t="${t}">${TABN[t]}${badge[t]?`<span class="n">${badge[t]}</span>`:''}</button>`).join('');
@@ -132,6 +134,14 @@ overview(){
  <div class="card" style="margin-top:12px"><h2>Your team</h2><div class="muted">Sales: Omar Nabil · Designer: Nour Samir · PM: Eng. Karim Adel · Handover target: 30 Apr 2027</div></div>
  ${isTeam()?`<div class="card"><h2>Move the case forward</h2><button class="btn ghost sm" data-a="stage-1">◀ Previous stage</button> <button class="btn sm" data-a="stage1">Next stage ▶</button><div class="muted" style="margin-top:6px">Each stage change is emailed to the client and logged.</div></div>`:''}
  <div class="card"><h2>Activity log</h2>${S.log.length?S.log.slice(0,8).map(l=>`<div class="muted">• ${esc(l.t)} · ${esc(l.who)}</div>`).join(''):'<div class="muted">Actions in this demo appear here.</div>'}</div>`},
+req(){
+ const mine=role=='client'||role=='head'||role=='pm'?S.req:S.req.filter(r=>r.to==role);
+ return `${role=='client'?`<div class="card"><h2>New request</h2><div class="form"><select id="rt">${Object.keys(RT).map(k=>`<option value="${k}">${RT[k].n}</option>`).join('')}</select><input id="rx" placeholder="Tell us what you need"><button class="btn full" data-a="reqnew">Send</button></div><div class="muted">You don't need to know who handles it. We route it to the right person and reply within the promised time.</div></div>`:
+ `<div class="note" style="margin-bottom:10px">Requests are routed automatically from the unit team set at kick-off: PM ${TEAM.pm} · Designer ${TEAM.design} · Finance ${TEAM.finance} · Cost ${TEAM.cost}. ${role=='pm'?'As case owner you see every request.':''}</div>`}
+ ${mine.length?'':'<div class="muted">No requests.</div>'}
+ ${mine.map(r=>`<div class="card"><div class="row"><div class="grow"><div class="eyebrow">${r.id} · ${RT[r.type].n}</div><b>${esc(r.t)}</b>
+ <div class="muted">${role=='client'?(r.st=='Open'?'Received · we reply within '+r.due:'Resolved'):'Owner: '+TEAM[r.to]+' · reply within '+r.due+' · ClickUp subtask created under the quotation'}</div>${r.ans?`<div class="note">Reply: ${esc(r.ans)}</div>`:''}</div>${pill(r.st=='Open'?'Waiting':'Approved').replace('Waiting','Open').replace('Approved','Resolved')}</div>
+ ${r.st=='Open'&&role!='client'&&(r.to==role||role=='pm'||role=='head')?`<div class="row" style="margin-top:8px"><input id="ra${r.id}" class="grow" placeholder="Reply to the client"><button class="btn ok sm" data-a="reqdone" data-i="${r.id}">Reply &amp; resolve</button><select data-move="${r.id}" style="width:auto"><option value="">Reassign to…</option>${Object.keys(TEAM).filter(k=>k!=r.to).map(k=>`<option value="${k}">${TEAM[k]}</option>`).join('')}</select></div>`:''}</div>`).join('')}`},
 design(){return selView('design')},site(){return selView('site')},
 mods(){
  const canReq=role=='client'||role=='pm'||role=='head';
@@ -206,6 +216,8 @@ document.addEventListener('click',e=>{
   else if(S.day==5){p.remind.push('Reminder 2 · day 5');mail('Ahmed Hassan','Second reminder: '+p.name+' is still pending.')}
   else{if(p.st!='Overdue'){p.st='Overdue';p.remind.push('Escalated · day 7')}mail('PM Karim Adel + Finance','Client has not responded to '+p.name+' for 7 days. Please call the client.')}
   log('Auto email: '+p.name+' day '+S.day);toast('Automatic email sent');break}
+ case 'reqnew':{if(!val('rx'))return toast('Write your request first');const k=val('rt');S.req.unshift({id:'R-0'+(S.req.length+1),type:k,t:val('rx'),to:RT[k].to,st:'Open',due:RT[k].sla});log('Request sent ('+RT[k].n+') → '+TEAM[RT[k].to]);toast('Sent. Assigned automatically to '+TEAM[RT[k].to]+' + ClickUp task created');break}
+ case 'reqdone':{const r=S.req.find(x=>x.id==i);r.ans=val('ra'+i)||'Done, thank you.';r.st='Resolved';log(i+' resolved');toast('Client notified. ClickUp task closed automatically');break}
  case 'send':if(!val('ct'))return;S.chat.push({by:ROLES[role].name,role,t:val('ct')});break;
  case 'conv':{const m=S.chat[i];if(b.dataset.k=='sel'){S.sel.unshift({id:Date.now(),sec:role=='pm'?'site':'design',title:m.t.slice(0,60),opt:'As agreed in chat',color:'#cfd6e3',due:'in 3 days',st:'Waiting',by:ROLES[role].name,src:1});m.conv='Converted to Selection'}
   else{S.mods.unshift({id:'MOD-0'+(S.mods.length+1),title:m.t.slice(0,80),from:'Client (chat)',st:'Costing',note:''});m.conv='Converted to Extra modification'}
@@ -213,7 +225,7 @@ document.addEventListener('click',e=>{
  }
  render();
 });
-document.addEventListener('change',e=>{if(e.target.id=='fu'&&e.target.files[0]){S.files.unshift({n:e.target.files[0].name,by:ROLES[role].name,sec:role=='design'?'design':role=='pm'?'site':'all'});log('Uploaded '+e.target.files[0].name);toast('Uploaded. Visible to the client');render()}});
+document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value){const r=S.req.find(x=>x.id==e.target.dataset.move);r.to=e.target.value;log(r.id+' reassigned to '+TEAM[r.to]);toast('Reassigned to '+TEAM[r.to]+'. ClickUp task reassigned');return render()}if(e.target.id=='fu'&&e.target.files[0]){S.files.unshift({n:e.target.files[0].name,by:ROLES[role].name,sec:role=='design'?'design':role=='pm'?'site':'all'});log('Uploaded '+e.target.files[0].name);toast('Uploaded. Visible to the client');render()}});
 load();render();
 </script>
 </body>
