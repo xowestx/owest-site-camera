@@ -505,6 +505,7 @@ function makeDaily_(day, send) {
     if (to) {
       MailApp.sendEmail({
         to: to,
+        cc: S['Daily report cc'] || '',
         subject: `${S['Company name'] || 'O-Plus'} · Daily site report · ${day} · ${visits.length} units · ${total} workers`,
         htmlBody: dailyEmailBody_(day, visits, crew, made),
         attachments: made.map(m => m.file.getBlob())
