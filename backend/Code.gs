@@ -1692,6 +1692,7 @@ function syncJob() { try { syncClickUp_(); } catch (e) { console.error(e); } }
 
 function menuSync() {
   const r = syncClickUp_();
+  if (r.busy) return SpreadsheetApp.getUi().alert('A sync is already running. Try again in 3 minutes.');
   if (r.pending) return SpreadsheetApp.getUi().alert(`Reading ClickUp tasks one by one: ${r.pending} left. Run "Sync from ClickUp now" again in a minute until it says done.`);
   SpreadsheetApp.getUi().alert(`ClickUp sync done: ${r.units} units, ${r.items} items, ${r.contractors} unit-contractor links. ${r.newContractors ? r.newContractors + ' new contractor name(s) added to Contractors.' : ''}`);
 }
@@ -1710,8 +1711,12 @@ function menuSetClickUpToken() {
 function syncClickUp_() {
   const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
   if (!token) throw new Error('ClickUp is not connected. Sheet menu: O West Camera > Connect ClickUp.');
-  const lock = LockService.getScriptLock();
-  lock.waitLock(60000);
+  // The long ClickUp reading must NOT hold the script lock: photo uploads and visit closing wait on it.
+  // A cache flag stops two syncs running together; the lock is taken only for the short sheet writes (step 3).
+  const cache = CacheService.getScriptCache();
+  if (cache.get('syncRunning')) return { units: 0, items: 0, contractors: 0, newContractors: 0, pending: 0, busy: true };
+  cache.put('syncRunning', '1', 330);
+  let lock = null;
   try {
     // 1) bring the "ClickUp Tasks" tab up to date (the full list answer is over 50 MB, so we never ask for it):
     //    a) tasks changed since the last sync (small answer), b) a few stale rows re-read one by one
@@ -1754,6 +1759,8 @@ function syncClickUp_() {
     });
 
     // 3) write, keeping Manual rows and Active = No choices
+    lock = LockService.getScriptLock();
+    lock.waitLock(30000);
     const ss = SpreadsheetApp.getActive();
     const uSh = ss.getSheetByName(T.units);
     const oldUnits = rows_(T.units);
@@ -1787,7 +1794,7 @@ function syncClickUp_() {
     setSetting_('Last ClickUp sync', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ` · ${Object.keys(units).length} units`);
     clearBoot_();
     return { units: Object.keys(units).length, items: sRows.length, contractors: cRows.length, newContractors: freshC.length };
-  } finally { lock.releaseLock(); }
+  } finally { if (lock) lock.releaseLock(); cache.remove('syncRunning'); }
 }
 
 /* ---------- ClickUp task store ("ClickUp Tasks" tab) ---------- */
