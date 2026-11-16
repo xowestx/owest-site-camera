@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>O-Plus Portal Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#001641;--amber:#F0B323;--ink:#1A2238;--muted:#5F677A;--line:#DCDFE6;--panel:#F3F5F9;--ok:#2F6E4E;--bad:#A8392C;--tint:#FCEFD3;--tintx:#8A5800}
+*{box-sizing:border-box}body{margin:0;font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:#fff;font-size:14px}
+header{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header img{height:26px}header .t{font-weight:600;letter-spacing:.08em;font-size:12px;text-transform:uppercase;opacity:.85}
+header .sp{flex:1}
+.roles{display:flex;gap:6px;flex-wrap:wrap}
+.roles button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:20px;padding:5px 11px;font:500 12px Poppins;cursor:pointer}
+.roles button.on{background:var(--amber);border-color:var(--amber);color:var(--navy)}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:0 0 10px}
+.who{background:var(--panel);border-radius:8px;padding:10px 14px;margin:12px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.who b{color:var(--navy)}
+.steps{display:flex;margin:14px 0 4px;overflow-x:auto}
+.step{flex:1;min-width:110px;padding-top:10px;border-top:4px solid var(--line);font-size:12px;color:var(--muted);margin-right:4px}
+.step.done{border-color:var(--navy);color:var(--ink)}.step.cur{border-color:var(--amber);color:var(--ink);font-weight:600}
+nav.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:16px 0;overflow-x:auto}
+nav.tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px;font:500 13px Poppins;color:var(--muted);cursor:pointer;white-space:nowrap}
+nav.tabs button.on{color:var(--navy);border-color:var(--amber)}
+.n{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;margin-left:4px}
+.card{border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:10px}
+.row{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}.row>.grow{flex:1;min-width:200px}
+.muted{color:var(--muted);font-size:12px}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:12px;white-space:nowrap}
+.p-done{background:var(--ok);color:#fff}.p-bad{background:var(--bad);color:#fff}.p-act{background:var(--tint);color:var(--tintx)}
+.p-wait{border:1px solid var(--navy);color:var(--navy)}.p-idle{border:1px dashed #9aa1b1;color:var(--muted)}
+.btn{background:var(--navy);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:500 13px Poppins;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--navy);border:1px solid var(--navy)}.btn.red{background:var(--bad)}.btn.ok{background:var(--ok)}
+.btn.sm{padding:5px 10px;font-size:12px}
+input,select,textarea{font:13px Poppins;padding:8px;border:1px solid var(--line);border-radius:6px;width:100%}
+.form{display:grid;gap:8px;grid-template-columns:1fr 1fr;margin-bottom:12px}.form .full{grid-column:1/-1}
+.sw{width:64px;height:64px;border-radius:6px;flex:none}
+.lock{background:#FBEAE8;color:var(--bad);border-left:4px solid var(--bad);padding:8px 10px;font-size:12px;font-weight:600;margin-top:8px;border-radius:4px}
+.note{background:var(--panel);padding:8px 10px;border-radius:6px;font-size:12px;margin-top:8px}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding:4px}
+.msg{max-width:78%;padding:8px 12px;border-radius:10px;background:var(--panel)}
+.msg.me{align-self:flex-end;background:#E4EAF6}.msg .by{font-size:11px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:12px}.kpi b{font-size:24px;color:var(--navy);display:block}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px solid var(--line);padding:7px;text-align:left}th{color:var(--muted);font-weight:600}
+.y{color:var(--ok);font-weight:700}.x{color:#b8bdc9}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;display:none;max-width:90%;z-index:9}
+.email{border:1px solid var(--line);border-radius:8px;margin-top:8px;font-size:12px}.email .h{background:var(--navy);color:#fff;padding:6px 10px;border-radius:8px 8px 0 0}.email .b{padding:8px 10px}
+@media(max-width:600px){.form{grid-template-columns:1fr}.msg{max-width:92%}}
+</style>
+</head>
+<body>
+<header>
+  <img src="assets/oplus-mark-white.png" alt="O-Plus">
+  <span class="t">Client Portal · Live demo</span>
+  <span class="sp"></span>
+  <div class="roles" id="roles"></div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">Unit OW-RV2-68-VA · Villa · O West</div>
+  <h1>Mr. Ahmed Hassan's home</h1>
+  <div class="steps" id="steps"></div>
+  <div class="who" id="who"></div>
+  <nav class="tabs" id="tabs"></nav>
+  <main id="main"></main>
+  <p class="muted" style="margin-top:30px">Demo data only. <a href="#" id="reset">Reset demo</a></p>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const ROLES={
+ client:{name:'Ahmed Hassan',title:'Client (unit owner)',tabs:['overview','design','site','mods','pay','chat','files']},
+ pm:{name:'Eng. Karim Adel',title:'Project Manager',tabs:['overview','site','mods','pay','chat','files','reports']},
+ design:{name:'Nour Samir',title:'Interior Designer',tabs:['overview','design','chat','files']},
+ cost:{name:'Hany Fawzy',title:'Cost Control',tabs:['mods','reports']},
+ extra:{name:'Head of Extra Work',title:'Head of Extra Work',tabs:['mods','reports']},
+ finance:{name:'Mona Ali',title:'Finance',tabs:['pay','reports']},
+ head:{name:'Head of Projects',title:'Head of Projects (all)',tabs:['overview','design','site','mods','pay','chat','files','reports','access']}
+};
+const TABN={overview:'Overview',design:'Design selections',site:'Site selections (PM)',mods:'Extra modifications',pay:'Payments',chat:'Chat',files:'Files',reports:'Reports',access:'Who sees what'};
+const STAGES=['Quotation paid','Kick-off','Design & selections','Execution','Snagging','Handover'];
+const SEED={stage:2,day:0,
+ sel:[
+  {id:1,sec:'design',title:'Living room flooring',opt:'Porcelain 120x60 · Calacatta matt',color:'#e9e4dc',due:'20 Nov 2026',st:'Waiting',by:'Nour Samir'},
+  {id:2,sec:'design',title:'Kitchen cabinets colour',opt:'Sage green, brass handles',color:'#8fa38c',due:'22 Nov 2026',st:'Approved',by:'Nour Samir'},
+  {id:3,sec:'site',title:'AC indoor unit location · Master bedroom',opt:'Above the window, wall 2',color:'#c9ced8',due:'19 Nov 2026',st:'Waiting',by:'Eng. Karim Adel'},
+  {id:4,sec:'site',title:'Extra socket height · TV wall',opt:'110 cm from finished floor',color:'#d8d2c4',due:'18 Nov 2026',st:'Rejected',reason:'Prefer 120 cm',by:'Eng. Karim Adel'}],
+ mods:[{id:'MOD-01',title:'Add gypsum cove lighting in living room',from:'Client',st:'Costing',note:''}],
+ pay:[
+  {id:1,name:'Down payment',pct:'30%',due:'01 Oct 2026',st:'Received'},
+  {id:2,name:'Installment 2 · Cheque',pct:'25%',due:'15 Nov 2026',st:'Requested',remind:[]},
+  {id:3,name:'Installment 3 · Cheque',pct:'25%',due:'15 Dec 2026',st:'Scheduled'},
+  {id:4,name:'Final payment · at handover',pct:'20%',due:'Handover',st:'Scheduled'}],
+ chat:[
+  {by:'Ahmed Hassan',role:'client',t:'Can we move the kitchen island 30 cm towards the window?'},
+  {by:'Nour Samir',role:'design',t:'Yes, it works with the plumbing. I will send it as a selection for your approval.'},
+  {by:'Ahmed Hassan',role:'client',t:'Also I want a hidden door for the storage room under the stairs.'}],
+ files:[{n:'Signed quotation.pdf',by:'Sales',sec:'all'},{n:'Approved layout rev B.pdf',by:'Nour Samir',sec:'design'},{n:'Site photos week 46.zip',by:'Eng. Karim Adel',sec:'site'}],
+ log:[]};
+let S,role='client',tab='overview';
+const $=s=>document.querySelector(s);
+function load(){try{S=JSON.parse(localStorage.getItem('opdemo'))}catch(e){}if(!S)S=JSON.parse(JSON.stringify(SEED));try{role=localStorage.getItem('oprole')||'client'}catch(e){}}
+function save(){try{localStorage.setItem('opdemo',JSON.stringify(S));localStorage.setItem('oprole',role)}catch(e){}}
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',3200)}
+function log(t){S.log.unshift({t,who:ROLES[role].name});}
+function pill(st){const m={Approved:'p-done',Received:'p-done','Released to site':'p-done',Rejected:'p-bad',Overdue:'p-bad',Declined:'p-bad',Waiting:'p-act',Requested:'p-act',Costing:'p-act','Awaiting client':'p-act','Client confirmed':'p-wait',Scheduled:'p-idle',Draft:'p-idle'};return `<span class="pill ${m[st]||'p-wait'}">${st}</span>`}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const isTeam=()=>role!=='client';
+
+function render(){
+ save();
+ $('#roles').innerHTML=Object.keys(ROLES).map(k=>`<button class="${k===role?'on':''}" data-r="${k}">${ROLES[k].title.split(' (')[0]}</button>`).join('');
+ $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
+ const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
+ $('#who').innerHTML=`Viewing as <b>${R.name}</b> · ${R.title}<span class="muted">Sees only: ${R.tabs.map(t=>TABN[t]).join(', ')}</span>`;
+ const badge={design:S.sel.filter(x=>x.sec=='design'&&x.st=='Waiting').length,site:S.sel.filter(x=>x.sec=='site'&&x.st=='Waiting').length,
+  mods:S.mods.filter(m=>(role=='cost'&&m.st=='Costing')||(role=='client'&&m.st=='Awaiting client')||(role=='extra'&&m.st=='Client approved')).length,
+  pay:S.pay.filter(p=>(role=='client'&&p.st=='Requested')||(role=='finance'&&p.st=='Client confirmed')).length};
+ $('#tabs').innerHTML=R.tabs.map(t=>`<button class="${t==tab?'on':''}" data-t="${t}">${TABN[t]}${badge[t]?`<span class="n">${badge[t]}</span>`:''}</button>`).join('');
+ $('#main').innerHTML=V[tab]();
+}
+const V={
+overview(){
+ const w=S.sel.filter(x=>x.st=='Waiting').length,p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');
+ return `<div class="grid">
+ <div class="kpi"><span class="eyebrow">Progress</span><b>38%</b><span class="muted">Planned 42% · site update 14 Nov</span></div>
+ <div class="kpi"><span class="eyebrow">Selections waiting</span><b>${w}</b><span class="muted">Design + site</span></div>
+ <div class="kpi"><span class="eyebrow">Extra modifications</span><b>${S.mods.length}</b><span class="muted">${S.mods.filter(m=>m.st!='Released to site').length} not released to site</span></div>
+ <div class="kpi"><span class="eyebrow">Next payment</span><b>${p?p.pct:'None'}</b><span class="muted">${p?p.name+' · '+p.st:'All up to date'}</span></div></div>
+ <div class="card" style="margin-top:12px"><h2>Your team</h2><div class="muted">Sales: Omar Nabil · Designer: Nour Samir · PM: Eng. Karim Adel · Handover target: 30 Apr 2027</div></div>
+ ${isTeam()?`<div class="card"><h2>Move the case forward</h2><button class="btn ghost sm" data-a="stage-1">◀ Previous stage</button> <button class="btn sm" data-a="stage1">Next stage ▶</button><div class="muted" style="margin-top:6px">Each stage change is emailed to the client and logged.</div></div>`:''}
+ <div class="card"><h2>Activity log</h2>${S.log.length?S.log.slice(0,8).map(l=>`<div class="muted">• ${esc(l.t)} · ${esc(l.who)}</div>`).join(''):'<div class="muted">Actions in this demo appear here.</div>'}</div>`},
+design(){return selView('design')},site(){return selView('site')},
+mods(){
+ const canReq=role=='client'||role=='pm'||role=='head';
+ return `${canReq?`<div class="card"><h2>Request extra work</h2><div class="form"><input id="mt" class="full" placeholder="What do you want to add or change?"><button class="btn" data-a="modreq">Submit request</button></div><div class="muted">Extra work is requested here only. Nothing is executed on site until the cost is adjusted and the client approves.</div></div>`:''}
+ ${S.mods.map(m=>{let a='';
+  if(m.st=='Costing'&&(role=='cost'||role=='head'))a=`<input id="mn${m.id}" placeholder="Cost note (addendum ref, extra days)"><div style="margin-top:6px"><button class="btn sm" data-a="costdone" data-i="${m.id}">Cost adjusted · send to client</button></div>`;
+  if(m.st=='Awaiting client'&&role=='client')a=`<button class="btn ok sm" data-a="modok" data-i="${m.id}">Approve addendum</button> <button class="btn red sm" data-a="modno" data-i="${m.id}">Decline</button><div class="muted">Your approval is confirmed with a 6-digit code sent to your email.</div>`;
+  if(m.st=='Client approved'&&(role=='extra'||role=='head'))a=`<button class="btn sm" data-a="release" data-i="${m.id}">Release to site</button>`;
+  return `<div class="card"><div class="row"><div class="grow"><div class="eyebrow">${m.id} · requested by ${m.from}</div><b>${esc(m.title)}</b>${m.note?`<div class="note">Cost: ${esc(m.note)}</div>`:''}</div>${pill(m.st)}</div>
+  <div class="muted" style="margin:6px 0">Requested › Costing › Awaiting client › Client approved › Released to site</div>
+  ${m.st!='Released to site'&&m.st!='Declined'&&(role=='pm'||role=='head'||role=='extra')?`<div class="lock">DO NOT EXECUTE ON SITE · not released yet</div>`:''}${a}</div>`}).join('')}`},
+pay(){
+ return `${role=='finance'||role=='head'?`<div class="card"><h2>Request a cheque / installment</h2><div class="form"><input id="pn" placeholder="e.g. Installment 3 · Cheque"><input id="pp" placeholder="% of contract"><input id="pd" placeholder="Due date"><button class="btn" data-a="payreq">Send request to client</button></div><div class="muted">Auto reminders: email on day 2 and day 5 if the client does not respond, then the PM and Finance are alerted on day 7.</div></div>`:''}
+ <table><tr><th>Payment</th><th>Share</th><th>Due</th><th>Status</th><th></th></tr>${S.pay.map(p=>{let a='';
+  if((p.st=='Requested'||p.st=='Overdue')&&role=='client')a=`<button class="btn ok sm" data-a="payconf" data-i="${p.id}">I will hand it over</button>`;
+  if(p.st=='Client confirmed'&&(role=='finance'||role=='head'))a=`<button class="btn sm" data-a="payrec" data-i="${p.id}">Mark received</button>`;
+  if(p.st=='Scheduled'&&(role=='finance'||role=='head'))a=`<button class="btn ghost sm" data-a="payask" data-i="${p.id}">Request now</button>`;
+  return `<tr><td>${esc(p.name)}${p.remind&&p.remind.length?`<div class="muted">${p.remind.join(' · ')}</div>`:''}</td><td>${p.pct}</td><td>${esc(p.due)}</td><td>${pill(p.st)}</td><td>${a}</td></tr>`}).join('')}</table>
+ ${isTeam()?`<div class="card" style="margin-top:12px"><h2>Demo: fast-forward time</h2><button class="btn ghost sm" data-a="tick">+ 2 days with no client response</button><span class="muted"> Day ${S.day} since request</span>${S.lastMail?`<div class="email"><div class="h">Email sent automatically · to ${S.lastMail.to}</div><div class="b">${S.lastMail.b}</div></div>`:''}</div>`:''}
+ <p class="muted">Amounts stay in the official statement from Finance. The portal shows shares and dates only.</p>`},
+chat(){
+ return `<div class="card"><div class="chat">${S.chat.map((m,i)=>`<div class="msg ${m.role==role?'me':''}"><div class="by">${esc(m.by)}${m.conv?` · <b style="color:var(--ok)">✓ ${m.conv}</b>`:''}</div>${esc(m.t)}
+ ${isTeam()&&role!='cost'&&role!='finance'&&m.role=='client'&&!m.conv?`<div style="margin-top:6px"><button class="btn ghost sm" data-a="conv" data-k="sel" data-i="${i}">→ Selection</button> <button class="btn ghost sm" data-a="conv" data-k="mod" data-i="${i}">→ Extra modification</button></div>`:''}</div>`).join('')}</div>
+ <div class="row" style="margin-top:10px"><input id="ct" class="grow" placeholder="Write a message"><button class="btn" data-a="send">Send</button></div></div>
+ <p class="muted">Agreed in chat? The team turns the message into a Selection or an Extra modification in one click, so nothing stays as a "you said on WhatsApp".</p>`},
+files(){const vis=S.files.filter(f=>f.sec=='all'||role=='client'||role=='head'||(f.sec=='design'&&role=='design')||(f.sec=='site'&&role=='pm'));
+ return `<div class="card"><h2>Upload</h2><input type="file" id="fu"></div>${vis.map(f=>`<div class="card row"><div class="grow"><b>${esc(f.n)}</b><div class="muted">by ${esc(f.by)} · ${f.sec=='all'?'shared':f.sec+' section'}</div></div><button class="btn ghost sm">Download</button></div>`).join('')}`},
+reports(){const c=s=>S.sel.filter(x=>x.st==s).length;
+ return `<div class="grid"><div class="kpi"><span class="eyebrow">Selections sent</span><b>${S.sel.length}</b></div><div class="kpi"><span class="eyebrow">Approved</span><b>${c('Approved')}</b></div><div class="kpi"><span class="eyebrow">Rejected</span><b>${c('Rejected')}</b></div><div class="kpi"><span class="eyebrow">Waiting client</span><b>${c('Waiting')}</b></div>
+ <div class="kpi"><span class="eyebrow">Extra mods requested</span><b>${S.mods.length}</b></div><div class="kpi"><span class="eyebrow">Released to site</span><b>${S.mods.filter(m=>m.st=='Released to site').length}</b></div><div class="kpi"><span class="eyebrow">Payments overdue</span><b>${S.pay.filter(p=>p.st=='Overdue').length}</b></div><div class="kpi"><span class="eyebrow">Auto reminders sent</span><b>${S.pay.reduce((a,p)=>a+(p.remind?p.remind.length:0),0)}</b></div></div>
+ <div class="card" style="margin-top:12px"><h2>Requested vs not requested</h2><table><tr><th>Item</th><th>Section</th><th>Status</th></tr>${S.sel.map(x=>`<tr><td>${esc(x.title)}</td><td>${x.sec=='design'?'Design':'Site'}</td><td>${pill(x.st)}</td></tr>`).join('')}
+ ${S.mods.map(m=>`<tr><td>${esc(m.title)}</td><td>Extra modification</td><td>${pill(m.st)}</td></tr>`).join('')}
+ <tr><td>Bathroom accessories</td><td>Design</td><td>${pill('Draft')} <span class="muted">not requested yet</span></td></tr><tr><td>Outdoor lighting points</td><td>Site</td><td>${pill('Draft')} <span class="muted">not requested yet</span></td></tr></table></div>`},
+access(){const T=['overview','design','site','mods','pay','chat','files','reports'];
+ return `<div class="card"><h2>Who sees what</h2><table><tr><th>Role</th>${T.map(t=>`<th>${TABN[t]}</th>`).join('')}</tr>${Object.keys(ROLES).map(k=>`<tr><td><b>${ROLES[k].title}</b></td>${T.map(t=>ROLES[k].tabs.includes(t)?'<td class="y">✓</td>':'<td class="x">·</td>').join('')}</tr>`).join('')}</table>
+ <div class="muted" style="margin-top:8px">Designers create design selections, PMs create site selections, the client approves both. Cost adjusts extra work, Head of Extra Work releases it to site. Finance requests and confirms payments.</div></div>`}
+};
+function selView(sec){
+ const own=(sec=='design'&&role=='design')||(sec=='site'&&role=='pm')||role=='head';
+ const list=S.sel.filter(x=>x.sec==sec);
+ return `${own?`<div class="card"><h2>Send a new ${sec=='design'?'design':'site'} selection</h2><div class="form"><input id="st" placeholder="Item"><input id="so" placeholder="Option / sample"><input id="sd" placeholder="Decide by (date)"><button class="btn" data-a="selnew" data-s="${sec}">Send to client</button></div></div>`:''}
+ <div class="muted" style="margin-bottom:8px">${sec=='design'?'Run by the Design team':'Run by the PM on site'}. Only the unit owner can approve, with an email code.</div>
+ ${list.map(x=>`<div class="card"><div class="row"><div class="sw" style="background:${x.color}"></div><div class="grow"><b>${esc(x.title)}</b><div>${esc(x.opt)}</div><div class="muted">From ${esc(x.by)} · decide by ${esc(x.due)}${x.src?' · from chat':''}</div>${x.reason?`<div class="note">Client: ${esc(x.reason)}</div>`:''}</div>${pill(x.st)}</div>
+ ${x.st=='Waiting'&&role=='client'?`<div style="margin-top:8px"><button class="btn ok sm" data-a="selok" data-i="${x.id}">Approve</button> <button class="btn red sm" data-a="selno" data-i="${x.id}">Reject</button></div>`:''}
+ ${x.st=='Rejected'&&own?`<div style="margin-top:8px"><button class="btn ghost sm" data-a="selrev" data-i="${x.id}">Send revised option</button></div>`:''}</div>`).join('')}`}
+function mail(to,b){S.lastMail={to,b}}
+document.addEventListener('click',e=>{
+ const b=e.target.closest('button');if(e.target.id=='reset'){e.preventDefault();S=JSON.parse(JSON.stringify(SEED));toast('Demo reset');return render()}
+ if(!b)return;
+ if(b.dataset.r){role=b.dataset.r;return render()}
+ if(b.dataset.t){tab=b.dataset.t;return render()}
+ const a=b.dataset.a,i=b.dataset.i,val=id=>($('#'+id)||{}).value||'';
+ const sel=()=>S.sel.find(x=>x.id==i),mod=()=>S.mods.find(x=>x.id==i),pay=()=>S.pay.find(x=>x.id==i);
+ switch(a){
+ case 'stage1':case 'stage-1':S.stage=Math.max(0,Math.min(5,S.stage+(a=='stage1'?1:-1)));log('Stage changed to '+STAGES[S.stage]);toast('Client emailed: your home moved to '+STAGES[S.stage]);break;
+ case 'selnew':if(!val('st'))return toast('Write the item first');S.sel.unshift({id:Date.now(),sec:b.dataset.s,title:val('st'),opt:val('so')||'See sample photo',color:'#d9cfc0',due:val('sd')||'in 3 days',st:'Waiting',by:ROLES[role].name});log('Selection sent: '+val('st'));toast('Sent. Client gets an email + portal badge');break;
+ case 'selok':sel().st='Approved';log('Approved: '+sel().title);toast('Code 482913 confirmed. Approved and recorded');break;
+ case 'selno':{sel().st='Rejected';sel().reason='Please show another option';log('Rejected: '+sel().title);toast('Rejected. Team notified');break}
+ case 'selrev':sel().st='Waiting';sel().opt+=' (rev 2)';sel().reason='';log('Revised option sent');toast('Revised option sent as version 2');break;
+ case 'modreq':if(!val('mt'))return toast('Describe the change first');S.mods.unshift({id:'MOD-0'+(S.mods.length+1),title:val('mt'),from:ROLES[role].name,st:'Costing',note:''});log('Extra modification requested');toast('Sent to Cost team. Site will not execute it yet');break;
+ case 'costdone':mod().note=val('mn'+i)||'Addendum A-02 issued, +5 working days';mod().st='Awaiting client';log('Cost adjusted: '+i);mail('Ahmed Hassan','Your extra work request '+i+' has been costed. Please review and approve it in the portal.');toast('Client emailed to approve the addendum');break;
+ case 'modok':mod().st='Client approved';log('Client approved '+i);toast('Approved with email code. Head of Extra Work notified');break;
+ case 'modno':mod().st='Declined';log('Client declined '+i);toast('Declined. Nothing will be executed');break;
+ case 'release':mod().st='Released to site';log(i+' released to site');toast('Released. PM can execute now');break;
+ case 'payreq':if(!val('pn'))return toast('Name the payment first');S.pay.push({id:Date.now(),name:val('pn'),pct:val('pp')||'-',due:val('pd')||'-',st:'Requested',remind:[]});S.day=0;log('Payment requested: '+val('pn'));mail('Ahmed Hassan','O-Plus requests: '+val('pn')+'. Please confirm in your portal.');toast('Client emailed and sees it in Payments');break;
+ case 'payask':pay().st='Requested';pay().remind=[];S.day=0;log('Payment requested: '+pay().name);mail('Ahmed Hassan','O-Plus requests: '+pay().name+' due '+pay().due+'. Please confirm in your portal.');toast('Request sent to client');break;
+ case 'payconf':pay().st='Client confirmed';log('Client confirmed '+pay().name);toast('Finance notified');break;
+ case 'payrec':pay().st='Received';log('Received '+pay().name);mail('Ahmed Hassan','We received '+pay().name+'. Thank you.');toast('Receipt emailed to client');break;
+ case 'tick':{S.day+=2;const p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');if(!p){toast('No open payment request');break}
+  p.remind=p.remind||[];
+  if(S.day==2){p.remind.push('Reminder 1 · day 2');mail('Ahmed Hassan','Friendly reminder: '+p.name+' is waiting for your confirmation in the portal.')}
+  else if(S.day==4||S.day==6){p.remind.push('Reminder 2 · day '+S.day);mail('Ahmed Hassan','Second reminder: '+p.name+' is still pending.')}
+  else{p.st='Overdue';p.remind.push('Escalated · day '+S.day);mail('PM Karim Adel + Finance','Client has not responded to '+p.name+' for '+S.day+' days. Please call the client.')}
+  log('Auto email: '+p.name+' day '+S.day);toast('Automatic email sent');break}
+ case 'send':if(!val('ct'))return;S.chat.push({by:ROLES[role].name,role,t:val('ct')});break;
+ case 'conv':{const m=S.chat[i];if(b.dataset.k=='sel'){S.sel.unshift({id:Date.now(),sec:role=='pm'?'site':'design',title:m.t.slice(0,60),opt:'As agreed in chat',color:'#cfd6e3',due:'in 3 days',st:'Waiting',by:ROLES[role].name,src:1});m.conv='Converted to Selection'}
+  else{S.mods.unshift({id:'MOD-0'+(S.mods.length+1),title:m.t.slice(0,80),from:'Client (chat)',st:'Costing',note:''});m.conv='Converted to Extra modification'}
+  log(m.conv);toast(m.conv+'. Client sees it in the right section');break}
+ }
+ render();
+});
+document.addEventListener('change',e=>{if(e.target.id=='fu'&&e.target.files[0]){S.files.unshift({n:e.target.files[0].name,by:ROLES[role].name,sec:role=='design'?'design':role=='pm'?'site':'all'});log('Uploaded '+e.target.files[0].name);toast('Uploaded. Visible to the client');render()}});
+load();render();
+</script>
+</body>
+</html>
