@@ -68,6 +68,9 @@ button.card{font:inherit;color:inherit;text-align:start;width:100%}
 .br .t i{display:block;height:100%;background:var(--accent)}
 .br b{text-align:left;font-variant-numeric:tabular-nums}
 .h{font-size:13px;font-weight:700;color:var(--muted);margin:6px 2px 0}
+.loading{display:flex;align-items:center;gap:12px;min-height:96px}
+.spin{width:26px;height:26px;border:3px solid var(--chip);border-top-color:var(--ink);border-radius:50%;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
 .empty{text-align:center;color:var(--muted);padding:24px 8px}
 .sheet{position:fixed;inset:0;z-index:20;background:rgba(5,10,25,.55);display:flex;align-items:flex-end}
 .sheet .box{background:var(--bg);width:100%;max-width:640px;margin:0 auto;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0))}
@@ -171,15 +174,32 @@ $('periods').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;perio
   [...$('periods').children].forEach(c=>c.classList.toggle('on',c===b));
   $('custom').hidden=period!=='custom';
   if(period==='custom'&&!$('from').value){const r=rangeOf('week');$('from').value=r[0];$('to').value=r[1]}
-  load()};
-$('from').onchange=$('to').onchange=load;
+  load(true)};
+$('from').onchange=$('to').onchange=()=>load(true);
 
 /* ---------- load ---------- */
-async function load(){
-  const [from,to]=rangeOf(period);
+let seq=0;
+const PNAME={today:'النهارده',yest:'امبارح',week:'الأسبوع ده',month:'الشهر ده',custom:'الفترة دي'};
+function loading(){
+  closeSheet();
+  $('kpis').innerHTML='<div class="kpi big loading"><div class="spin"></div><div class="l">جاري تحميل بيانات '+PNAME[period]+'…</div></div>';
+  $('view').innerHTML='';
+}
+/* fresh=true when the period changed: old numbers are removed at once, nothing shows until the new answer arrives.
+   Auto refresh (same period) keeps the screen and swaps it when the new answer arrives. */
+async function load(fresh){
+  const [from,to]=rangeOf(period), my=++seq;
+  if(fresh){D=null;loading()}
   $('upd').textContent='…';
-  try{ D=await api({action:'dash',from,to}); fillFilters(); render(); $('upd').textContent=D.now.slice(11)+' · '+D.now.slice(5,10).split('-').reverse().join('/') }
-  catch(e){ $('upd').textContent='تعذر التحديث' }
+  try{
+    const r=await api({action:'dash',from,to});
+    if(my!==seq)return;               // an older request finished late: ignore it
+    D=r; fillFilters(); render(); $('upd').textContent=D.now.slice(11)+' · '+D.now.slice(5,10).split('-').reverse().join('/');
+  }catch(e){
+    if(my!==seq)return;
+    $('upd').textContent='تعذر التحديث';
+    if(!D){$('kpis').innerHTML='<div class="kpi big"><div class="l">تعذر التحميل. </div><button class="chip" onclick="load(true)">حاول تاني</button></div>'}
+  }
 }
 function auto(){clearInterval(timer);timer=setInterval(()=>{if(!document.hidden)load()},120000)}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&D)load()});
@@ -222,7 +242,7 @@ const workers=v=>sum(v.crew,c=>c[2]);
 
 /* ---------- render ---------- */
 function render(){
-  if(!D)return;
+  if(!D)return loading();
   const C=compute(),{f,visits,byUnit,all}=C;
   $('clr').hidden=!(f.con||f.trade||f.eng||f.proj||f.unit);
   const done=Object.keys(byUnit).length, tot=C.narrowed?done:all.length;
@@ -316,7 +336,7 @@ $('go').onclick=async()=>{$('lerr').textContent='';$('go').disabled=true;
   try{const r=await api({action:'dashLogin',password:$('pw').value});TOKEN=r.token;try{localStorage.setItem('dash',TOKEN)}catch(e){}start()}
   catch(e){$('lerr').textContent=e.message}finally{$('go').disabled=false}};
 $('pw').onkeydown=e=>{if(e.key==='Enter')$('go').click()};
-function start(){$('login').hidden=true;$('app').hidden=false;load();auto()}
+function start(){$('login').hidden=true;$('app').hidden=false;load(true);auto()}
 if(TOKEN||DEMO)start();else $('login').hidden=false;
 
 /* ---------- demo data (?demo) ---------- */
