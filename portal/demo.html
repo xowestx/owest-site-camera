@@ -60,7 +60,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px
 <header>
   <img src="assets/oplus-mark-white.png" alt="O-Plus">
   <span class="t">Client Portal · Live demo</span>
-  <span class="sp"></span><span id="live" class="t" style="font-size:11px"></span>
+  <span class="sp"></span><span id="clock" class="t" style="font-size:13px;opacity:1;color:#F0B323"></span><span id="live" class="t" style="font-size:11px"></span>
   <div class="roles" id="roles"></div>
 </header>
 <div class="wrap">
@@ -94,6 +94,28 @@ const TEAM={pm:'Eng. Karim Adel',design:'Nour Samir',finance:'Mai Ali',cost:'Han
 const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change or add something',to:'design',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
 const SEED={paid:false,team:false,stage:-1,day:0,req:[],sel:[],mods:[],chat:[],files:[],log:[],
  pay:[{id:1,name:'Down payment',pct:'30%',due:'At contract',st:'Scheduled'},{id:2,name:'Installment 2 · Cheque',pct:'25%',due:'15 Dec 2026',st:'Scheduled'},{id:3,name:'Installment 3 · Cheque',pct:'25%',due:'15 Feb 2027',st:'Scheduled'},{id:4,name:'Final payment · at handover',pct:'20%',due:'Handover',st:'Scheduled'}]};
+const HPD=9,SLA={q:4,chg:9,pay:9,site:1};let CURH=0;
+function dh(ts){if(!S||!S.clk)return 0;return S.clk.base+((ts||Date.now())-S.clk.ts)/1000/S.clk.spd}
+function fmt(h){h=Math.max(0,h);const d=Math.floor(h/HPD)+1,m=Math.floor((h%HPD)*60),hh=9+Math.floor(m/60),mm=m%60;return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
+function dur(h){h=Math.max(0,h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h>=1)return Math.round(h*10)/10+' h';return Math.max(1,Math.round(h*60))+' min'}
+function alerts(){const now=dh(),out=[];if(!S.clk)return out;
+ S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type];
+  if(age>=sla)out.push({k:r.id+'late',to:[r.to,'pm','head'],lvl:'bad',m:r.id+' is LATE: no reply for '+dur(age)+' (promise '+dur(sla)+'). Escalated to Head of Projects',mail:{to:'Head of Projects · ClickUp @mention',b:r.id+' “'+esc(r.t)+'” has no reply after '+dur(age)+'. Owner: '+TEAM[r.to]+'.'}});
+  else if(age>=sla*0.75)out.push({k:r.id+'soon',to:[r.to],lvl:'warn',m:r.id+' reply due in '+dur(sla-age)})});
+ S.sel.forEach(x=>{if(x.st!='Waiting')return;const age=now-x.h0;
+  if(age>=2*HPD)out.push({k:x.id+'s2',to:['pm','design','head'],lvl:'bad',m:'Client has not decided “'+x.title+'” for '+dur(age)+'. Call the client'});
+  else if(age>=HPD)out.push({k:x.id+'s1',to:['client','family'],lvl:'warn',m:'Reminder: “'+x.title+'” is waiting for your decision',mail:{to:'Ahmed Hassan',b:'Reminder: “'+esc(x.title)+'” is waiting for your decision in the portal.'}})});
+ S.mods.forEach(m=>{const age=now-(m.hs||m.h0);
+  if(m.st=='Costing'&&age>=HPD)out.push({k:m.id+'c',to:['cost','extra','head'],lvl:'bad',m:m.id+' not costed after '+dur(age)+' (promise 1 day)'});
+  if(m.st=='Awaiting client'&&age>=HPD)out.push({k:m.id+'a',to:['client','family'],lvl:'warn',m:'Reminder: addendum '+m.id+' is waiting for your approval',mail:{to:'Ahmed Hassan',b:'Reminder: the addendum for '+m.id+' is waiting for your approval.'}})});
+ S.pay.forEach(p=>{if(p.st!='Requested')return;const age=now-p.h0;
+  if(age>=7*HPD)out.push({k:p.id+'p3',to:['pm','finance','head'],lvl:'bad',m:p.name+': no answer for 7 days. Call the client',mail:{to:'ClickUp @PM @Finance',b:'Client has not responded to '+p.name+' for 7 days. Please call the client.'}});
+  else if(age>=5*HPD)out.push({k:p.id+'p2',to:['client','family'],lvl:'warn',m:'Second reminder: '+p.name+' is still pending',mail:{to:'Ahmed Hassan',b:'Second reminder: '+p.name+' is still pending.'}});
+  else if(age>=2*HPD)out.push({k:p.id+'p1',to:['client','family'],lvl:'warn',m:'Reminder: '+p.name+' is waiting for your confirmation',mail:{to:'Ahmed Hassan',b:'Friendly reminder: '+p.name+' is waiting for your confirmation.'}})});
+ return out}
+const isMine=a=>a.to.includes(role)||(role=='head'&&a.lvl=='bad');
+function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';return a.map(x=>`<div class="${x.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px;${x.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${x.lvl=='bad'?'⛔ ':'⏰ '}${esc(x.m)}</div>`).join('')}
+function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to=='Ahmed Hassan':a.mail.to!='Ahmed Hassan'));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
 const KEY='opdemo3';let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
 const fresh=()=>JSON.parse(JSON.stringify(SEED));
@@ -110,7 +132,7 @@ function ownerOnly(){if(role=='family'){toast('Only the unit owner can approve. 
 function n(){return S.req.length+S.mods.length+1}
 
 function render(){
- save();
+ save();const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#main input,#main select').forEach(e=>{if(e.id&&e.type!='file')keep[e.id]=e.value});
  $('#roles').innerHTML=Object.keys(ROLES).map(k=>`<button class="${k===role?'on':''}" data-r="${k}">${ROLES[k].title.split(' (')[0]}</button>`).join('');
  $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
  const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
@@ -123,7 +145,8 @@ function render(){
   pay:S.pay.filter(p=>(isClientSide()&&(p.st=='Requested'||p.st=='Overdue'))||(role=='finance'&&p.st=='Client confirmed')).length,
   sitecam:S.req.filter(r=>r.ask&&!r.photo).length};
  $('#tabs').innerHTML=R.tabs.map(t=>`<button class="${t==tab?'on':''}" data-t="${t}">${TABN[t]}${badge[t]?`<span class="n">${badge[t]}</span>`:''}</button>`).join('');
- $('#main').innerHTML=V[tab]();
+ $('#main').innerHTML=alertBox()+V[tab]()+(['overview','pay','clock','req'].includes(tab)?mailsBox():'');
+ Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e)e.value=keep[k]});if(fid){const e=document.getElementById(fid);if(e)e.focus()}
 }
 const V={
 overview(){
@@ -146,7 +169,7 @@ req(){
  return form+(list.length?'':'<div class="muted">No requests yet.</div>')+list.map(r=>{
   const act=r.st!='Resolved'&&isTeam()&&(r.to==role||role=='pm'||role=='head');
   return `<div class="card"><div class="row"><div class="grow"><div class="eyebrow">${r.id} · ${RT[r.type].n}</div><b>${esc(r.t)}</b>
-  <div class="muted">${isClientSide()?(r.st=='Resolved'?'Resolved':'Received · we reply within '+RT[r.type].sla):'Owner: '+TEAM[r.to]+' · reply within '+RT[r.type].sla+' · ClickUp task assigned'}</div>
+  <div class="muted">${isClientSide()?(r.st=='Resolved'?'Resolved':'Received · we reply within '+RT[r.type].sla):'Owner: '+TEAM[r.to]+' · '+(r.st=='Resolved'?'answered in '+dur(r.h1-r.h0):(dh()-r.h0>=SLA[r.type]?'LATE by '+dur(dh()-r.h0-SLA[r.type]):'reply due in '+dur(SLA[r.type]-(dh()-r.h0))))+' · ClickUp task assigned'}</div>
   ${r.esc?'<div class="esc">Escalated to Head of Projects · SLA missed</div>':''}
   ${r.ask&&!r.photo?'<div class="note">Waiting for site photo from the Site Engineer</div>':''}
   ${r.photo?'<div class="row" style="margin-top:8px"><div class="photo">Site photo · today</div><div class="muted">Uploaded from Site Camera by Eng. Mahmoud</div></div>':''}
@@ -173,7 +196,7 @@ pay(){
   if((p.st=='Requested'||p.st=='Overdue')&&isClientSide())a=`<button class="btn ok sm" data-a="payconf" data-i="${p.id}">I will hand it over</button>`;
   if(p.st=='Client confirmed'&&(role=='finance'||role=='head'))a=`<button class="btn sm" data-a="payrec" data-i="${p.id}">Mark received</button>`;
   if(p.st=='Scheduled'&&(role=='finance'||role=='head'))a=`<button class="btn ghost sm" data-a="payask" data-i="${p.id}">Request now</button>`;
-  return `<tr><td>${esc(p.name)}${p.remind&&p.remind.length?`<div class="muted">${p.remind.join(' · ')}</div>`:''}</td><td>${p.pct}</td><td>${esc(p.due)}</td><td>${pill(p.st)}</td><td>${a}</td></tr>`}).join('')}</table>
+  return `<tr><td>${esc(p.name)}${p.remind&&p.remind.length?`<div class="muted">${p.remind.join(' · ')}</div>`:''}</td><td>${p.pct}</td><td>${esc(p.due)}</td><td>${pill(p.st=='Requested'&&dh()-p.h0>=7*HPD?'Overdue':p.st)}</td><td>${a}</td></tr>`}).join('')}</table>
  ${S.lastMail&&(role=='finance'||role=='pm'||isClientSide())?mailBox():''}
  <p class="muted">Shares and dates only. Amounts stay in the official Finance statement.</p>`},
 chat(){
@@ -183,13 +206,14 @@ files(){const vis=S.files;return `${vis.length?'':'<div class="muted">No files y
 sitecam(){const asks=S.req.filter(r=>r.ask&&!r.photo);
  return `<div class="note" style="margin-bottom:10px">This is the Site Camera app the site team already uses. Photos go to the unit's Drive folder and the portal reads them.</div>
  ${asks.length?asks.map(r=>`<div class="card"><div class="eyebrow">Photo requested by the PM · ${r.id}</div><b>${esc(r.t)}</b><div style="margin-top:8px"><button class="btn big" data-a="photo" data-i="${r.id}">📷 Take photo and upload</button></div></div>`).join(''):'<div class="muted">No photo requests from the PM.</div>'}`},
-clock(){const p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');const late=S.req.filter(r=>r.st=='Open'&&!r.esc);
- return `<div class="hero"><h2>Timekeeper</h2><div class="muted">You move time forward so everyone sees the automatic reminders and escalations.</div></div>
- <div class="card"><h2>Payment reminders</h2>${p?`<div class="muted" style="margin-bottom:8px">${esc(p.name)} · day ${S.day} since request</div><button class="btn big" data-a="tick">⏩ Next reminder (day 2 › day 5 › day 7)</button>`:'<div class="muted">No open payment request. Finance must request one first.</div>'}${S.lastMail?mailBox():''}</div>
- <div class="card"><h2>Reply-time check</h2>${late.length?`<button class="btn big red" data-a="sla">⏩ +1 hour · escalate unanswered requests (${late.length})</button>`:'<div class="muted">No open requests.</div>'}</div>`},
+clock(){const sp=S.clk?S.clk.spd:60;
+ return `<div class="hero"><h2 style="font-size:34px">${S.clk?fmt(dh()):'Clock starts when the client pays'}</h2><div class="muted">Working day 09:00 to 18:00. Now 1 hour = ${sp} seconds, so 1 day = ${Math.round(sp*9/60*10)/10} minutes. Reminders and escalations fire by themselves.</div></div>
+ <div class="card"><h2>Speed</h2>${[30,60,120].map(x=>`<button class="btn ${x==sp?'':'ghost'}" data-a="speed" data-x="${x}">1 hour = ${x} s</button> `).join('')}</div>
+ <div class="card"><h2>Jump forward</h2><button class="btn big" data-a="jump" data-x="1">+1 hour</button> <button class="btn big" data-a="jump" data-x="9">+1 day</button> <button class="btn big red" data-a="jump" data-x="18">+2 days</button></div>
+ <div class="card"><h2>Promises</h2><div class="muted">Question: 4 h · Change: 1 day · Payment question: 1 day · Urgent: 1 h · Cost an extra: 1 day · Client decision: reminder after 1 day, PM alerted after 2 · Cheque: reminders day 2 and 5, escalation day 7</div></div>`},
 reports(){const c=(a,s)=>a.filter(x=>x.st==s).length;
  return `<div class="grid">
- <div class="kpi"><span class="eyebrow">Requests</span><b>${S.req.length}</b><span class="muted">${c(S.req,'Resolved')} resolved · ${S.req.filter(r=>r.esc).length} escalated</span></div>
+ <div class="kpi"><span class="eyebrow">Requests</span><b>${S.req.length}</b><span class="muted">${S.req.filter(r=>r.st=='Resolved'&&r.h1-r.h0<=SLA[r.type]).length} on time · ${S.req.filter(r=>(r.st=='Resolved'?r.h1:dh())-r.h0>SLA[r.type]).length} late</span></div>
  <div class="kpi"><span class="eyebrow">Selections</span><b>${S.sel.length}</b><span class="muted">${c(S.sel,'Approved')} approved · ${c(S.sel,'Waiting')} waiting</span></div>
  <div class="kpi"><span class="eyebrow">Extra modifications</span><b>${S.mods.length}</b><span class="muted">${c(S.mods,'Released to site')} released to site</span></div>
  <div class="kpi"><span class="eyebrow">Payments</span><b>${c(S.pay,'Received')}/${S.pay.length}</b><span class="muted">${S.pay.reduce((a,p)=>a+(p.remind?p.remind.length:0),0)} auto reminders</span></div></div>
@@ -210,33 +234,33 @@ function selView(sec){
  ${S.sel.filter(x=>x.sec==sec).map(x=>`<div class="card"><div class="row"><div class="sw" style="background:${x.color}"></div><div class="grow"><b>${esc(x.title)}</b><div>${esc(x.opt)}</div><div class="muted">From ${esc(x.by)} · decide by ${esc(x.due)}</div>${x.reason?`<div class="note">Client: ${esc(x.reason)}</div>`:''}</div>${pill(x.st)}</div>
  ${x.st=='Waiting'&&isClientSide()?`<div style="margin-top:8px"><button class="btn ok sm" data-a="selok" data-i="${x.id}">Approve</button> <button class="btn red sm" data-a="selno" data-i="${x.id}">Reject</button></div>`:''}
  ${x.st=='Rejected'&&own?`<div style="margin-top:8px"><button class="btn ghost sm" data-a="selrev" data-i="${x.id}">Send revised option</button></div>`:''}</div>`).join('')||'<div class="muted">No selections yet.</div>'}`}
-function addMod(title,from){const id='MOD-0'+(S.mods.length+1);S.mods.unshift({id,title,from,st:'Costing',note:''});return id}
+function addMod(title,from){const id='MOD-0'+(S.mods.length+1);S.mods.unshift({id,title,from,st:'Costing',note:'',h0:CURH});return id}
 const OWNER_ACTS=['reqnew','selok','selno','modreq','modok','modno','payconf'];
 const NEED={reqnew:['rt','rx'],selnew:['st','so','sd'],modreq:['mt'],send:['ct']};
 function apply(A){const R=A.r,v=A.v||{},i=A.i,nm=(ROLES[R]||{}).name||R;
- const log=t=>S.log.unshift({t,who:nm});
+ const log=t=>S.log.unshift({t,who:nm});const H=dh(A.ts);CURH=H;
  const sel=()=>S.sel.find(x=>x.id==i),mod=()=>S.mods.find(x=>x.id==i),pay=()=>S.pay.find(x=>x.id==i),req=()=>S.req.find(x=>x.id==i);
  try{switch(A.a){
  case 'reset':S=fresh();return 'Demo reset';
- case 'paid':if(S.paid)return;S.paid=true;S.stage=0;S.pay[0].st='Received';S.files.unshift({n:'Signed quotation Q-2026-0412.pdf',by:'Sales'});log('Quotation paid · case opened');mail('Ahmed Hassan','Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');return 'Client emailed the portal link · kick-off task to Head of Projects';
+ case 'paid':if(S.paid)return;S.paid=true;S.stage=0;S.clk={base:0,ts:A.ts,spd:60};S.pay[0].st='Received';S.files.unshift({n:'Signed quotation Q-2026-0412.pdf',by:'Sales'});log('Quotation paid · case opened');mail('Ahmed Hassan','Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');return 'Client emailed the portal link · kick-off task to Head of Projects';
  case 'team':if(S.team)return;S.team=true;S.stage=1;log('Unit team assigned · case open for PM, Designer, Finance, Cost');return 'Case opened for the whole team · ClickUp tasks created';
  case 'stage1':case 'stage-1':S.stage=Math.max(0,Math.min(5,S.stage+(A.a=='stage1'?1:-1)));log('Stage → '+STAGES[S.stage]);return 'Client emailed: home moved to '+STAGES[S.stage];
- case 'reqnew':{const k=v.rt;S.req.unshift({id:'R-0'+n(),type:k,t:v.rx,to:RT[k].to,st:'Open'});log('Request: '+RT[k].n+' → '+TEAM[RT[k].to]);return 'Assigned automatically to '+TEAM[RT[k].to]+' · ClickUp task created'}
+ case 'reqnew':{const k=v.rt;S.req.unshift({id:'R-0'+n(),type:k,t:v.rx,to:RT[k].to,st:'Open',h0:H});log('Request: '+RT[k].n+' → '+TEAM[RT[k].to]);return 'Assigned automatically to '+TEAM[RT[k].to]+' · ClickUp task created'}
  case 'askphoto':req().ask=1;log('PM asked site for a photo ('+i+')');return 'Site Engineer notified in Site Camera';
  case 'photo':req().photo=1;log('Site photo uploaded for '+i);return 'Photo uploaded · PM sees it on the request';
- case 'reqdone':{const r=req();if(r.st=='Resolved')return;r.ans=v['ra'+i]||'Done, thank you.';r.st='Resolved';log(i+' resolved');mail('Ahmed Hassan','Reply to your request '+i+': '+esc(r.ans));return 'Client notified · ClickUp task closed'}
- case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Kitchen countertop marble':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm});r.st='Resolved';r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
- case 'r2mod':{const r=req();if(r.st=='Resolved')return;const id=addMod(r.t,'Client request '+i);r.st='Resolved';r.ans='Registered as extra modification '+id+'. Cost will send you the addendum.';log(i+' → '+id+' (to Cost)');return id+' sent to Cost · site locked until released'}
- case 'selnew':S.sel.unshift({id:'S'+A.ts,sec:A.s,title:v.st,opt:v.so,color:A.s=='design'?'#efe9df':'#cfd6e3',due:v.sd,st:'Waiting',by:nm});log('Selection sent: '+v.st);mail('Ahmed Hassan','New selection for your approval: '+esc(v.st));return 'Sent · client emailed + badge in the portal';
+ case 'reqdone':{const r=req();if(r.st=='Resolved')return;r.ans=v['ra'+i]||'Done, thank you.';r.st='Resolved';r.h1=H;log(i+' resolved');mail('Ahmed Hassan','Reply to your request '+i+': '+esc(r.ans));return 'Client notified · ClickUp task closed'}
+ case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Kitchen countertop marble':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm,h0:H});r.st='Resolved';r.h1=H;r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
+ case 'r2mod':{const r=req();if(r.st=='Resolved')return;const id=addMod(r.t,'Client request '+i);r.st='Resolved';r.h1=H;r.ans='Registered as extra modification '+id+'. Cost will send you the addendum.';log(i+' → '+id+' (to Cost)');return id+' sent to Cost · site locked until released'}
+ case 'selnew':S.sel.unshift({id:'S'+A.ts,sec:A.s,title:v.st,opt:v.so,color:A.s=='design'?'#efe9df':'#cfd6e3',due:v.sd,st:'Waiting',by:nm,h0:H});log('Selection sent: '+v.st);mail('Ahmed Hassan','New selection for your approval: '+esc(v.st));return 'Sent · client emailed + badge in the portal';
  case 'selok':sel().st='Approved';log('Approved: '+sel().title);return 'Code 482913 confirmed · approved and recorded';
  case 'selno':sel().st='Rejected';sel().reason='Please show a lighter option';log('Rejected: '+sel().title);return 'Rejected · team notified';
  case 'selrev':sel().st='Waiting';sel().opt+=' (rev 2)';sel().reason='';log('Revised option sent');return 'Revised option sent as version 2';
  case 'modreq':{const id=addMod(v.mt||'Extend the landscape and add a pergola','Client');log(id+' requested');return 'Sent to Cost · site will not execute it yet'}
- case 'costdone':mod().note=v['mn'+i]||'Addendum A-01';mod().st='Awaiting client';log('Cost adjusted '+i);mail('Ahmed Hassan','Your extra work '+i+' is costed. Please review and approve the addendum in your portal.');return 'Client emailed to approve the addendum';
+ case 'costdone':mod().note=v['mn'+i]||'Addendum A-01';mod().st='Awaiting client';mod().hs=H;log('Cost adjusted '+i);mail('Ahmed Hassan','Your extra work '+i+' is costed. Please review and approve the addendum in your portal.');return 'Client emailed to approve the addendum';
  case 'modok':mod().st='Client approved';log('Client approved '+i);return 'Approved with email code · Head of Extra Work notified in ClickUp';
  case 'modno':mod().st='Declined';log('Client declined '+i);return 'Declined · nothing executed';
  case 'release':mod().st='Released to site';log(i+' released to site');return 'Released · PM and Site Engineer can execute';
- case 'payask':pay().st='Requested';pay().remind=[];S.day=0;log('Payment requested: '+pay().name);mail('Ahmed Hassan','O-Plus requests: '+pay().name+' ('+pay().pct+'), due '+pay().due+'. Please confirm in your portal.');return 'Client emailed · sees it in Payments';
+ case 'payask':pay().st='Requested';pay().remind=[];pay().h0=H;S.day=0;log('Payment requested: '+pay().name);mail('Ahmed Hassan','O-Plus requests: '+pay().name+' ('+pay().pct+'), due '+pay().due+'. Please confirm in your portal.');return 'Client emailed · sees it in Payments';
  case 'payconf':pay().st='Client confirmed';log('Client confirmed '+pay().name);return 'Finance notified in ClickUp';
  case 'payrec':pay().st='Received';log('Received '+pay().name);mail('Ahmed Hassan','We received '+pay().name+'. Thank you.');return 'Receipt emailed to client';
  case 'tick':{const p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');if(!p)return;p.remind=p.remind||[];S.day=S.day<2?2:S.day<5?5:7;
@@ -245,6 +269,8 @@ function apply(A){const R=A.r,v=A.v||{},i=A.i,nm=(ROLES[R]||{}).name||R;
   else{if(p.st!='Overdue'){p.st='Overdue';p.remind.push('Escalated · day 7')}mail('ClickUp @Karim (PM) @Mai (Finance)','Client has not responded to '+p.name+' for 7 days. Please call the client.')}
   log('Auto: '+p.name+' day '+S.day);return S.day==7?'Escalated in ClickUp to PM and Finance':'Automatic reminder emailed to client'}
  case 'sla':S.req.filter(r=>r.st=='Open'&&!r.esc).forEach(r=>r.esc=1);log('Reply time missed · escalated to Head of Projects');return 'Escalated · @Head of Projects in ClickUp';
+ case 'speed':if(S.clk)S.clk={base:dh(A.ts),ts:A.ts,spd:+v.spd||60};return 'Clock speed: 1 hour = '+(+v.spd||60)+' seconds';
+ case 'jump':if(S.clk)S.clk.base+=(+v.h||1);return 'Time moved forward '+dur(+v.h||1);
  case 'send':S.chat.push({by:nm,role:R,t:v.ct});return;
  case 'move':{const r=req();r.to=v.to;log(r.id+' reassigned to '+TEAM[r.to]);return 'Reassigned to '+TEAM[r.to]+' · ClickUp task moved'}
  }}catch(e){console.warn('skip',A,e)}}
@@ -278,13 +304,18 @@ document.addEventListener('click',e=>{
  if(role=='family'&&OWNER_ACTS.includes(a))return toast('Only the unit owner can approve or request. Mona can follow, not act.');
  const v={};(NEED[a]||[]).forEach(k=>v[k]=($('#'+k)||{}).value||'');
  if(b.dataset.i){['ra','mn'].forEach(p=>{const el=$('#'+p+b.dataset.i);if(el)v[p+b.dataset.i]=el.value})}
+ if(b.dataset.x){v.spd=b.dataset.x;v.h=b.dataset.x}
  if(a=='reqnew'&&!v.rx)return toast('Write your request first');
  if(a=='send'&&!v.ct)return;
  dispatch({a,r:role,i:b.dataset.i,s:b.dataset.s,v});
 });
 function confirmReset(){return S.log.length<1||window.confirm('Reset the demo for everyone?')}
 document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value)dispatch({a:'move',r:role,i:e.target.dataset.move,v:{to:e.target.value}})});
-load();if(FIXED&&ROLES[FIXED]){role=FIXED;document.getElementById('roles').style.display='none'}if(API){S=fresh();seen=0}render();if(API){pull();setInterval(pull,2500)}
+const fired=new Set();let first=true;
+function tick(){$('#clock').textContent=S.clk?fmt(dh()):'';const fresh_=alerts().filter(a=>isMine(a)&&!fired.has(a.k));fresh_.forEach(a=>fired.add(a.k));
+ if(fresh_.length&&!first){toast((fresh_[0].lvl=='bad'?'⛔ ':'⏰ ')+fresh_[0].m);try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
+ if(fresh_.length||tab=='clock'||Date.now()%10000<1000)render();first=false}
+load();if(FIXED&&ROLES[FIXED]){role=FIXED;document.getElementById('roles').style.display='none'}if(API){S=fresh();seen=0}render();setInterval(tick,1000);if(API){pull();setInterval(pull,2500)}
 </script>
 </body>
 </html>
