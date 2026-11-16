@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>O-Plus Role-play</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+body{margin:0;font-family:Poppins,Arial,sans-serif;background:#001641;color:#F3F5F9}
+.wrap{max-width:1400px;margin:0 auto;padding:24px 16px}
+h1{margin:0 0 4px;font-size:28px}.sub{color:#C9D2E3;margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.c{background:#F3F5F9;color:#1A2238;border-radius:8px;padding:14px;text-align:center;border-top:6px solid #F0B323}
+.c b{display:block;font-size:16px;color:#001641}.c span{font-size:12px;color:#5F677A;display:block;margin-bottom:8px}
+.q{display:flex;justify-content:center}.q img,.q canvas{width:150px;height:150px}
+a{color:#F0B323}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>O-Plus Client Portal · Role-play</h1>
+<p class="sub">Scan your role with your phone camera. Keep the page open: updates arrive live.</p>
+<div class="grid" id="g"></div>
+</div>
+<script>
+const R=[['client','Client','Unit owner'],['family','Family','Can follow, cannot approve'],['sales','Sales','Starts the case'],['head','Head of Projects','Kick-off, escalations, reports'],['design','Designer','Design selections'],['pm','Project Manager','Case owner'],['site','Site Engineer','Site Camera'],['cost','Cost','Prices extra work'],['extra','Head of Extra Work','Releases to site'],['finance','Finance','Cheques and installments'],['time','Timekeeper','Moves time forward']];
+const base=location.href.replace(/play\.html.*$/,'demo.html');
+const g=document.getElementById('g');
+R.forEach(([k,t,s])=>{const url=base+'?role='+k;const d=document.createElement('div');d.className='c';d.innerHTML=`<b>${t}</b><span>${s}</span><div class="q" id="q-${k}"></div><a href="${url}" style="font-size:11px;color:#001641">open</a>`;g.appendChild(d);
+ try{new QRCode(document.getElementById('q-'+k),{text:url,width:150,height:150,correctLevel:QRCode.CorrectLevel.M})}catch(e){}});
+</script>
+</body>
+</html>
