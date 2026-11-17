@@ -24,7 +24,7 @@ a{color:#F0B323}
 <div class="grid" id="g"></div>
 </div>
 <script>
-const R=[['client','Client','Unit owner'],['family','Family','Can follow, cannot approve'],['sales','Sales','Starts the case'],['head','Head of Projects','Kick-off, escalations, reports'],['design','Designer','Design selections'],['pm','Project Manager','Case owner'],['site','Site Engineer','Site Camera'],['cost','Cost','Prices extra work'],['extra','Head of Extra Work','Releases to site'],['finance','Finance','Cheques and installments'],['time','Timekeeper','Moves time forward']];
+const R=[['client','Client 1','Unit owner · Ahmed'],['client2','Client 2','Unit owner · Sara'],['board','Big screen','Projector: all cases live'],['family','Family','Can follow, cannot approve'],['sales','Sales','Starts the case'],['head','Head of Projects','Kick-off, escalations, reports'],['design','Designer','Design selections'],['pm','Project Manager','Case owner'],['site','Site Engineer','Site Camera'],['cost','Cost','Prices extra work'],['extra','Head of Extra Work','Releases to site'],['finance','Finance','Cheques and installments'],['time','Timekeeper','Moves time forward']];
 const base=location.href.replace(/play\.html.*$/,'demo.html');
 const g=document.getElementById('g');
 R.forEach(([k,t,s])=>{const url=base+'?role='+k;const d=document.createElement('div');d.className='c';d.innerHTML=`<b>${t}</b><span>${s}</span><div class="q" id="q-${k}"></div><a href="${url}" style="font-size:11px;color:#001641">open</a>`;g.appendChild(d);

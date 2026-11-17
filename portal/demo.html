@@ -64,8 +64,8 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px
   <div class="roles" id="roles"></div>
 </header>
 <div class="wrap">
-  <div class="eyebrow">Unit OW-RV2-68-VA · Villa · O West</div>
-  <h1>Mr. Ahmed Hassan's home</h1>
+  <div class="eyebrow" id="ucode"></div>
+  <h1 id="uname"></h1>
   <div class="steps" id="steps"></div>
   <div class="who" id="who"></div>
   <nav class="tabs" id="tabs"></nav>
@@ -77,68 +77,77 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px
 window.DEMO_API=''; // set to the Apps Script /exec URL of portal/demo-backend/Code.gs
 const ROLES={
  client:{name:'Ahmed Hassan',title:'Client (unit owner)',tabs:['overview','req','design','site','mods','pay','chat','files']},
+ client2:{name:'Sara Kamel',title:'Client 2 (unit owner)',tabs:['overview','req','design','site','mods','pay','chat','files']},
+ board:{name:'Big screen',title:'Big screen',tabs:['board']},
  family:{name:'Mona Hassan',title:'Family (view only)',tabs:['overview','req','design','site','mods','pay','chat','files']},
  sales:{name:'Omar Nabil',title:'Sales',tabs:['overview']},
- head:{name:'Head of Projects',title:'Head of Projects',tabs:['overview','req','design','site','mods','pay','chat','files','reports','access']},
+ head:{name:'Head of Projects',title:'Head of Projects',tabs:['board','overview','req','design','site','mods','pay','chat','files','reports','access']},
  design:{name:'Nour Samir',title:'Designer',tabs:['overview','req','design','chat','files']},
- pm:{name:'Eng. Karim Adel',title:'Project Manager',tabs:['overview','req','site','mods','pay','chat','files','reports']},
+ pm:{name:'Eng. Karim Adel',title:'Project Manager',tabs:['board','overview','req','site','mods','pay','chat','files','reports']},
  site:{name:'Eng. Mahmoud (site)',title:'Site Engineer',tabs:['sitecam','mods']},
  cost:{name:'Hany Fawzy',title:'Cost',tabs:['req','mods','reports']},
  extra:{name:'Head of Extra Work',title:'Head of Extra Work',tabs:['mods','reports']},
  finance:{name:'Mai Ali',title:'Finance',tabs:['req','pay','reports']},
- time:{name:'Timekeeper',title:'Timekeeper',tabs:['clock']}
+ time:{name:'Timekeeper',title:'Timekeeper',tabs:['clock','board']}
 };
-const TABN={overview:'Overview',req:'Requests',design:'Design selections',site:'Site selections',mods:'Extra modifications',pay:'Payments',chat:'Chat',files:'Files',reports:'Reports',access:'Who sees what',sitecam:'Site Camera',clock:'Clock'};
+const TABN={board:'All cases',overview:'Overview',req:'Requests',design:'Design selections',site:'Site selections',mods:'Extra modifications',pay:'Payments',chat:'Chat',files:'Files',reports:'Reports',access:'Who sees what',sitecam:'Site Camera',clock:'Clock'};
 const STAGES=['Quotation paid','Kick-off','Design & selections','Execution','Snagging','Handover'];
 const TEAM={pm:'Eng. Karim Adel',design:'Nour Samir',finance:'Mai Ali',cost:'Hany Fawzy'};
 const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change or add something',to:'design',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
 const SEED={paid:false,team:false,stage:-1,day:0,req:[],sel:[],mods:[],chat:[],files:[],log:[],
  pay:[{id:1,name:'Down payment',pct:'30%',due:'At contract',st:'Scheduled'},{id:2,name:'Installment 2 · Cheque',pct:'25%',due:'15 Dec 2026',st:'Scheduled'},{id:3,name:'Installment 3 · Cheque',pct:'25%',due:'15 Feb 2027',st:'Scheduled'},{id:4,name:'Final payment · at handover',pct:'20%',due:'Handover',st:'Scheduled'}]};
-const HPD=9,SLA={q:4,chg:9,pay:9,site:1};let CURH=0;
-function dh(ts){if(!S||!S.clk)return 0;return S.clk.base+((ts||Date.now())-S.clk.ts)/1000/S.clk.spd}
+const SPD0=300/9,HPD=9,SLA={q:4,chg:9,pay:9,site:1};let CURH=0;
+function dh(ts){if(!G||!G.clk)return 0;return G.clk.base+((ts||Date.now())-G.clk.ts)/1000/G.clk.spd}
 function fmt(h){h=Math.max(0,h);const d=Math.floor(h/HPD)+1,m=Math.floor((h%HPD)*60),hh=9+Math.floor(m/60),mm=m%60;return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
 function dur(h){h=Math.max(0,h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h>=1)return Math.round(h*10)/10+' h';return Math.max(1,Math.round(h*60))+' min'}
-function alerts(){const now=dh(),out=[];if(!S.clk)return out;
- S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type];
-  if(age>=sla)out.push({k:r.id+'late',to:[r.to,'pm','head'],lvl:'bad',m:r.id+' is LATE: no reply for '+dur(age)+' (promise '+dur(sla)+'). Escalated to Head of Projects',mail:{to:'Head of Projects · ClickUp @mention',b:r.id+' “'+esc(r.t)+'” has no reply after '+dur(age)+'. Owner: '+TEAM[r.to]+'.'}});
+function alerts(){const now=dh(),out=[];if(!G.clk||!S.paid)return out;
+ S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type],late=age-sla;
+  if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm','head'],lvl:'bad',m:r.id+' late by '+dur(late)+'. Escalated to Head of Project Management',mail:{to:'Eng. Mohamad Salah · Head of Project Management',b:r.id+' “'+esc(r.t)+'” for '+S.client+' is late by '+dur(late)+'. Owner: '+TEAM[r.to]+'.'}});
+  else if(late>=HPD)out.push({k:r.id+'e1',to:[r.to,'pm','head'],lvl:'bad',m:r.id+' late by '+dur(late)+'. Escalated to Head of Projects',mail:{to:'Head of Projects · ClickUp @mention',b:r.id+' “'+esc(r.t)+'” for '+S.client+' is late by '+dur(late)+'. Owner: '+TEAM[r.to]+'.'}});
+  else if(late>=0)out.push({k:r.id+'late',to:[r.to,'pm'],lvl:'bad',m:r.id+' is LATE (promise '+dur(sla)+'). Reply now',mail:{to:TEAM[r.to]+' · ClickUp overdue',b:r.id+' “'+esc(r.t)+'” passed its reply time ('+dur(sla)+').'}});
   else if(age>=sla*0.75)out.push({k:r.id+'soon',to:[r.to],lvl:'warn',m:r.id+' reply due in '+dur(sla-age)})});
  S.sel.forEach(x=>{if(x.st!='Waiting')return;const age=now-x.h0;
   if(age>=2*HPD)out.push({k:x.id+'s2',to:['pm','design','head'],lvl:'bad',m:'Client has not decided “'+x.title+'” for '+dur(age)+'. Call the client'});
-  else if(age>=HPD)out.push({k:x.id+'s1',to:['client','family'],lvl:'warn',m:'Reminder: “'+x.title+'” is waiting for your decision',mail:{to:'Ahmed Hassan',b:'Reminder: “'+esc(x.title)+'” is waiting for your decision in the portal.'}})});
+  else if(age>=HPD)out.push({k:x.id+'s1',to:['client','family'],lvl:'warn',m:'Reminder: “'+x.title+'” is waiting for your decision',mail:{to:S.client,b:'Reminder: “'+esc(x.title)+'” is waiting for your decision in the portal.'}})});
  S.mods.forEach(m=>{const age=now-(m.hs||m.h0);
   if(m.st=='Costing'&&age>=HPD)out.push({k:m.id+'c',to:['cost','extra','head'],lvl:'bad',m:m.id+' not costed after '+dur(age)+' (promise 1 day)'});
-  if(m.st=='Awaiting client'&&age>=HPD)out.push({k:m.id+'a',to:['client','family'],lvl:'warn',m:'Reminder: addendum '+m.id+' is waiting for your approval',mail:{to:'Ahmed Hassan',b:'Reminder: the addendum for '+m.id+' is waiting for your approval.'}})});
+  if(m.st=='Awaiting client'&&age>=HPD)out.push({k:m.id+'a',to:['client','family'],lvl:'warn',m:'Reminder: addendum '+m.id+' is waiting for your approval',mail:{to:S.client,b:'Reminder: the addendum for '+m.id+' is waiting for your approval.'}})});
  S.pay.forEach(p=>{if(p.st!='Requested')return;const age=now-p.h0;
   if(age>=7*HPD)out.push({k:p.id+'p3',to:['pm','finance','head'],lvl:'bad',m:p.name+': no answer for 7 days. Call the client',mail:{to:'ClickUp @PM @Finance',b:'Client has not responded to '+p.name+' for 7 days. Please call the client.'}});
-  else if(age>=5*HPD)out.push({k:p.id+'p2',to:['client','family'],lvl:'warn',m:'Second reminder: '+p.name+' is still pending',mail:{to:'Ahmed Hassan',b:'Second reminder: '+p.name+' is still pending.'}});
-  else if(age>=2*HPD)out.push({k:p.id+'p1',to:['client','family'],lvl:'warn',m:'Reminder: '+p.name+' is waiting for your confirmation',mail:{to:'Ahmed Hassan',b:'Friendly reminder: '+p.name+' is waiting for your confirmation.'}})});
+  else if(age>=5*HPD)out.push({k:p.id+'p2',to:['client','family'],lvl:'warn',m:'Second reminder: '+p.name+' is still pending',mail:{to:S.client,b:'Second reminder: '+p.name+' is still pending.'}});
+  else if(age>=2*HPD)out.push({k:p.id+'p1',to:['client','family'],lvl:'warn',m:'Reminder: '+p.name+' is waiting for your confirmation',mail:{to:S.client,b:'Friendly reminder: '+p.name+' is waiting for your confirmation.'}})});
  return out}
-const isMine=a=>a.to.includes(role)||(role=='head'&&a.lvl=='bad');
+const isMine=a=>a.to.includes(role)||(role=='client2'&&a.to.includes('client'))||(role=='head'&&a.lvl=='bad');
 function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';return a.map(x=>`<div class="${x.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px;${x.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${x.lvl=='bad'?'⛔ ':'⏰ '}${esc(x.m)}</div>`).join('')}
-function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to=='Ahmed Hassan':a.mail.to!='Ahmed Hassan'));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
-const KEY='opdemo3';let S,role='client',tab='overview';
+function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to==S.client:a.mail.to!=S.client));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
+const KEY='opdemo4';let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
-const fresh=()=>JSON.parse(JSON.stringify(SEED));
-function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!S)S=fresh();try{role=localStorage.getItem(KEY+'r')||'sales'}catch(e){}if(!ROLES[role])role='sales'}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem(KEY+'r',role)}catch(e){}}
+const UINFO={u1:{code:'OW-RV2-68-VA · Villa · O West',client:'Ahmed Hassan',q:'Q-2026-0412',scope:'Kitchen + landscape works'},u2:{code:'OW-RV6-20A · Villa · O West',client:'Sara Kamel',q:'Q-2026-0431',scope:'Bathrooms + outdoor works'}};
+const fresh=u=>Object.assign(JSON.parse(JSON.stringify(SEED)),UINFO[u||'u1'],{u:u||'u1'});
+const freshG=()=>({clk:null,U:{u1:fresh('u1'),u2:fresh('u2')}});let G;
+function eachUnit(f){const keep=S,out=[];UNITS.forEach(u=>{S=G.U[u];out.push(f(u))});S=keep;return out}
+function load(){try{G=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!G||!G.U)G=freshG();S=G.U.u1;try{role=localStorage.getItem(KEY+'r')||'sales'}catch(e){}if(!ROLES[role])role='sales'}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(G));localStorage.setItem(KEY+'r',role)}catch(e){}}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',3500)}
 function log(t){S.log.unshift({t,who:ROLES[role].name})}
 function mail(to,b){S.lastMail={to,b}}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function pill(st){const m={Approved:'p-done',Received:'p-done','Released to site':'p-done',Resolved:'p-done',Rejected:'p-bad',Overdue:'p-bad',Declined:'p-bad',Escalated:'p-bad',Waiting:'p-act',Open:'p-act',Requested:'p-act',Costing:'p-act','Awaiting client':'p-act','Client approved':'p-wait','Client confirmed':'p-wait',Scheduled:'p-idle'};return `<span class="pill ${m[st]||'p-wait'}">${st}</span>`}
-const isClientSide=()=>role=='client'||role=='family';
+const isClientSide=()=>role=='client'||role=='client2'||role=='family';
+const UNITS=['u1','u2'];let unit='u1';
+const curUnit=()=>role=='client2'?'u2':(role=='client'||role=='family')?'u1':unit;
 const isTeam=()=>!isClientSide();
 function ownerOnly(){if(role=='family'){toast('Only the unit owner can approve. Mona can follow, not approve.');return true}return false}
 function n(){return S.req.length+S.mods.length+1}
 
 function render(){
- save();const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#main input,#main select').forEach(e=>{if(e.id&&e.type!='file')keep[e.id]=e.value});
+ S=G.U[curUnit()];save();$('#ucode').textContent='Unit '+S.code;$('#uname').textContent=S.client+"'s home";['ucode','uname','steps'].forEach(id=>$('#'+id).style.display=role=='board'?'none':'');const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#main input,#main select').forEach(e=>{if(e.id&&e.type!='file')keep[e.id]=e.value});
  $('#roles').innerHTML=Object.keys(ROLES).map(k=>`<button class="${k===role?'on':''}" data-r="${k}">${ROLES[k].title.split(' (')[0]}</button>`).join('');
  $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
  const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
- $('#who').innerHTML=`Playing <b>${R.name}</b> · ${R.title}<span class="muted">Sees: ${R.tabs.map(t=>TABN[t]).join(', ')}</span>`;
- if(!S.paid&&role!='sales'){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Case not open yet</h2><div class="muted">Waiting for the client to pay the quotation. Sales starts the case.</div></div>`;return}
- if(S.paid&&!S.team&&!['sales','head','client','family'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Quotation paid · waiting for kick-off</h2><div class="muted">Head of Projects assigns the unit team. Then this case opens for you.</div></div>`;return}
+ $('#who').innerHTML=`Playing <b>${R.name}</b> · ${R.title}${isTeam()&&role!='board'&&role!='time'?' · Case: '+UNITS.map(u=>`<button class="btn sm ${u==unit?'':'ghost'}" data-unit="${u}">${G.U[u].client}</button>`).join(' '):''}`;
+ if(!S.paid&&!['sales','board','time','head','pm'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Case not open yet</h2><div class="muted">Waiting for the client to pay the quotation. Sales starts the case.</div></div>`;return}
+ if(S.paid&&!S.team&&!['sales','head','client','client2','family','board','time','pm'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Quotation paid · waiting for kick-off</h2><div class="muted">Head of Projects assigns the unit team. Then this case opens for you.</div></div>`;return}
  const mine=r=>r.st=='Open'&&(role=='pm'||role=='head'||r.to==role);
  const badge={req:isClientSide()?0:S.req.filter(mine).length,design:isClientSide()?S.sel.filter(x=>x.sec=='design'&&x.st=='Waiting').length:0,site:isClientSide()?S.sel.filter(x=>x.sec=='site'&&x.st=='Waiting').length:0,
   mods:S.mods.filter(m=>(role=='cost'&&m.st=='Costing')||(isClientSide()&&m.st=='Awaiting client')||(role=='extra'&&m.st=='Client approved')).length,
@@ -151,7 +160,7 @@ function render(){
 const V={
 overview(){
  if(role=='sales')return S.paid?`<div class="hero"><h2>Done. Case handed over.</h2><div class="muted">Client emailed the portal link. Head of Projects assigns the team next.</div></div>${mailBox()}`:
-  `<div class="hero"><h2>Quotation Q-2026-0412 · Ahmed Hassan</h2><div class="muted">Kitchen + landscape works. Client paid the down payment today.</div><div style="margin-top:14px"><button class="btn big amber" data-a="paid">Quotation paid · open the case</button></div></div><div class="muted">Before payment the case runs in ClickUp (case, design, quotation). Payment opens the portal.</div>`;
+  `<div class="hero"><h2>Quotation ${S.q} · ${S.client}</h2><div class="muted">${S.scope}. Client paid the down payment today.</div><div style="margin-top:14px"><button class="btn big amber" data-a="paid">Quotation paid · open the case</button></div></div><div class="muted">Before payment the case runs in ClickUp (case, design, quotation). Payment opens the portal.</div>`;
  const kick=role=='head'&&!S.team?`<div class="hero"><h2>Kick-off · assign the unit team</h2><div class="muted">PM: ${TEAM.pm} · Designer: ${TEAM.design} · Finance: ${TEAM.finance} · Cost: ${TEAM.cost}</div><div style="margin-top:14px"><button class="btn big amber" data-a="team">Confirm team · open the case for everyone</button></div></div>`:'';
  const w=S.sel.filter(x=>x.st=='Waiting').length,p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');
  return `${kick}${role=='client'&&S.stage==0?mailBox():''}<div class="grid">
@@ -206,9 +215,16 @@ files(){const vis=S.files;return `${vis.length?'':'<div class="muted">No files y
 sitecam(){const asks=S.req.filter(r=>r.ask&&!r.photo);
  return `<div class="note" style="margin-bottom:10px">This is the Site Camera app the site team already uses. Photos go to the unit's Drive folder and the portal reads them.</div>
  ${asks.length?asks.map(r=>`<div class="card"><div class="eyebrow">Photo requested by the PM · ${r.id}</div><b>${esc(r.t)}</b><div style="margin-top:8px"><button class="btn big" data-a="photo" data-i="${r.id}">📷 Take photo and upload</button></div></div>`).join(''):'<div class="muted">No photo requests from the PM.</div>'}`},
-clock(){const sp=S.clk?S.clk.spd:60;
- return `<div class="hero"><h2 style="font-size:34px">${S.clk?fmt(dh()):'Clock starts when the client pays'}</h2><div class="muted">Working day 09:00 to 18:00. Now 1 hour = ${sp} seconds, so 1 day = ${Math.round(sp*9/60*10)/10} minutes. Reminders and escalations fire by themselves.</div></div>
- <div class="card"><h2>Speed</h2>${[30,60,120].map(x=>`<button class="btn ${x==sp?'':'ghost'}" data-a="speed" data-x="${x}">1 hour = ${x} s</button> `).join('')}</div>
+board(){const now=dh();
+ const rows=eachUnit(u=>{const al=alerts();const open=S.req.filter(r=>r.st!='Resolved').length+S.sel.filter(x=>x.st=='Waiting').length+S.mods.filter(m=>!['Released to site','Declined'].includes(m.st)).length+S.pay.filter(p=>p.st=='Requested').length;
+  const bad=al.filter(a=>a.lvl=='bad'),warn=al.filter(a=>a.lvl=='warn');
+  return `<div class="card" style="border-left:6px solid ${bad.length?'#A8392C':warn.length?'#F0B323':'#2F6E4E'}"><div class="row"><div class="grow"><div class="eyebrow">${S.code}</div><h2 style="margin:2px 0">${S.client}</h2><div class="muted">${S.paid?STAGES[Math.max(0,S.stage)]:'Not paid yet'} · ${open} open items · ${S.req.filter(r=>r.st=='Resolved').length} resolved</div></div>${isTeam()&&role!='board'?`<button class="btn sm ghost" data-unit="${u}">Open case</button>`:''}</div>
+  ${al.map(a=>`<div class="${a.lvl=='bad'?'lock':'note'}" style="${a.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${a.lvl=='bad'?'⛔ ':'⏰ '}${esc(a.m)}${a.mail?' · <b>email sent</b>':''}</div>`).join('')||'<div class="muted" style="margin-top:6px">✓ Everything on time</div>'}
+  ${S.req.filter(r=>r.st!='Resolved').map(r=>{const left=SLA[r.type]-(now-r.h0);return `<div class="muted" style="margin-top:6px">${r.id} · ${esc(r.t)} · owner ${TEAM[r.to]} · <b style="color:${left<0?'#A8392C':'#1A2238'}">${left<0?'late by '+dur(-left):'due in '+dur(left)}</b></div>`}).join('')}</div>`});
+ return `<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late +1 day → Head of Projects · +2 days → Head of Project Management</div></div>`+rows.join('')},
+clock(){const sp=G.clk?G.clk.spd:SPD0,dm=Math.round(sp*HPD/60);
+ return `<div class="hero"><h2 style="font-size:34px">${G.clk?fmt(dh()):'Clock starts when the first client pays'}</h2><div class="muted">Working day 09:00 to 18:00. Now 1 day = ${dm} minutes (1 hour ≈ ${Math.round(sp)} s). Reminders and escalations fire by themselves.</div></div>
+ <div class="card"><h2>Speed</h2>${[3,5,9].map(x=>`<button class="btn ${x==dm?'':'ghost'}" data-a="speed" data-x="${x}">1 day = ${x} min</button> `).join('')}</div>
  <div class="card"><h2>Jump forward</h2><button class="btn big" data-a="jump" data-x="1">+1 hour</button> <button class="btn big" data-a="jump" data-x="9">+1 day</button> <button class="btn big red" data-a="jump" data-x="18">+2 days</button></div>
  <div class="card"><h2>Promises</h2><div class="muted">Question: 4 h · Change: 1 day · Payment question: 1 day · Urgent: 1 h · Cost an extra: 1 day · Client decision: reminder after 1 day, PM alerted after 2 · Cheque: reminders day 2 and 5, escalation day 7</div></div>`},
 reports(){const c=(a,s)=>a.filter(x=>x.st==s).length;
@@ -237,40 +253,41 @@ function selView(sec){
 function addMod(title,from){const id='MOD-0'+(S.mods.length+1);S.mods.unshift({id,title,from,st:'Costing',note:'',h0:CURH});return id}
 const OWNER_ACTS=['reqnew','selok','selno','modreq','modok','modno','payconf'];
 const NEED={reqnew:['rt','rx'],selnew:['st','so','sd'],modreq:['mt'],send:['ct']};
-function apply(A){const R=A.r,v=A.v||{},i=A.i,nm=(ROLES[R]||{}).name||R;
+function apply(A){if(A.a=='reset'){G=freshG();S=G.U[curUnit()];return 'Demo reset'}const keep=S;S=G.U[A.u||'u1'];try{return apply1(A)}finally{S=G.U[curUnit()]}}
+function apply1(A){const R=A.r,v=A.v||{},i=A.i,nm=(ROLES[R]||{}).name||R;
  const log=t=>S.log.unshift({t,who:nm});const H=dh(A.ts);CURH=H;
  const sel=()=>S.sel.find(x=>x.id==i),mod=()=>S.mods.find(x=>x.id==i),pay=()=>S.pay.find(x=>x.id==i),req=()=>S.req.find(x=>x.id==i);
  try{switch(A.a){
  case 'reset':S=fresh();return 'Demo reset';
- case 'paid':if(S.paid)return;S.paid=true;S.stage=0;S.clk={base:0,ts:A.ts,spd:60};S.pay[0].st='Received';S.files.unshift({n:'Signed quotation Q-2026-0412.pdf',by:'Sales'});log('Quotation paid · case opened');mail('Ahmed Hassan','Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');return 'Client emailed the portal link · kick-off task to Head of Projects';
+ case 'paid':if(S.paid)return;S.paid=true;S.stage=0;if(!G.clk)G.clk={base:0,ts:A.ts,spd:SPD0};S.pay[0].st='Received';S.files.unshift({n:'Signed quotation '+S.q+'.pdf',by:'Sales'});log('Quotation paid · case opened');mail(S.client,'Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');return 'Client emailed the portal link · kick-off task to Head of Projects';
  case 'team':if(S.team)return;S.team=true;S.stage=1;log('Unit team assigned · case open for PM, Designer, Finance, Cost');return 'Case opened for the whole team · ClickUp tasks created';
  case 'stage1':case 'stage-1':S.stage=Math.max(0,Math.min(5,S.stage+(A.a=='stage1'?1:-1)));log('Stage → '+STAGES[S.stage]);return 'Client emailed: home moved to '+STAGES[S.stage];
  case 'reqnew':{const k=v.rt;S.req.unshift({id:'R-0'+n(),type:k,t:v.rx,to:RT[k].to,st:'Open',h0:H});log('Request: '+RT[k].n+' → '+TEAM[RT[k].to]);return 'Assigned automatically to '+TEAM[RT[k].to]+' · ClickUp task created'}
  case 'askphoto':req().ask=1;log('PM asked site for a photo ('+i+')');return 'Site Engineer notified in Site Camera';
  case 'photo':req().photo=1;log('Site photo uploaded for '+i);return 'Photo uploaded · PM sees it on the request';
- case 'reqdone':{const r=req();if(r.st=='Resolved')return;r.ans=v['ra'+i]||'Done, thank you.';r.st='Resolved';r.h1=H;log(i+' resolved');mail('Ahmed Hassan','Reply to your request '+i+': '+esc(r.ans));return 'Client notified · ClickUp task closed'}
+ case 'reqdone':{const r=req();if(r.st=='Resolved')return;r.ans=v['ra'+i]||'Done, thank you.';r.st='Resolved';r.h1=H;log(i+' resolved');mail(S.client,'Reply to your request '+i+': '+esc(r.ans));return 'Client notified · ClickUp task closed'}
  case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Kitchen countertop marble':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm,h0:H});r.st='Resolved';r.h1=H;r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
  case 'r2mod':{const r=req();if(r.st=='Resolved')return;const id=addMod(r.t,'Client request '+i);r.st='Resolved';r.h1=H;r.ans='Registered as extra modification '+id+'. Cost will send you the addendum.';log(i+' → '+id+' (to Cost)');return id+' sent to Cost · site locked until released'}
- case 'selnew':S.sel.unshift({id:'S'+A.ts,sec:A.s,title:v.st,opt:v.so,color:A.s=='design'?'#efe9df':'#cfd6e3',due:v.sd,st:'Waiting',by:nm,h0:H});log('Selection sent: '+v.st);mail('Ahmed Hassan','New selection for your approval: '+esc(v.st));return 'Sent · client emailed + badge in the portal';
+ case 'selnew':S.sel.unshift({id:'S'+A.ts,sec:A.s,title:v.st,opt:v.so,color:A.s=='design'?'#efe9df':'#cfd6e3',due:v.sd,st:'Waiting',by:nm,h0:H});log('Selection sent: '+v.st);mail(S.client,'New selection for your approval: '+esc(v.st));return 'Sent · client emailed + badge in the portal';
  case 'selok':sel().st='Approved';log('Approved: '+sel().title);return 'Code 482913 confirmed · approved and recorded';
  case 'selno':sel().st='Rejected';sel().reason='Please show a lighter option';log('Rejected: '+sel().title);return 'Rejected · team notified';
  case 'selrev':sel().st='Waiting';sel().opt+=' (rev 2)';sel().reason='';log('Revised option sent');return 'Revised option sent as version 2';
  case 'modreq':{const id=addMod(v.mt||'Extend the landscape and add a pergola','Client');log(id+' requested');return 'Sent to Cost · site will not execute it yet'}
- case 'costdone':mod().note=v['mn'+i]||'Addendum A-01';mod().st='Awaiting client';mod().hs=H;log('Cost adjusted '+i);mail('Ahmed Hassan','Your extra work '+i+' is costed. Please review and approve the addendum in your portal.');return 'Client emailed to approve the addendum';
+ case 'costdone':mod().note=v['mn'+i]||'Addendum A-01';mod().st='Awaiting client';mod().hs=H;log('Cost adjusted '+i);mail(S.client,'Your extra work '+i+' is costed. Please review and approve the addendum in your portal.');return 'Client emailed to approve the addendum';
  case 'modok':mod().st='Client approved';log('Client approved '+i);return 'Approved with email code · Head of Extra Work notified in ClickUp';
  case 'modno':mod().st='Declined';log('Client declined '+i);return 'Declined · nothing executed';
  case 'release':mod().st='Released to site';log(i+' released to site');return 'Released · PM and Site Engineer can execute';
- case 'payask':pay().st='Requested';pay().remind=[];pay().h0=H;S.day=0;log('Payment requested: '+pay().name);mail('Ahmed Hassan','O-Plus requests: '+pay().name+' ('+pay().pct+'), due '+pay().due+'. Please confirm in your portal.');return 'Client emailed · sees it in Payments';
+ case 'payask':pay().st='Requested';pay().remind=[];pay().h0=H;S.day=0;log('Payment requested: '+pay().name);mail(S.client,'O-Plus requests: '+pay().name+' ('+pay().pct+'), due '+pay().due+'. Please confirm in your portal.');return 'Client emailed · sees it in Payments';
  case 'payconf':pay().st='Client confirmed';log('Client confirmed '+pay().name);return 'Finance notified in ClickUp';
- case 'payrec':pay().st='Received';log('Received '+pay().name);mail('Ahmed Hassan','We received '+pay().name+'. Thank you.');return 'Receipt emailed to client';
+ case 'payrec':pay().st='Received';log('Received '+pay().name);mail(S.client,'We received '+pay().name+'. Thank you.');return 'Receipt emailed to client';
  case 'tick':{const p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');if(!p)return;p.remind=p.remind||[];S.day=S.day<2?2:S.day<5?5:7;
-  if(S.day==2){p.remind.push('Reminder 1 · day 2');mail('Ahmed Hassan','Friendly reminder: '+p.name+' is waiting for your confirmation.')}
-  else if(S.day==5){p.remind.push('Reminder 2 · day 5');mail('Ahmed Hassan','Second reminder: '+p.name+' is still pending.')}
+  if(S.day==2){p.remind.push('Reminder 1 · day 2');mail(S.client,'Friendly reminder: '+p.name+' is waiting for your confirmation.')}
+  else if(S.day==5){p.remind.push('Reminder 2 · day 5');mail(S.client,'Second reminder: '+p.name+' is still pending.')}
   else{if(p.st!='Overdue'){p.st='Overdue';p.remind.push('Escalated · day 7')}mail('ClickUp @Karim (PM) @Mai (Finance)','Client has not responded to '+p.name+' for 7 days. Please call the client.')}
   log('Auto: '+p.name+' day '+S.day);return S.day==7?'Escalated in ClickUp to PM and Finance':'Automatic reminder emailed to client'}
  case 'sla':S.req.filter(r=>r.st=='Open'&&!r.esc).forEach(r=>r.esc=1);log('Reply time missed · escalated to Head of Projects');return 'Escalated · @Head of Projects in ClickUp';
- case 'speed':if(S.clk)S.clk={base:dh(A.ts),ts:A.ts,spd:+v.spd||60};return 'Clock speed: 1 hour = '+(+v.spd||60)+' seconds';
- case 'jump':if(S.clk)S.clk.base+=(+v.h||1);return 'Time moved forward '+dur(+v.h||1);
+ case 'speed':if(G.clk)G.clk={base:dh(A.ts),ts:A.ts,spd:(+v.spd||5)*60/HPD};return 'Clock speed: 1 day = '+(+v.spd||5)+' minutes';
+ case 'jump':if(G.clk)G.clk.base+=(+v.h||1);return 'Time moved forward '+dur(+v.h||1);
  case 'send':S.chat.push({by:nm,role:R,t:v.ct});return;
  case 'move':{const r=req();r.to=v.to;log(r.id+' reassigned to '+TEAM[r.to]);return 'Reassigned to '+TEAM[r.to]+' · ClickUp task moved'}
  }}catch(e){console.warn('skip',A,e)}}
@@ -286,11 +303,11 @@ function myCount(){const m=r=>r.st=='Open'&&(role=='pm'||role=='head'||r.to==rol
  if(role=='head')c+=(S.paid&&!S.team?1:0)+S.req.filter(r=>r.esc).length;
  return c+S.chat.length}
 async function pull(mine){if(!API)return;if(busy&&!mine)return;busy=true;try{const r=await fetch(API+'?op=get&since='+seen,{cache:'no-store'});const j=await r.json();
- if(j.n<seen||(epoch!==null&&j.epoch!==epoch)){epoch=j.epoch;if(seen>0){S=fresh();seen=0;busy=false;return pull(mine)}}epoch=j.epoch;
+ if(j.n<seen||(epoch!==null&&j.epoch!==epoch)){epoch=j.epoch;if(seen>0){G=freshG();S=G.U[curUnit()];seen=0;busy=false;return pull(mine)}}epoch=j.epoch;
  if(j.items&&j.items.length){const before=myCount();let last='',own='';j.items.forEach(x=>{const m=apply(x);if(x.id&&x.id===mine)own=m||'Done';else if(m)last=m});seen=j.n;const after=myCount();
   if(own)toast(own);else if(after>before&&!document.hidden){toast('🔔 '+(last||'New update'));try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}render()}
  $('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
-async function dispatch(A){A.ts=Date.now();A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
+async function dispatch(A){A.ts=Date.now();A.u=A.u||curUnit();A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
  if(!API){const m=apply(A);if(m)toast(m);return render()}
  toast('Sending…');
  try{await fetch(API+'?op=add&d='+encodeURIComponent(JSON.stringify(A)),{cache:'no-store'});}catch(e){return toast('Not sent. Check the connection and try again')}
@@ -298,6 +315,7 @@ async function dispatch(A){A.ts=Date.now();A.id=A.ts+'-'+Math.random().toString(
 document.addEventListener('click',e=>{
  if(e.target.id=='reset'){e.preventDefault();if(!confirmReset())return;return dispatch({a:'reset',r:role})}
  const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.unit){unit=b.dataset.unit;if(tab=='board')tab=ROLES[role].tabs.find(t=>t!='board')||'board';return render()}
  if(b.dataset.r){if(FIXED)return;role=b.dataset.r;tab=ROLES[role].tabs[0];return render()}
  if(b.dataset.t){tab=b.dataset.t;return render()}
  const a=b.dataset.a;if(!a)return;
@@ -312,10 +330,10 @@ document.addEventListener('click',e=>{
 function confirmReset(){return S.log.length<1||window.confirm('Reset the demo for everyone?')}
 document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value)dispatch({a:'move',r:role,i:e.target.dataset.move,v:{to:e.target.value}})});
 const fired=new Set();let first=true;
-function tick(){$('#clock').textContent=S.clk?fmt(dh()):'';const fresh_=alerts().filter(a=>isMine(a)&&!fired.has(a.k));fresh_.forEach(a=>fired.add(a.k));
+function tick(){$('#clock').textContent=G.clk?fmt(dh()):'';const us=isClientSide()?[curUnit()]:UNITS;const all=[];us.forEach(u=>{const k=S;S=G.U[u];alerts().forEach(a=>{a.k=u+a.k;if(!isClientSide()&&us.length>1)a.m=S.client+': '+a.m;all.push(a)});S=k});const fresh_=all.filter(a=>isMine(a)&&!fired.has(a.k));fresh_.forEach(a=>fired.add(a.k));
  if(fresh_.length&&!first){toast((fresh_[0].lvl=='bad'?'⛔ ':'⏰ ')+fresh_[0].m);try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
- if(fresh_.length||tab=='clock'||Date.now()%10000<1000)render();first=false}
-load();if(FIXED&&ROLES[FIXED]){role=FIXED;document.getElementById('roles').style.display='none'}if(API){S=fresh();seen=0}render();setInterval(tick,1000);if(API){pull();setInterval(pull,2500)}
+ if(fresh_.length||tab=='clock'||tab=='board'||Date.now()%10000<1000)render();first=false}
+load();if(FIXED&&ROLES[FIXED]){role=FIXED;document.getElementById('roles').style.display='none'}if(API){G=freshG();S=G.U.u1;seen=0}render();setInterval(tick,1000);if(API){pull();setInterval(pull,2500)}
 </script>
 </body>
 </html>
