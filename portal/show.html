@@ -50,6 +50,20 @@ textarea{min-height:64px;resize:vertical}
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.tile{height:74px;border-radius:8px;background:linear-gradient(135deg,#efe7da,#d9c9ad 60%,#efe7da);display:flex;align-items:flex-end;padding:5px;font-size:10px;color:#5b4a2b}
 .doc{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13px}.doc:last-child{border:0}
 </style>
+<style>
+.k{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}.k div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px}.k b{display:block;font-size:20px;color:var(--navy)}.k .r b{color:var(--bad)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);cursor:pointer}.row:last-child{border:0}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px}
+.sel{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}.sel:last-child{border:0}.sw{width:42px;height:42px;border-radius:8px;flex:none;border:1px solid var(--line)}
+.chat .m{max-width:84%;padding:7px 10px;border-radius:10px;background:var(--panel);margin:6px 0}.chat .me{margin-left:auto;background:#E4EAF6}.chat .w2{font-size:10px;color:var(--muted)}
+.voice{display:flex;align-items:center;gap:6px;min-width:150px}.voice i{flex:1;height:14px;background:repeating-linear-gradient(90deg,#9aa6c4 0 2px,transparent 2px 5px);border-radius:3px}
+.conv{border:1px dashed var(--amber);background:#FFFBEF;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:600;color:#8A5800;margin-top:4px;display:inline-block}
+.trk{margin-top:8px}.trk div{font-size:12px;padding:3px 0 3px 16px;position:relative}.trk div:before{content:'';position:absolute;left:3px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--ok)}.trk div.now:before{background:var(--amber)}
+.bar{height:8px;background:rgba(255,255,255,.2);border-radius:5px;margin:8px 0 4px}.bar i{display:block;height:100%;background:var(--amber);border-radius:5px}
+.grp{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff}.grp>.row{padding:10px 12px}.grp .in{padding:0 12px 8px}
+.btn.gh{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.why{font-size:11px;color:var(--muted);margin-top:2px}
+</style>
 </head>
 <body>
 <header>
@@ -61,151 +75,220 @@ textarea{min-height:64px;resize:vertical}
 <div class="toast" id="toast"></div>
 <script>
 window.DEMO_API='https://script.google.com/macros/s/AKfycbxbzqm0Do6EaCJSBU5v4GEa546stTm7zT0BR33SKqS7Ua3hmwuIsXbDN9N5wTGGX0ph/exec';
-// ---------- Cast ----------
+// ================= Cast (each person plays one real role) =================
 const P={
- client:{n:'Client',d:'client',line:'You are the client of 3 homes'},
- ashiry:{n:'Ashiry',d:'sales',line:'Sales · client interface'},yara:{n:'Yara',d:'sales',line:'Sales · client interface'},dina:{n:'Dina',d:'sales',line:'Sales · client interface'},
- saad:{n:'Saad',d:'pm',line:'PM · site execution'},amira:{n:'Emeira',d:'pm',line:'PM · site execution'},abugabal:{n:'Omar Abu Gabal',d:'pm',line:'PM · site execution'},
- nouran:{n:'Nouran',d:'design',line:'Design · selections & drawings'},ali:{n:'Ali',d:'design',line:'Design · selections & drawings'},
- alaa:{n:'Alaa',d:'cost',line:'Cost · contractors & quotations'},sharbagy:{n:'Sharbagy',d:'cost',line:'Cost · contractors & quotations'},salma:{n:'Salma',d:'cost',line:'Cost · finance & cheques'},
- ghandour:{n:'Ghandour',d:'audit',aud:'sales',line:'Audit · Sales team · and every escalation before Salah'},omark:{n:'Omar Sheir',d:'audit',aud:'pm',line:'Audit · PMs team'},maksoud:{n:'Abdelmaksoud',d:'audit',aud:'design',line:'Audit · Design team'},omar:{n:'Omar Nada',d:'audit',aud:'cost',line:'Audit · Cost team'},
- salah:{n:'Salah',d:'top',line:'Top management · follow-up dashboard'},
- board:{n:'Big screen',d:'board',line:''}};
+ c1:{n:'Hesham Adel',d:'client',c:'A'},c2:{n:'Tarek Nabil',d:'client',c:'B'},c3:{n:'Karim Fouad',d:'client',c:'C'},
+ ashiry:{n:'Ashiry',d:'sales'},yara:{n:'Yara',d:'sales'},dina:{n:'Dina',d:'sales'},
+ saad:{n:'Saad',d:'pm'},amira:{n:'Emeira',d:'pm'},abugabal:{n:'Omar Abu Gabal',d:'pm'},
+ nouran:{n:'Nouran',d:'design'},ali:{n:'Ali',d:'design'},
+ sharbagy:{n:'Sharbagy',d:'cost'},alaa:{n:'Alaa',d:'cost'},salma:{n:'Salma',d:'cost',fin:1},
+ ghandour:{n:'Ghandour',d:'audit',aud:'sales'},omark:{n:'Omar Sheir',d:'audit',aud:'pm'},maksoud:{n:'Abdelmaksoud',d:'audit',aud:'design'},omar:{n:'Omar Nada',d:'audit',aud:'cost'},
+ salah:{n:'Salah',d:'top'},board:{n:'Big screen',d:'board'}};
 const AUDIT={sales:'ghandour',pm:'omark',design:'maksoud',cost:'omar'};
-const DEPT={sales:'Sales',pm:'PM',design:'Design',cost:'Cost',audit:'Audit',top:'Top management'};
-const TEAMLIST=['ashiry','yara','dina','saad','amira','abugabal','nouran','ali','alaa','sharbagy','salma','omark','maksoud','omar','ghandour','salah'];
+const DEPT={sales:'Sales',pm:'PM',design:'Design',cost:'Cost',audit:'Audit',top:'Top management',client:'Client'};
+const TEAMS=[['sales','Sales',['ashiry','yara','dina']],['pm','PMs',['saad','amira','abugabal']],['design','Design',['nouran','ali']],['cost','Cost',['sharbagy','alaa','salma']]];
+const ROLE={sales:'Sales · company representative to the client',pm:'PM · site execution',design:'Design · selections & drawings',cost:'Cost · quotations & contractor payments',audit:'Audit',top:'Top management'};
 const CASES={
- A:{c:'Hesham Adel',f:'Hesham',u:'OW/RV4-2TB · Whyt',scope:'Retractable pergola for parking + wood pergola for garden',q:'Quotation 1505',team:{sales:'ashiry',pm:'saad',design:'nouran',cost:'sharbagy'},stage:2},
- B:{c:'Tarek Nabil',f:'Tarek',u:'OW/RV2-68-VA · Whyt',scope:'Variation order works',q:'Quotation 1423',team:{sales:'yara',pm:'amira',design:'ali',cost:'sharbagy'},stage:2},
- C:{c:'Karim Fouad',f:'Karim',u:'OW/RV4-15A · Type G · Whyt',scope:'Finishing works',q:'Quotation 1815',team:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'},stage:1}};
+ A:{c:'Hesham Adel',f:'Hesham',u:'OW/RV4-2TB · Whyt',scope:'Retractable pergola for parking + wood pergola for garden',q:'Quotation 1505',team:{sales:'ashiry',pm:'saad',design:'nouran',cost:'sharbagy'},stage:2,pct:58,next:'Pergola installation · Sun 23 Nov'},
+ B:{c:'Tarek Nabil',f:'Tarek',u:'OW/RV2-68-VA · Whyt',scope:'Variation order works',q:'Quotation 1423',team:{sales:'yara',pm:'amira',design:'ali',cost:'sharbagy'},stage:2,pct:41,next:'Entrance flooring · Tue 25 Nov'},
+ C:{c:'Karim Fouad',f:'Karim',u:'OW/RV4-15A · Type G · Whyt',scope:'Finishing works',q:'Quotation 1815',team:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'},stage:1,pct:22,next:'Final selections · Thu 20 Nov'}};
 const STAGES=['Quotation paid','Design & selections','Execution','Snagging','Handover'];
+const SEEDSEL={A:[['Garden pergola wood','Teak, oil finish','#a0764e'],['Pergola roof fabric','Sand beige · v2','#e9e4da'],['Frame colour','Anthracite RAL 7016','#5d5f63']],B:[['Wall paint','Off-white RAL 9001','#f1ece1'],['Kitchen worktop','Quartz grey','#b9bcbf']],C:[['Kitchen cabinets','Walnut veneer','#6b4a32']]};
+const DUMMY=['Mona Saleh · RV3-11B','Ahmed Fathy · RV1-04A','Laila Samy · RV5-21C','Hany Aziz · RV2-07D','Nada Kamal · RV6-30A','Sherif Lotfy · RV4-09B','Rana Youssef · RV1-18C','Tamer Said · RV7-02A','Dalia Nour · RV3-25D'];
 const HPD=9,SLA=4;
-// ---------- State: every action is replayed in order on every phone ----------
-let G;const fresh=()=>({h:0,on:false,T:{},seq:0,log:[],U:{A:{chq:1},B:{chq:1},C:{chq:0}}});
+// ================= State: all phones replay the same list of actions =================
+let G;
+const fresh=()=>({h:0,on:false,T:{},seq:0,log:[],U:{A:{chq:1},B:{chq:1},C:{chq:0}},chat:{A:[],B:[],C:[]},sel:{A:[],B:[],C:[]},mseq:0});
 const PN=id=>(P[id]||{}).n||id;
+const dep=id=>(P[id]||{}).d;
 const tlist=()=>Object.values(G.T).sort((a,b)=>b.n-a.n);
-function late(t){if(t.st!=='open'||!P[t.hold]||['audit','top'].includes(P[t.hold].d))return null;return G.h-(t.since+SLA)}
-function lvl(t){const L=late(t);if(L===null||L<0)return 0;if(t.fu)return t.fu.l;const aud=AUDIT[P[t.hold].d];if(aud==='ghandour')return L>=HPD?3:1;return L>=2*HPD?3:L>=HPD?2:1}
-function holder(l,t){return l==1?AUDIT[P[t.hold].d]:l==2?'ghandour':'salah'}
-function add(t,w,a,x){t.hist.push({w,a,x:x||'',h:G.h})}
-function feedLog(c,txt,ts){G.log.unshift({t:txt,c:c||'',ts})}
-function apply(A){const me=A.p,t=A.i?G.T[A.i]:null,nm=PN(me),x=(A.x||'').trim();
+const resp=t=>t.st==='client'?t.ret:t.hold; // the team member responsible right now
+function late(t){if(t.st!=='open'||!['sales','pm','design','cost'].includes(dep(t.hold)))return null;return G.h-(t.since+SLA)}
+// escalation level: 1 audit · 2 Ghandour · 3 Salah. Triggered by time OR by the client pressing Escalate.
+function lvl(t){if(t.st==='done')return 0;if(t.fu)return 0;let l=0;const r=resp(t),aud=AUDIT[dep(r)];if(!aud)return 0;
+ const L=late(t);if(L!==null&&L>=0)l=aud==='ghandour'?(L>=HPD?3:1):(L>=2*HPD?3:L>=HPD?2:1);
+ if(t.esc){const a=G.h-t.esc.h;const e=aud==='ghandour'?(a>=HPD?3:1):(a>=2*HPD?3:a>=HPD?2:1);l=Math.max(l,e)}
+ return l}
+function holder(l,t){return l==1?AUDIT[dep(resp(t))]:l==2?'ghandour':'salah'}
+function tr(t,x){t.cl.push({x,h:G.h})} // client tracking line
+function H(t,w,a,x){t.hist.push({w,a,x:x||'',h:G.h})}
+function feed(c,txt,ts){G.log.unshift({t:txt,c:c||'',ts})}
+const who=k=>PN(k)+' ('+DEPT[dep(k)]+')';
+function target(t,k){const C=CASES[t.c];return k==='fin'?'salma':C.team[k]}
+function apply(A){const me=A.p,nm=PN(me),x=(A.x||'').trim(),t=A.i?G.T[A.i]:null;
  switch(A.a){
  case 'reset':G=fresh();return;
- case 'start':if(G.on)return;G.on=true;feedLog('','Portal live · 3 homes · team already assigned',A.ts);return 'Started';
- case 'jump':G.h+=(+A.h||1);feedLog('','Time moved forward '+dur(+A.h),A.ts);return;
- case 'new':{if(!x||!CASES[A.c])return;const id='T-'+(101+G.seq);const C=CASES[A.c];const tk={id,n:++G.seq,c:A.c,t:x,st:'open',hold:C.team.sales,since:G.h,ret:null,kind:null,hist:[],fu:null};add(tk,C.f,'asked',x);G.T[id]=tk;feedLog(A.c,C.f+' asked: “'+x+'” → '+PN(C.team.sales)+' (Sales)',A.ts);return 'Sent · '+PN(C.team.sales)+' (Sales) has it now'}
- case 'chq':G.U[A.c].chq=1;feedLog(A.c,'Salma: cheques secured ✓',A.ts);return 'Cheques marked secured';
+ case 'start':if(G.on)return;G.on=true;feed('','Portal live · 3 homes · team already assigned',A.ts);return 'Started';
+ case 'jump':G.h+=(+A.h||1);feed('','Time moved forward '+dur(+A.h),A.ts);return;
+ case 'new':{const c=A.c,C=CASES[c];if(!x||!C)return;const id='REQ-'+(1041+G.seq);const s=C.team.sales;
+  const tk={id,n:++G.seq,c,t:x,st:'open',hold:s,stack:[],since:G.h,ret:null,kind:null,hist:[],cl:[],fu:null,esc:null};H(tk,C.f,'asked',x);tr(tk,'Received by '+who(s)+' · reply within 4 working hours');G.T[id]=tk;feed(c,C.f+' asked: “'+x+'” → '+PN(s)+' (Sales)',A.ts);return 'Sent · '+PN(s)+' (Sales) has it'}
+ case 'msg':{const c=A.c;if(!x&&!A.v)return;G.chat[c].push({id:++G.mseq,w:me,x:A.v?'Voice note':x,v:A.v?1:0,h:G.h});feed(c,(dep(me)==='client'?CASES[c].f:nm)+' in chat: '+(A.v?'🎤 voice note':'“'+x+'”'),A.ts);return}
+ case 'conv':{const c=A.c,m=G.chat[c].find(z=>z.id==A.m);if(!m||m.conv)return;m.conv=1;const s={id:'S'+(++G.mseq),title:x||'Selection',opt:m.x,st:'Waiting',by:me,from:'chat',h:G.h};G.sel[c].push(s);feed(c,nm+' converted a chat message into a selection: '+s.title,A.ts);return 'Sent to the client as a selection'}
+ case 'selok':case 'selno':{const c=A.c,s=G.sel[c].find(z=>z.id===A.s);if(!s||s.st!=='Waiting')return;if(A.a==='selno'&&!x)return;s.st=A.a==='selok'?'Approved':'Rejected';s.cm=x;feed(c,CASES[c].f+(A.a==='selok'?' approved selection “'+s.title+'” ✓':' rejected “'+s.title+'”: “'+x+'”'),A.ts);if(A.a==='selno')G.chat[c].push({id:++G.mseq,w:me,x:'Rejected “'+s.title+'”: '+x,h:G.h});return A.a==='selok'?'Approved ✓ · saved in your selections':'Sent back with your comment'}
  }
- if(!t)return;
+ if(!t)return;const C=CASES[t.c];
  switch(A.a){
- case 'send':if(t.st!=='open'||t.hold!==me||!P[A.to])return;add(t,nm,'sent it to '+PN(A.to),x);t.hold=A.to;t.since=G.h;t.fu=null;feedLog(t.c,nm+' → '+PN(A.to)+(x?': “'+x+'”':''),A.ts);return 'Sent to '+PN(A.to);
- case 'reply':case 'opts':case 'quote':{if(t.st!=='open'||t.hold!==me||!x)return;const k={reply:'replied',opts:'sent options',quote:'sent a quotation'}[A.a];add(t,nm,k,x);t.st='client';t.kind=A.a;t.ret=me;t.hold='client';t.since=G.h;t.fu=null;feedLog(t.c,nm+' '+k+' to '+CASES[t.c].f+': “'+x+'”',A.ts);return 'Sent to the client'}
- case 'close':{if(t.st==='closed')return;if(me!=='client'&&t.hold!==me)return;const w=me==='client'?CASES[t.c].f:nm;add(t,w,'closed it ✓',x);t.st='closed';t.fu=null;feedLog(t.c,w+' closed '+t.id+' ✓',A.ts);return 'Closed ✓'}
- case 'ok':case 'no':case 'cr':{if(t.st!=='client')return;const f=CASES[t.c].f;if((A.a==='no'||A.a==='cr')&&!x)return;
-  const k=A.a==='ok'?(t.kind==='quote'?'approved the quotation ✓':'approved ✓'):A.a==='no'?'rejected':'replied';add(t,f,k,x);t.st='open';t.hold=t.ret;t.since=G.h;t.kind=null;feedLog(t.c,f+' '+k+(x?': “'+x+'”':'')+' → back to '+PN(t.ret),A.ts);return 'Sent back to '+PN(t.ret)}
- case 'fu':if(t.st!=='open')return;t.fu={l:+A.l,by:me};add(t,nm,'followed up with '+PN(t.hold),'');feedLog(t.c,nm+' followed up with '+PN(t.hold),A.ts);return 'Follow-up sent to '+PN(t.hold);
+ case 'asg':{if(t.st!=='open'||t.hold!==me)return;const to=target(t,A.k);if(!to||to===me)return;const lab={pm:'Assigned to',design:A.k2==='draw'?'Asked for a drawing from':'Assigned to',cost:A.k2==='price'?'Asked for a price from':'Assigned to',fin:'Asked about cheques from'}[A.k]||'Assigned to';
+  t.stack.push(me);H(t,nm,lab.toLowerCase()+' '+PN(to),x);t.hold=to;t.since=G.h;t.fu=null;
+  tr(t,(A.k2==='site'?'Approved · sent to '+who(to)+' for site execution':lab+' '+who(to)+' · working on it'));feed(t.c,nm+' → '+PN(to)+(x?': “'+x+'”':''),A.ts);return 'Sent to '+PN(to)+' · the client sees the update'}
+ case 'back':{if(t.st!=='open'||t.hold!==me||!t.stack.length)return;const to=t.stack.pop();H(t,nm,'answered '+PN(to),x||A.dx||'');t.hold=to;t.since=G.h;t.fu=null;tr(t,PN(me)+' finished their part · back with '+who(to));feed(t.c,nm+' answered '+PN(to)+': “'+(x||A.dx)+'”',A.ts);return 'Sent back to '+PN(to)}
+ case 'chq':{if(t.hold!==me)return;G.U[t.c].chq=1;H(t,nm,'confirmed the cheques are secured',x);tr(t,'Payments checked by '+who(me)+' ✓');feed(t.c,'Salma: '+C.f+'’s cheques secured ✓',A.ts);
+  if(t.stack.length){const to=t.stack.pop();t.hold=to;t.since=G.h;t.fu=null}return 'Cheques marked secured'}
+ case 'reply':{if(t.st!=='open'||t.hold!==me||!x)return;H(t,nm,'replied to '+C.f,x);t.st='done';t.fu=null;if(t.esc)t.esc.done=1;tr(t,'Answered by '+who(me)+' ✓ “'+x+'”');feed(t.c,nm+' replied to '+C.f+': “'+x+'” ✓',A.ts);return 'Reply sent · request resolved'}
+ case 'opts':case 'quote':{if(t.st!=='open'||t.hold!==me||!x)return;H(t,nm,A.a==='opts'?'sent options':'sent a quotation',x);t.st='client';t.kind=A.a;t.ret=me;t.since=G.h;t.fu=null;tr(t,(A.a==='opts'?'Options':'Quotation')+' ready for your approval · from '+who(me));feed(t.c,nm+' sent '+(A.a==='opts'?'options':'a quotation')+' to '+C.f+': “'+x+'”',A.ts);return 'Sent to the client for approval'}
+ case 'ok':case 'no':{if(t.st!=='client')return;if(A.a==='no'&&!x)return;const k=A.a==='ok'?(t.kind==='quote'?'approved the quotation ✓':'approved ✓'):'rejected';H(t,C.f,k,x);
+  if(A.a==='ok'&&t.kind==='opts')G.sel[t.c].push({id:'S'+(++G.mseq),title:t.t,opt:t.hist.filter(z=>z.a==='sent options').pop().x,st:'Approved',by:t.ret,from:'req',h:G.h});
+  t.st='open';t.hold=t.ret;t.since=G.h;t.kind=null;tr(t,'You '+k+(x?': “'+x+'”':'')+' · back with '+who(t.ret));feed(t.c,C.f+' '+k+(x?': “'+x+'”':''),A.ts);return 'Sent · '+PN(t.ret)+' is notified'}
+ case 'esc':{if(t.st==='done'||!x)return;const r=resp(t),aud=AUDIT[dep(r)];t.esc={x,h:G.h};t.fu=null;H(t,C.f,'escalated',x);tr(t,'Escalated to '+PN(aud)+' ('+DEPT[dep(r)]+' audit) · they will follow up');feed(t.c,'⚠ '+C.f+' escalated '+t.id+': “'+x+'” → '+PN(aud),A.ts);return 'Escalated to '+PN(aud)}
+ case 'fu':{if(t.st==='done')return;const r=resp(t);t.fu={by:me,h:G.h};if(t.esc)t.esc.done=1;H(t,nm,'followed up with '+PN(r),x);tr(t,PN(me)+' is following up with '+PN(r));feed(t.c,nm+' followed up with '+PN(r),A.ts);return 'Follow-up sent to '+PN(r)}
  }}
-// ---------- helpers ----------
+// ================= helpers =================
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function fmt(h){const d=Math.floor(h/HPD)+1,m=Math.round((h%HPD)*60),hh=9+Math.floor(m/60);return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
-function dur(h){h=Math.abs(h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}return Math.round(h*10)/10+(h==1?' hour':' hours')}
+function dur(h){h=Math.abs(h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h<1)return Math.max(1,Math.round(h*60))+' min';return Math.round(h*10)/10+(h==1?' hour':' hours')}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',4000)}
 const me=(new URLSearchParams(location.search).get('p'))||'board';
-const ME=P[me]||P.board;let tab=null;
-const myCases=()=>Object.keys(CASES).filter(c=>Object.values(CASES[c].team).includes(me));
-// ---------- Pieces ----------
-function unitStrip(c){const u=G.U[c];return `<div class="unit"><span class="good">✓ Down payment received</span>${u.chq?'<span class="good">✓ Cheques secured</span>':'<span style="color:#A8392C;font-weight:600">⚠ Cheques NOT secured</span>'}${u.chq?'':'<span class="muted">Rule: no new work on site before the cheques are secured</span>'}</div>`}
-function thread(t){return `<div class="thread">${t.hist.map(m=>`<div class="msg ${m.w===CASES[t.c].f?'cl':''}"><div class="w"><b>${esc(m.w)}</b> ${esc(m.a)} · ${fmt(m.h)}</div>${m.x?`<div class="x">${esc(m.x)}</div>`:''}</div>`).join('')}</div>`}
-function status(t){if(t.st==='closed')return '<span class="pill p-ok">Closed ✓</span>';if(t.st==='client')return '<span class="pill p-nv">Waiting for the client</span>';const L=late(t);
+const ME=P[me]||P.board;let tab=null,open=null,showInfo=false;
+const homesOf=k=>Object.keys(CASES).filter(c=>k==='salma'||Object.values(CASES[c].team).includes(k));
+const chatWaits=c=>{const m=G.chat[c];return m.length&&dep(m[m.length-1].w)==='client'};
+function needsMe(c){return tlist().some(t=>t.c===c&&t.st==='open'&&t.hold===me)||(chatWaits(c)&&[CASES[c].team.sales,CASES[c].team.design].includes(me))}
+function status(t){if(t.st==='done')return '<span class="pill p-ok">Resolved ✓</span>';if(t.st==='client')return '<span class="pill p-nv">Waiting for the client</span>';const L=late(t);
  if(L===null)return `<span class="pill p-nv">With ${esc(PN(t.hold))}</span>`;return L>=0?`<span class="pill p-bad">${esc(PN(t.hold))} · LATE ${dur(L)}</span>`:`<span class="pill p-act">With ${esc(PN(t.hold))} · due in ${dur(-L)}</span>`}
-function head(t){const C=CASES[t.c];return `<div class="eyebrow">${t.id} · ${esc(C.c)} · ${esc(C.u)}</div><b style="font-size:16px;display:block;margin:4px 0">“${esc(t.t)}”</b>${status(t)}`}
-function teamActions(t){const C=CASES[t.c],tm=Object.values(C.team);
- const opts=TEAMLIST.filter(k=>k!==me).sort((a,b)=>(tm.includes(b)?1:0)-(tm.includes(a)?1:0)).map(k=>`<option value="${k}">${esc(PN(k))} · ${esc(DEPT[P[k].d])}${tm.includes(k)?' (this home)':''}</option>`).join('');
- const fu=t.fu?`<div class="fu">🔔 ${esc(PN(t.fu.by))} is following up on this. Please act now.</div>`:lvl(t)?`<div class="warn">⛔ Late · ${esc(PN(holder(lvl(t),t)))} has been alerted</div>`:'';
- return `${fu}<textarea id="x_${t.id}" placeholder="Write your reply, note, options or quotation…"></textarea>
- <div class="acts"><button class="btn ok" data-act="reply" data-i="${t.id}">Reply to client</button><button class="btn" data-act="opts" data-i="${t.id}">Send options to client</button>${P[me].d==='cost'?`<button class="btn" data-act="quote" data-i="${t.id}">Send quotation to client</button>`:''}</div>
- <div class="acts" style="align-items:center"><select id="to_${t.id}" style="flex:2 1 180px;margin:0"><option value="">Send to someone in the team…</option>${opts}</select><button class="btn ghost" data-act="send" data-i="${t.id}">Send</button><button class="btn ghost" data-act="close" data-i="${t.id}" style="flex:0 1 auto">Close ✓</button></div>`}
-function clientActions(t){if(t.st!=='client')return '';const two=t.kind==='opts'||t.kind==='quote';
- return `<textarea id="x_${t.id}" placeholder="${two?'Your comment (needed to reject)':'Write back to your team'}"></textarea><div class="acts">${two?`<button class="btn ok" data-act="ok" data-i="${t.id}">Approve</button><button class="btn red" data-act="no" data-i="${t.id}">Reject with comment</button>`:`<button class="btn ok" data-act="close" data-i="${t.id}">All good · close ✓</button><button class="btn ghost" data-act="cr" data-i="${t.id}">Reply</button>`}</div>`}
-function escCard(t,l){const L=late(t),au=PN(AUDIT[P[t.hold].d]);const ladder=l==1?'First escalation · your team':l==2?au+' (audit) did not act for 1 day':'Not solved by '+(au==='Ghandour'?'Ghandour':au+' or Ghandour');
- return `<div class="card late"><div class="eyebrow">${esc(CASES[t.c].c)} · ${t.id} · ${ladder}</div><b style="font-size:16px;display:block;margin-top:4px">⛔ ${esc(PN(t.hold))} (${esc(DEPT[P[t.hold].d])}) is late by ${dur(L)}</b><div class="info">“${esc(t.t)}”</div>${thread(t)}<button class="btn amber full" data-act="fu" data-i="${t.id}" data-l="${l}">Follow up with ${esc(PN(t.hold))}</button></div>`}
-function myEsc(){return tlist().filter(t=>{const l=lvl(t);return l&&!t.fu&&holder(l,t)===me})}
-function mine(){return tlist().filter(t=>t.st==='open'&&t.hold===me)}
-function clientWaiting(c){return tlist().filter(t=>t.c===c&&t.st==='client')}
-// ---------- Views ----------
-function viewClient(){const cs=['A','B','C'];if(!tab||!CASES[tab])tab='A';const c=tab,C=CASES[c],ts=tlist().filter(t=>t.c===c);
- let h=`<div class="tabs">${cs.map(k=>{const n=clientWaiting(k).length;return `<button class="${k===c?'on':''}" data-tab="${k}">${esc(CASES[k].c)}${n?`<span class="n">${n}</span>`:''}</button>`}).join('')}</div>`;
- h+=`<div class="hero"><div class="muted">${esc(C.u)}</div><h2 style="font-size:22px;margin:2px 0">${esc(C.c)}'s home</h2><div class="muted">${esc(C.scope)} · ${esc(C.q)}</div><div class="steps">${STAGES.map((s,i)=>`<div class="step ${i<C.stage?'done':i==C.stage?'cur':''}">${i<C.stage?'✓ ':''}${s}</div>`).join('')}</div></div>`;
- const w=ts.filter(t=>t.st==='client');
- if(w.length)h+=`<div class="eyebrow" style="margin:4px 0 8px">Needs your answer · ${w.length}</div>`+w.map(t=>`<div class="card act">${head(t)}${thread(t)}${clientActions(t)}</div>`).join('');
- h+=`<div class="card"><h2>New request</h2><div class="muted">Ask anything: a question, a change, a new item, a payment. It reaches your team right away.</div><textarea id="nx_${c}" placeholder="Write your request…"></textarea><button class="btn full" data-new="${c}">Send to my team</button></div>`;
- const o=ts.filter(t=>t.st!=='client');
- h+=`<div class="card"><h2>My requests</h2>${o.length?o.map(t=>`<div class="line">${head(t)}${thread(t)}</div>`).join(''):'<div class="muted">No requests yet.</div>'}</div>`;
- h+=`<div class="card"><h2>Your team</h2><div class="unit">${Object.entries(C.team).map(([d,k])=>`<span><b>${esc(PN(k))}</b> · ${DEPT[d]}</span>`).join('')}</div></div>`;
- h+=`<div class="card"><h2>Payments</h2>${unitStrip(c)}</div>`;
- h+=`<div class="card"><h2>Site photos</h2><div class="tiles"><div class="tile">Week 45</div><div class="tile">Week 46</div><div class="tile">Today</div></div></div>`;
- h+=`<div class="card"><h2>Documents</h2>${['Signed '+C.q+'.pdf','Approved design drawings.pdf','Payment schedule.pdf'].map(d=>`<div class="doc"><span>📄 ${esc(d)}</span><span class="muted">Download</span></div>`).join('')}</div>`;
+function unitStrip(c){const u=G.U[c];return `<div class="unit"><span class="good">✓ Down payment received</span>${u.chq?'<span class="good">✓ Cheques secured</span>':'<span style="color:#A8392C;font-weight:600">⚠ Cheques NOT secured · no new work on site before they are</span>'}</div>`}
+function thread(t){return `<div class="thread">${t.hist.map(m=>`<div class="msg ${m.w===CASES[t.c].f?'cl':''}"><div class="w"><b>${esc(m.w)}</b> ${esc(m.a)} · ${fmt(m.h)}</div>${m.x?`<div class="x">${esc(m.x)}</div>`:''}</div>`).join('')}</div>`}
+const PH={sales:'Write your reply or a note for the colleague…',pm:'Write your reply, or what you need from Design / Cost…',design:'Write your reply, the options, or the drawing details…',cost:'Write your reply, the quotation, or the payment note…'};
+function actions(t){const C=CASES[t.c],d=dep(me),B=[],btn=(a,label,cls,extra)=>`<button class="btn ${cls||'gh'}" data-act="${a}" data-i="${t.id}" ${extra||''}>${label}</button>`;
+ const prev=t.stack.length?t.stack[t.stack.length-1]:null;
+ if(prev&&dep(prev)!=='sales')B.push(btn('back','↩ Send answer back to '+esc(PN(prev)),'ok'));
+ B.push(btn('reply','💬 Reply to '+esc(C.f)+' & resolve',prev&&dep(prev)!=='sales'?'gh':'ok'));
+ if(d==='sales'){B.push(btn('asg','👷 Assign to PM · '+esc(PN(C.team.pm)),'','data-k="pm"'));B.push(btn('asg','📐 Assign to Design · '+esc(PN(C.team.design)),'','data-k="design"'));B.push(btn('asg','💰 Assign to Cost · '+esc(PN(C.team.cost)),'','data-k="cost"'))}
+ if(d==='pm'){B.push(btn('asg','📐 Ask Design for a drawing · '+esc(PN(C.team.design)),'','data-k="design" data-k2="draw"'));B.push(btn('asg','💰 Ask Cost for a price / payment · '+esc(PN(C.team.cost)),'','data-k="cost" data-k2="price"'));B.push(btn('asg','🧾 Ask Finance about cheques · Salma','','data-k="fin"'))}
+ if(d==='design'){B.push(btn('opts','🎨 Send options to '+esc(C.f)));B.push(btn('asg','💰 Ask Cost to price it · '+esc(PN(C.team.cost)),'','data-k="cost" data-k2="price"'));B.push(btn('asg','👷 Send to PM: ready for site · '+esc(PN(C.team.pm)),'','data-k="pm" data-k2="site"'))}
+ if(d==='cost'&&!P[me].fin){B.push(btn('quote','📄 Send quotation to '+esc(C.f)));B.push(btn('back','✓ Approve contractor payment','','data-dx="Contractor payment approved ✓"'+(prev?'':' disabled')));B.push(btn('asg','👷 Send to PM: approved, start work · '+esc(PN(C.team.pm)),'','data-k="pm" data-k2="site"'))}
+ if(P[me].fin)B.push(btn('chq','✓ Cheques secured','ok'));
+ const fu=t.fu?`<div class="fu">🔔 ${esc(PN(t.fu.by))} is following up on this. Please act now.</div>`:lvl(t)?`<div class="warn">⛔ ${t.esc&&!t.esc.done?'The client escalated: “'+esc(t.esc.x)+'”':'Late'} · ${esc(PN(holder(lvl(t),t)))} is alerted</div>`:'';
+ return `${fu}<textarea id="x_${t.id}" placeholder="${PH[d]||'Write…'}"></textarea><div style="margin-top:6px;font-weight:600;font-size:12px">What do you want to do?</div><div style="display:grid;gap:6px;margin-top:6px">${B.join('')}</div>`}
+function reqHead(t){const C=CASES[t.c],first=t.hist[0];return `<div class="eyebrow">${t.id} · ${esc(C.c)} · ${esc(C.u)}</div><b style="font-size:16px;display:block;margin:4px 0">“${esc(t.t)}”</b><div class="muted">From ${esc(C.f)} · ${fmt(first.h)}${t.stack.length?' · via '+t.stack.map(PN).map(esc).join(' → '):''}</div><div style="margin-top:4px">${status(t)}</div>`}
+// ---------- Client ----------
+function viewClient(){const c=ME.c,C=CASES[c],ts=tlist().filter(t=>t.c===c),T=['home','chat','sel','req','pay'];if(!T.includes(tab))tab='home';
+ const appr=ts.filter(t=>t.st==='client'),selw=G.sel[c].filter(s=>s.st==='Waiting');
+ const lab={home:'Home',chat:'Chat',sel:'Selections',req:'Requests',pay:'Payments'},cnt={home:appr.length,sel:selw.length+appr.filter(t=>t.kind==='opts').length,chat:0};
+ let h=`<div class="hero" data-info="1" style="cursor:pointer"><div class="muted">${esc(C.u)} · tap for details</div><div style="font-size:19px;font-weight:700">${esc(C.c)}'s home</div><div class="muted">${esc(C.scope)} · ${esc(C.q)}</div><div class="bar"><i style="width:${C.pct}%"></i></div><div class="muted">${C.pct}% · ${STAGES[C.stage]} · Next: ${esc(C.next)}</div>
+ ${showInfo?`<div style="margin-top:12px;background:rgba(255,255,255,.08);border-radius:10px;padding:10px"><b>Stages</b>${STAGES.map((s,i)=>`<div class="muted" style="color:${i==C.stage?'#F0B323':'#C9D2E3'};font-weight:${i==C.stage?700:400}">${i<C.stage?'✓':i==C.stage?'●':'○'} ${s}${i==C.stage?' · you are here':''}</div>`).join('')}<b style="display:block;margin-top:8px">Installments</b>${[['Down payment','30%','At contract','Paid ✓'],['Installment 2 · cheque','25%','15 Dec 2026',G.U[c].chq?'Cheque secured ✓':'Cheque needed'],['Installment 3 · cheque','25%','15 Feb 2027',G.U[c].chq?'Cheque secured ✓':'Cheque needed'],['Final payment','20%','At handover','Scheduled']].map(r=>`<div class="muted" style="color:#fff;display:flex;justify-content:space-between;gap:6px"><span>${r[0]} · ${r[1]}</span><span>${r[2]} · ${r[3]}</span></div>`).join('')}</div>`:''}</div>`;
+ h+=`<div class="tabs">${T.map(k=>`<button class="${k===tab?'on':''}" data-tab="${k}">${lab[k]}${cnt[k]?`<span class="n">${cnt[k]}</span>`:''}</button>`).join('')}</div>`;
+ const apprCard=t=>`<div class="card act">${reqHead(t)}<div class="info">${esc(t.hist.filter(z=>/sent/.test(z.a)).pop().x)}</div><textarea id="x_${t.id}" placeholder="Your comment (needed to reject)"></textarea><div class="acts"><button class="btn ok" data-act="ok" data-i="${t.id}">Approve</button><button class="btn red" data-act="no" data-i="${t.id}">Reject with comment</button></div></div>`;
+ const selCard=s=>`<div class="card act"><div class="eyebrow">Selection · from ${esc(PN(s.by))}${s.from==='chat'?' · from your chat':''}</div><b style="font-size:15px">${esc(s.title)}</b><div class="info">${esc(s.opt)}</div><textarea id="sc_${s.id}" placeholder="Your comment (needed to reject)"></textarea><div class="acts"><button class="btn ok" data-sel="ok" data-s="${s.id}">Approve</button><button class="btn red" data-sel="no" data-s="${s.id}">Reject with comment</button></div></div>`;
+ if(tab==='home'){if(appr.length||selw.length)h+=`<div class="eyebrow" style="margin:0 0 8px">Waiting for your approval</div>`+appr.map(apprCard).join('')+selw.map(selCard).join('');
+  h+=`<div class="card"><h2>New request</h2><textarea id="nx" placeholder="Ask anything: a question, a change, a new item…"></textarea><button class="btn full" data-new="1">Send to my team</button></div>`;
+  const up=[];ts.forEach(t=>t.cl.forEach(l=>up.push({...l,t})));up.sort((a,b)=>b.h-a.h);
+  h+=`<div class="card"><h2>Latest updates</h2>${up.length?up.slice(0,6).map(u=>`<div class="line"><b>${u.t.id}</b> · ${esc(u.x)}<div class="muted">${fmt(u.h)}</div></div>`).join(''):'<div class="muted">No updates yet.</div>'}</div>`;
+  h+=`<div class="card"><h2>Your team</h2><div class="unit">${Object.entries(C.team).map(([d,k])=>`<span><b>${esc(PN(k))}</b> · ${DEPT[d]}</span>`).join('')}</div></div><div class="card"><h2>Site photos</h2><div class="tiles"><div class="tile">Week 45</div><div class="tile">Week 46</div><div class="tile">Today</div></div></div>`}
+ if(tab==='req'){h+=`<div class="card"><h2>New request</h2><textarea id="nx" placeholder="Ask anything: a question, a change, a new item…"></textarea><button class="btn full" data-new="1">Send to my team</button></div>`;
+  h+=ts.length?ts.map(t=>t.st==='client'?apprCard(t):`<div class="card">${reqHead(t)}<div class="trk">${t.cl.map((l,i)=>`<div class="${i==t.cl.length-1&&t.st!=='done'?'now':''}">${esc(l.x)} <span class="muted">· ${fmt(l.h)}</span></div>`).join('')}</div>${t.st!=='done'?`<div class="acts"><button class="btn gh sm" data-tab="chat">💬 Chat with ${esc(PN(resp(t)))}</button></div><textarea id="e_${t.id}" placeholder="Not happy? Reason of escalation"></textarea><button class="btn red full" data-act="esc" data-i="${t.id}">⚠ Escalate</button>`:''}</div>`).join(''):'<div class="muted">No requests yet.</div>'}
+ if(tab==='chat')h+=chatBox(c);
+ if(tab==='sel'){h+=selw.map(selCard).join('')+appr.filter(t=>t.kind==='opts').map(apprCard).join('');const ap=SEEDSEL[c].map(s=>({title:s[0],opt:s[1],col:s[2],st:'Approved'})).concat(G.sel[c].filter(s=>s.st!=='Waiting'));
+  h+=`<div class="card"><h2>Your selections</h2>${ap.slice().reverse().map(s=>`<div class="sel"><div class="sw" style="background:${s.col||'#e8e0d0'}"></div><div style="flex:1"><b>${esc(s.title)}</b><div class="muted">${esc(s.opt)}${s.from==='chat'?' · from your chat':''}</div></div><span class="pill ${s.st==='Approved'?'p-ok':'p-bad'}">${s.st}</span></div>`).join('')}</div>`}
+ if(tab==='pay')h+=`<div class="card"><h2>Payments</h2>${unitStrip(c)}${[['Down payment','30%','At contract','Paid ✓'],['Installment 2 · cheque','25%','15 Dec 2026',G.U[c].chq?'Cheque secured ✓':'Cheque needed'],['Installment 3 · cheque','25%','15 Feb 2027',G.U[c].chq?'Cheque secured ✓':'Cheque needed'],['Final payment','20%','At handover','Scheduled']].map(r=>`<div class="doc"><span><b>${r[0]}</b> · ${r[1]}</span><span class="muted">${r[2]} · ${r[3]}</span></div>`).join('')}</div>`;
  return h}
-function viewTeam(){const T=['mine','cases','activity'];if(ME.d==='audit')T.splice(1,0,'esc','team');if(!tab||!T.includes(tab))tab='mine';
- const m=mine(),e=myEsc();
- const lab={mine:'My tickets',esc:'Escalations',team:'My team',cases:'My homes',activity:'Activity'};const cnt={mine:m.length,esc:e.length};
- let h=`<div class="tabs">${T.map(k=>`<button class="${k===tab?'on':''}" data-tab="${k}">${lab[k]}${cnt[k]?`<span class="n">${cnt[k]}</span>`:''}</button>`).join('')}</div>`;
- if(!G.on)return h+`<div class="hero" style="text-align:center"><h2>Get ready 🎬</h2><div class="muted">The show starts at 3 PM. Keep this page open. Your phone buzzes when something needs you.</div></div>`;
- if(tab==='mine'){if(ME.d==='audit')h+=e.map(t=>escCard(t,lvl(t))).join('');
-  h+=m.length?m.map(t=>`<div class="card ${late(t)>=0?'late':'act'}">${head(t)}${unitStrip(t.c)}${thread(t)}${teamActions(t)}</div>`).join(''):(ME.d==='audit'&&e.length?'':`<div class="hero" style="text-align:center"><h2>Nothing with you right now</h2><div class="muted">Keep this page open. Your phone buzzes the moment a ticket reaches you.</div></div>`);
-  if(me==='salma')h+=`<div class="card"><h2>Cheques</h2>${Object.keys(CASES).map(c=>`<div class="doc"><span><b>${esc(CASES[c].c)}</b> · ${G.U[c].chq?'<span class="good">✓ secured</span>':'<span style="color:#A8392C;font-weight:600">⚠ not secured</span>'}</span>${G.U[c].chq?'':`<button class="btn sm ok" data-chq="${c}">Cheques secured</button>`}</div>`).join('')}</div>`}
- if(tab==='esc')h+=e.length?e.map(t=>escCard(t,lvl(t))).join(''):'<div class="muted">No escalations for you ✓</div>';
- if(tab==='team'){const ts=tlist().filter(t=>t.st==='open'&&P[t.hold]&&(P[t.hold].d===ME.aud||(me==='ghandour'&&lvl(t)>=2)));
-  h+=`<div class="card"><h2>${esc(DEPT[ME.aud])} team · live</h2>${ts.length?ts.map(t=>`<div class="line">${head(t)}</div>`).join(''):'<div class="muted">Nothing open with your team ✓</div>'}</div>`}
- if(tab==='cases'){const cs=myCases().length?myCases():Object.keys(CASES);h+=cs.map(c=>caseCol(c)).join('')}
- if(tab==='activity')h+=feedCard(15)||'<div class="muted">Nothing yet.</div>';
+function chatBox(c){const ms=G.chat[c],team=dep(me)!=='client';
+ return `<div class="card chat"><h2>Chat · ${esc(CASES[c].c)} & team</h2>${ms.length?'':'<div class="muted">No messages yet.</div>'}${ms.map(m=>{const mine=m.w===me,cl=dep(m.w)==='client';
+  return `<div class="m ${mine?'me':''}"><div class="w2">${esc(cl?CASES[c].f:PN(m.w)+' · '+DEPT[dep(m.w)])} · ${fmt(m.h)}</div>${m.v?'<div class="voice">▶ <i></i> 0:12</div>':esc(m.x)}${m.conv?'<div class="conv">⇄ Converted to a selection</div>':''}${team&&cl&&!m.conv&&!m.v?`<div><input id="cv_${m.id}" placeholder="Selection name, e.g. Entrance marble" style="margin-top:6px"><button class="btn sm amber" style="margin-top:6px" data-conv="${m.id}" data-c="${c}">⇄ Convert to selection</button></div>`:''}</div>`}).join('')}
+ <textarea id="cm_${c}" placeholder="Write a message…" style="min-height:44px"></textarea><div class="acts"><button class="btn" data-msg="${c}">Send</button><button class="btn gh" data-voice="${c}" style="flex:0 1 auto">🎤 Voice note</button></div>${ms.length?`<div class="muted" style="margin-top:6px">✓✓ Seen</div>`:''}</div>`}
+// ---------- Team member ----------
+function viewTeam(){const homes=homesOf(me);const mine=tlist().filter(t=>t.st==='open'&&t.hold===me);
+ const need=homes.filter(needsMe),wc=tlist().filter(t=>t.st==='client'&&t.ret===me).length,lt=mine.filter(t=>late(t)>=0).length;
+ if(open&&!homes.includes(open))open=null;
+ if(open){const c=open,C=CASES[c],ts=tlist().filter(t=>t.c===c&&t.st!=='done');
+  let h=`<button class="btn gh sm" data-open="">← All my units</button><div class="card" style="margin-top:10px"><div class="eyebrow">${esc(C.u)}</div><h2 style="font-size:19px;margin:2px 0">${esc(C.c)}</h2><div class="muted">${esc(C.scope)}</div>${unitStrip(c)}</div>`;
+  const my=ts.filter(t=>t.st==='open'&&t.hold===me);
+  h+=my.map(t=>`<div class="card ${late(t)>=0?'late':'act'}">${reqHead(t)}${thread(t)}${actions(t)}</div>`).join('');
+  const oth=ts.filter(t=>!(t.st==='open'&&t.hold===me));if(oth.length)h+=`<div class="card"><h2>Other open requests on this unit</h2>${oth.map(t=>`<div class="line">${reqHead(t)}</div>`).join('')}</div>`;
+  return h+chatBox(c)}
+ let h=`<div class="k"><div><span class="muted">My units</span><b>${homes.length+DUMMY.length}</b></div><div><span class="muted">On track</span><b>${homes.length+DUMMY.length-need.length-lt}</b></div><div class="r"><span class="muted">Need my action</span><b>${need.length}</b></div><div><span class="muted">Waiting client</span><b>${wc}</b></div><div ${lt?'class="r"':''}><span class="muted">Late</span><b>${lt}</b></div><div><span class="muted">Avg reply</span><b>1.6h</b></div></div>`;
+ if(need.length){const old=Math.max(0,...mine.map(t=>G.h-t.since));h+=`<div class="card" style="border-left:6px solid var(--bad)"><b>${need.length} unit${need.length>1?'s':''} need${need.length>1?'':'s'} your action</b><div class="muted">Oldest waiting: ${mine.length?dur(old):'new chat message'}</div></div>`}
+ h+=`<div class="card">${homes.map(c=>{const C=CASES[c],n=needsMe(c),t=tlist().find(z=>z.c===c&&z.st==='open'&&z.hold===me),L=t?late(t):null;
+  const sub=t?(t.hist.length>1?esc(t.hist[t.hist.length-1].w)+' '+esc(t.hist[t.hist.length-1].a):'New request')+' · “'+esc(t.t)+'”':chatWaits(c)&&n?'New chat message':'On track';
+  return `<div class="row" data-open="${c}"><div>${n?'<span class="dot"></span>':''}<b>${esc(C.c)}</b> · ${esc(C.u.split(' · ')[0].replace('OW/',''))}<div class="muted" style="margin-left:${n?15:0}px">${sub}</div></div>${t?(L>=0?`<span class="pill p-bad">late ${dur(L)}</span>`:`<span class="pill p-act">due ${dur(-L)}</span>`):n?'<span class="pill p-act">reply</span>':'<span class="pill p-ok">on track</span>'}</div>`}).join('')}
+ ${DUMMY.map(d=>`<div class="row" style="cursor:default"><div><b>${esc(d.split(' · ')[0])}</b> · ${esc(d.split(' · ')[1])}<div class="muted">On track</div></div><span class="pill p-ok">on track</span></div>`).join('')}</div>`;
  return h}
+// ---------- Audit ----------
+function escItems(k){return tlist().filter(t=>{const l=lvl(t);return l&&holder(l,t)===k})}
+function escCard(t){const l=lvl(t),r=resp(t),au=PN(AUDIT[dep(r)]);const why=t.esc&&!t.esc.done?'The client escalated: “'+esc(t.esc.x)+'”':'Late by '+dur(late(t));
+ const ladder=l==1?'First escalation · your team':l==2?au+' (audit) did not act for 1 day':'Not solved by '+(au==='Ghandour'?'Ghandour':au+' or Ghandour');
+ return `<div class="card late"><div class="eyebrow">${esc(CASES[t.c].c)} · ${t.id} · ${ladder}</div><b style="font-size:15px;display:block;margin-top:4px">⛔ ${esc(PN(r))} (${DEPT[dep(r)]}) · ${why}</b><div class="info">“${esc(t.t)}”</div>${thread(t)}<textarea id="x_${t.id}" placeholder="Note to ${esc(PN(r))} (optional)" style="min-height:44px"></textarea><button class="btn amber full" data-act="fu" data-i="${t.id}">Follow up with ${esc(PN(r))}</button></div>`}
+function memberStats(k){const ts=tlist().filter(t=>resp(t)===k&&t.st!=='done');const n=ts.filter(t=>t.st==='open'&&t.hold===k).length,lt=ts.filter(t=>late(t)>=0).length,es=ts.filter(t=>lvl(t)).length;const base=homesOf(k).length+DUMMY.length;return {base,on:base-n-lt,n,lt,es}}
+function teamRows(list){return list.map(k=>{const s=memberStats(k),ts=tlist().filter(t=>resp(t)===k&&t.st!=='done');return `<div class="grp"><div class="row" data-x="m_${k}"><div><b>${esc(PN(k))}</b><div class="muted">${s.base} units · ${s.on} on track · ${s.n} need action</div></div>${s.lt||s.es?`<span class="pill p-bad">${s.lt} late · ${s.es} esc.</span>`:'<span class="pill p-ok">on track</span>'}</div>${X['m_'+k]?`<div class="in">${ts.length?ts.map(t=>`<div class="line">${reqHead(t)}</div>`).join(''):'<div class="muted">Nothing open.</div>'}</div>`:''}</div>`}).join('')}
+const X={};
+function viewAudit(){const team=TEAMS.find(t=>t[0]===ME.aud),its=escItems(me);
+ const tot=team[2].reduce((a,k)=>{const s=memberStats(k);a.b+=s.base;a.on+=s.on;a.n+=s.n;a.lt+=s.lt;return a},{b:0,on:0,n:0,lt:0});
+ let h=`<div class="k"><div><span class="muted">Team cases</span><b>${tot.b}</b></div><div><span class="muted">On track</span><b>${Math.round(100*tot.on/tot.b)}%</b></div><div><span class="muted">Need action</span><b>${tot.n}</b></div><div ${tot.lt?'class="r"':''}><span class="muted">Late</span><b>${tot.lt}</b></div><div ${its.length?'class="r"':''}><span class="muted">Escalated to me</span><b>${its.length}</b></div><div><span class="muted">Avg reply</span><b>2.1h</b></div></div>`;
+ h+=`<h2>Needs your attention</h2><div class="why" style="margin:-4px 0 8px">Late requests in your team, and requests a client escalated. If you don't act in 1 day, it goes to ${me==='ghandour'?'Salah':'Ghandour'}.</div>`+(its.length?its.map(escCard).join(''):'<div class="card"><div class="muted">✓ Nothing. Your team is on track.</div></div>');
+ h+=`<h2 style="margin-top:14px">${team[1]} team</h2>`+teamRows(team[2]);
+ return h}
+// ---------- Salah ----------
+function viewSalah(){const all=TEAMS.flatMap(t=>t[2]);let b=0,on=0;all.forEach(k=>{const s=memberStats(k);b+=s.base;on+=s.on});const its=escItems('salah');
+ let h=`<div class="hero"><div class="muted">All homes · today</div><div style="font-size:42px;font-weight:700">${Math.round(100*on/b)}% <span style="font-size:18px">on track</span></div><div class="muted">${b} active cases · ${b-on} need action · ${its.length} escalated to you</div></div>`;
+ h+=`<h2>Needs your action · ${its.length}</h2><div class="why" style="margin:-4px 0 8px">Only escalations the audit and Ghandour did not solve reach you.</div>`+(its.length?its.map(escCard).join(''):'<div class="card"><div class="muted">✓ Nothing. Every escalation is being handled.</div></div>');
+ h+=`<h2 style="margin-top:14px">Teams</h2><div class="why" style="margin:-4px 0 8px">Tap a team to see its members.</div>`+TEAMS.map(([d,name,list])=>{let b=0,on=0,lt=0,a1=0,a2=0;list.forEach(k=>{const s=memberStats(k);b+=s.base;on+=s.on;lt+=s.lt});tlist().forEach(t=>{if(dep(resp(t))===d){const l=lvl(t);if(l==1)a1++;if(l==2)a2++}});
+  return `<div class="grp"><div class="row" data-x="t_${d}"><div><b>${name}</b> · audit ${esc(PN(AUDIT[d]))}<div class="muted">${list.length} members · ${b} cases · ${lt} late · ${a1} with audit · ${a2} with Ghandour</div></div><span class="pill ${on/b>=.95?'p-ok':'p-act'}">${Math.round(100*on/b)}%</span></div>${X['t_'+d]?`<div class="in">${teamRows(list)}</div>`:''}</div>`}).join('');
+ return h}
+// ---------- Big screen ----------
 function caseCol(c){const C=CASES[c],ts=tlist().filter(t=>t.c===c);
- return `<div class="card"><div class="eyebrow">${esc(C.u)}</div><h2 style="margin:2px 0;font-size:19px">${esc(C.c)}</h2><div class="muted">Team: ${Object.entries(C.team).map(([d,k])=>esc(PN(k))+' ('+DEPT[d]+')').join(' · ')}</div>${unitStrip(c)}<div style="margin-top:8px">${ts.length?ts.map(t=>{const l=lvl(t);return `<div class="line"><b>${t.id}</b> “${esc(t.t)}”<br>${status(t)}${l?` → escalated to <b>${esc(PN(holder(l,t)))}</b>`:''}${t.fu?' · '+esc(PN(t.fu.by))+' following up':''}</div>`}).join(''):'<div class="muted">No tickets yet</div>'}</div></div>`}
+ return `<div class="card"><div class="eyebrow">${esc(C.u)}</div><h2 style="margin:2px 0;font-size:19px">${esc(C.c)}</h2><div class="muted">${Object.entries(C.team).map(([d,k])=>esc(PN(k))+' ('+DEPT[d]+')').join(' · ')}</div>${unitStrip(c)}<div style="margin-top:8px">${ts.length?ts.map(t=>{const l=lvl(t);return `<div class="line"><b>${t.id}</b> “${esc(t.t)}”<br>${status(t)}${l?` → <b style="color:#A8392C">${t.esc&&!t.esc.done?'client escalated · ':''}${esc(PN(holder(l,t)))}</b>`:''}${t.fu?' · '+esc(PN(t.fu.by))+' following up':''}</div>`}).join(''):'<div class="muted">No requests yet</div>'}</div></div>`}
 function feedCard(n){return G.log.length?`<div class="card feed"><div class="eyebrow">Happening now</div>${G.log.slice(0,n).map(l=>`<div class="l">${l.c?esc(CASES[l.c].f)+' · ':''}${esc(l.t)}</div>`).join('')}</div>`:''}
 function viewBoard(){const all=tlist(),n=[0,0,0,0];all.forEach(t=>n[lvl(t)]++);
- let h='';
- if(ME.d==='board')h+=`<div class="card"><div class="ctl">${G.on?'':'<button class="btn amber" data-start="1">▶ Start the show</button>'}<span class="muted">Move time:</span><button class="btn sm" data-jump="1">+1 hour</button><button class="btn sm" data-jump="4">+4 hours</button><button class="btn sm red" data-jump="9">+1 day</button><span style="flex:1"></span><a href="#" id="reset" class="muted">Reset</a></div></div>`;
- if(me==='salah'){const e=myEsc();h=`<h1>Salah</h1><div class="muted" style="margin-bottom:12px">${esc(ME.line)}</div>`+e.map(t=>escCard(t,3)).join('')+h}
- h+=`<div class="hero"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><div class="muted">${me==='salah'?'Follow-up dashboard':'O-Plus · all homes · live'}</div><h2 style="font-size:40px;margin:4px 0">${G.on?fmt(G.h):'Waiting to start'}</h2></div><div class="muted" style="max-width:430px">Reply promise: 4 working hours. Late → audit of the team (Ghandour · Omar Sheir · Abdelmaksoud · Omar Nada) → no action for 1 day → Ghandour → 1 more day → Salah</div></div></div>`;
- h+=`<div class="kpis"><div class="kpi"><span class="eyebrow">Open tickets</span><b>${all.filter(t=>t.st!=='closed').length}</b></div><div class="kpi"><span class="eyebrow">Closed</span><b>${all.filter(t=>t.st==='closed').length}</b></div><div class="kpi"><span class="eyebrow">With the audit</span><b>${n[1]}</b></div><div class="kpi"><span class="eyebrow">With Ghandour</span><b>${n[2]}</b></div><div class="kpi"><span class="eyebrow">With Salah</span><b style="color:${n[3]?'#A8392C':'#001641'}">${n[3]}</b></div></div>`;
- return h+feedCard(4)+`<div class="cols">${['A','B','C'].map(caseCol).join('')}</div>`}
-function render(){const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#app textarea,#app input,#app select').forEach(e=>{if(e.id)keep[e.id]=e.value});
- $('#clock').textContent=G.on?fmt(G.h):'';let h='';
- if(ME.d==='board'||me==='salah')h=viewBoard();
- else h=`<h1>${esc(ME.d==='client'?'Welcome back':ME.n)}</h1><div class="muted" style="margin-bottom:8px">${esc(ME.line)}</div>`+(ME.d==='client'?(G.on?viewClient():`<div class="hero" style="text-align:center"><h2>Get ready 🎬</h2><div class="muted">The show starts at 3 PM.</div></div>`):viewTeam());
- $('#app').innerHTML=h;Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e&&keep[k]!=='')e.value=keep[k]});if(fid){const e=document.getElementById(fid);if(e){e.focus();try{const l=e.value.length;e.setSelectionRange&&e.setSelectionRange(l,l)}catch(x){}}}
- const ks=(ME.d==='client'?['A','B','C'].flatMap(c=>clientWaiting(c).map(t=>t.id+'_'+t.hist.length)):mine().map(t=>t.id+'_'+t.hist.length).concat(myEsc().map(t=>'E'+t.id+'_'+lvl(t))));
+ return `<div class="card"><div class="ctl">${G.on?'':'<button class="btn amber" data-start="1">▶ Start the show</button>'}<span class="muted">Move time:</span><button class="btn sm" data-jump="1">+1 hour</button><button class="btn sm" data-jump="4">+4 hours</button><button class="btn sm red" data-jump="9">+1 day</button><span style="flex:1"></span><a href="#" id="reset" class="muted">Reset</a></div></div>
+ <div class="hero"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><div class="muted">O-Plus · all homes · live</div><h2 style="font-size:40px;margin:4px 0">${G.on?fmt(G.h):'Waiting to start'}</h2></div><div class="muted" style="max-width:430px">Reply promise: 4 working hours. Late or client escalation → audit of the team → no action for 1 day → Ghandour → 1 more day → Salah</div></div></div>
+ <div class="kpis"><div class="kpi"><span class="eyebrow">Open requests</span><b>${all.filter(t=>t.st!=='done').length}</b></div><div class="kpi"><span class="eyebrow">Resolved</span><b>${all.filter(t=>t.st==='done').length}</b></div><div class="kpi"><span class="eyebrow">With the audit</span><b>${n[1]}</b></div><div class="kpi"><span class="eyebrow">With Ghandour</span><b>${n[2]}</b></div><div class="kpi"><span class="eyebrow">With Salah</span><b style="color:${n[3]?'#A8392C':'#001641'}">${n[3]}</b></div></div>`+feedCard(4)+`<div class="cols">${['A','B','C'].map(caseCol).join('')}</div>`}
+// ================= render =================
+function render(){const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#app textarea,#app input').forEach(e=>{if(e.id)keep[e.id]=e.value});
+ $('#clock').textContent=G.on?fmt(G.h):'';let h;
+ const ready=`<div class="hero" style="text-align:center"><h2>Get ready 🎬</h2><div class="muted">The show starts at 3 PM. Keep this page open. Your phone buzzes when something needs you.</div></div>`;
+ if(ME.d==='board')h=viewBoard();
+ else{const title=ME.d==='client'?'Welcome, '+ME.n.split(' ')[0]:ME.n;h=`<h1>${esc(title)}</h1><div class="muted" style="margin-bottom:10px">${esc(ME.d==='client'?'Your home portal':ME.d==='audit'?'Audit · '+DEPT[ME.aud]+' team'+(me==='ghandour'?' · and every escalation before Salah':''):P[me].fin?'Cost · finance & cheques':ROLE[ME.d])}</div>`;
+  h+=!G.on?ready:ME.d==='client'?viewClient():ME.d==='audit'?viewAudit():ME.d==='top'?viewSalah():viewTeam()}
+ $('#app').innerHTML=h;Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e&&keep[k]!=='')e.value=keep[k]});if(fid){const e=document.getElementById(fid);if(e){e.focus();try{const l=e.value.length;e.setSelectionRange(l,l)}catch(x){}}}
+ let ks=[];if(ME.d==='client'){const c=ME.c;ks=tlist().filter(t=>t.c===c).map(t=>t.id+'_'+t.cl.length).concat(G.sel[c].map(s=>s.id+s.st)).concat(G.chat[c].filter(m=>m.w!==me).map(m=>'m'+m.id))}
+ else if(['audit','top'].includes(ME.d))ks=escItems(me).map(t=>'E'+t.id+lvl(t)+(t.esc?1:0));
+ else if(ME.d!=='board')ks=tlist().filter(t=>t.st==='open'&&t.hold===me).map(t=>t.id+'_'+t.hist.length).concat(homesOf(me).filter(c=>needsMe(c)&&chatWaits(c)).map(c=>'c'+c+G.chat[c].length));
  const nw=ks.filter(k=>!seenK.has(k));ks.forEach(k=>seenK.add(k));
- if(nw.length&&loaded){toast(nw[0][0]==='E'?'🔔 Escalation: a ticket is late':'🔔 A ticket needs you');try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}}
+ if(nw.length&&loaded){toast(ME.d==='client'?'🔔 Update from your team':['audit','top'].includes(ME.d)?'🔔 Escalation: needs your attention':'🔔 A unit needs your action');try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}}
 const seenK=new Set();let loaded=false;
-// ---------- Sync ----------
+// ================= sync =================
 const API=(new URLSearchParams(location.search).get('api'))||window.DEMO_API||'';
 let seen=0,busy=false,epoch=null;
 async function pull(mineId){if(!API)return;if(busy&&!mineId)return;busy=true;try{const r=await fetch(API+'?op=get&since='+seen,{cache:'no-store'});const j=await r.json();
  if(j.n<seen||(epoch!==null&&j.epoch!==epoch)){epoch=j.epoch;if(seen>0){G=fresh();seen=0;seenK.clear();loaded=false;busy=false;return pull(mineId)}}epoch=j.epoch;
- if(j.items&&j.items.length){let own='';j.items.forEach(x=>{if(x.show!==2&&x.a!=='reset')return;let m;try{m=apply(x)}catch(e){console.warn(e)}if(x.id&&x.id===mineId)own=m||'Done'});seen=j.n;if(own)toast(own);render()}
+ if(j.items&&j.items.length){let own='';j.items.forEach(x=>{if(x.show!==3&&x.a!=='reset')return;let m;try{m=apply(x)}catch(e){console.warn(e)}if(x.id&&x.id===mineId)own=m||'Done'});seen=j.n;if(own)toast(own);render()}
  if(!loaded){loaded=true;render()}$('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
-async function send(A){A.ts=Date.now();A.p=me;A.show=2;A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
+async function send(A){A.ts=Date.now();A.p=me;A.show=3;A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
  if(!API){const m=apply(A);if(m)toast(m);return render()}
  toast('Sending…');
  try{await fetch(API+'?op=add&d='+encodeURIComponent(JSON.stringify(A)),{cache:'no-store'})}catch(e){return toast('Not sent. Check the connection and try again')}
  while(busy)await new Promise(r=>setTimeout(r,100));await pull(A.id)}
+const val=id=>{const e=document.getElementById(id);if(!e)return '';const v=e.value.trim();return v};
+const clr=id=>{const e=document.getElementById(id);if(e)e.value=''};
 document.addEventListener('click',e=>{
  if(e.target.id==='reset'){e.preventDefault();if(window.confirm('Reset the show for everyone?'))send({a:'reset'});return}
- const b=e.target.closest('button');if(!b)return;
+ const xr=e.target.closest('[data-x]');if(xr){X[xr.dataset.x]=!X[xr.dataset.x];return render()}
+ const op=e.target.closest('[data-open]');if(op){open=op.dataset.open||null;window.scrollTo(0,0);return render()}
+ if(e.target.closest('[data-info]')&&!e.target.closest('button')){showInfo=!showInfo;return render()}
+ const b=e.target.closest('button');if(!b||b.disabled)return;
  if(b.dataset.tab){tab=b.dataset.tab;return render()}
  if(b.dataset.start)return send({a:'start'});
  if(b.dataset.jump)return send({a:'jump',h:+b.dataset.jump});
- if(b.dataset.chq)return send({a:'chq',c:b.dataset.chq});
- if(b.dataset.new){const el=document.getElementById('nx_'+b.dataset.new);if(!el.value.trim())return toast('Write your request first ✍️');const x=el.value;el.value='';return send({a:'new',c:b.dataset.new,x})}
- const a=b.dataset.act;if(!a)return;const i=b.dataset.i,el=document.getElementById('x_'+i),x=el?el.value.trim():'';
- if(a==='fu')return send({a,i,l:+b.dataset.l});
- if(['reply','opts','quote','no','cr'].includes(a)&&!x)return toast(a==='no'?'Write your comment first ✍️':'Write it first ✍️');
- if(a==='send'){const to=document.getElementById('to_'+i).value;if(!to)return toast('Choose who to send it to');if(el)el.value='';return send({a,i,to,x})}
- if(el)el.value='';send({a,i,x});
+ if(b.dataset.new){const x=val('nx');if(!x)return toast('Write your request first ✍️');clr('nx');return send({a:'new',c:ME.c,x})}
+ if(b.dataset.msg){const c=b.dataset.msg,x=val('cm_'+c);if(!x)return toast('Write a message first');clr('cm_'+c);return send({a:'msg',c,x})}
+ if(b.dataset.voice)return send({a:'msg',c:b.dataset.voice,v:1});
+ if(b.dataset.conv){const x=val('cv_'+b.dataset.conv);if(!x)return toast('Give the selection a name first');return send({a:'conv',c:b.dataset.c,m:+b.dataset.conv,x})}
+ if(b.dataset.sel){const s=b.dataset.s,x=val('sc_'+s);if(b.dataset.sel==='no'&&!x)return toast('Write your comment first ✍️');return send({a:b.dataset.sel==='ok'?'selok':'selno',c:ME.c,s,x})}
+ const a=b.dataset.act;if(!a)return;const i=b.dataset.i;
+ if(a==='esc'){const x=val('e_'+i);if(!x)return toast('Write the reason of escalation first');clr('e_'+i);return send({a,i,x})}
+ const x=val('x_'+i);
+ if(['reply','opts','quote','no'].includes(a)&&!x)return toast(a==='no'?'Write your comment first ✍️':'Write it first ✍️');
+ if(a==='back'&&!x&&!b.dataset.dx)return toast('Write your answer first ✍️');
+ clr('x_'+i);send({a,i,x,k:b.dataset.k,k2:b.dataset.k2,dx:b.dataset.dx});
 });
 G=fresh();render();if(API){pull();setInterval(pull,2500)}
 </script>
