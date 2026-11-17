@@ -95,12 +95,13 @@ const PEOPLE={
  yara:{name:'Yara',fn:'sales'},ashiry:{name:'Ashiry',fn:'sales'},dina:{name:'Dina',fn:'sales'},
  amira:{name:'Amira',fn:'pm'},saad:{name:'Saad',fn:'pm'},abugabal:{name:'Omar Abu Gabal',fn:'pm'},omark:{name:'Omar Khaled',fn:'pm',mgr:1},
  nouran:{name:'Nouran',fn:'design'},ali:{name:'Ali',fn:'design'},maksoud:{name:'Abdelmaksoud',fn:'design',mgr:1},
- sharbagy:{name:'Sharbagy',fn:'cost'},alaa:{name:'Alaa',fn:'cost'},omar:{name:'Omar',fn:'cost',mgr:1},
+ sharbagy:{name:'Sharbagy',fn:'cost'},alaa:{name:'Alaa',fn:'cost'},omar:{name:'Omar Nada',fn:'cost',mgr:1},
  salma:{name:'Salma',fn:'finance'},ghandour:{name:'Ghandour',fn:'extra'},salah:{name:'Salah',fn:'head'},
  site:{name:'Site Engineer',fn:'site'},board:{name:'Big screen',fn:'board'},time:{name:'Timekeeper',fn:'time'}};
 const UTEAM={u1:{sales:'yara',pm:'saad',design:'nouran',cost:'sharbagy'},u2:{sales:'ashiry',pm:'amira',design:'ali',cost:'sharbagy'},u3:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'}};
-const NEXT={yara:'fam1'};
-const MGR={pm:'Omar Khaled (PM manager)',design:'Abdelmaksoud (Design manager)',cost:'Omar (Cost manager)',finance:'Salah (Head of Projects)'};
+const NEXT={}; // nobody switches roles during the show
+// Hierarchy: Salah (Head of Projects) > Ghandour (Head of Extra Work, also leads Sales) > Omar Khaled (PMs), Omar Nada (Cost + Finance), Abdelmaksoud (Design)
+const MGR={pm:'Omar Khaled (PM manager)',design:'Abdelmaksoud (Design manager)',cost:'Omar Nada (Cost manager)',finance:'Omar Nada (Cost manager)',sales:'Ghandour (Head of Extra Work)'};
 let me='c1';
 const PN=id=>(PEOPLE[id]||{}).name||id;
 function T(fn){if(fn=='finance')return 'Salma';const t=UTEAM[S&&S.u||'u1'];return t&&t[fn]?PN(t[fn]):fn}
@@ -117,7 +118,7 @@ function fmt(h){h=Math.max(0,h);const d=Math.floor(h/HPD)+1,m=Math.floor((h%HPD)
 function dur(h){h=Math.max(0,h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h>=1)return Math.round(h*10)/10+' h';return Math.max(1,Math.round(h*60))+' min'}
 function alerts(){const now=dh(),out=[];if(!G.clk||!S.paid)return out;
  S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type],late=age-sla,who=T(r.to);
-  if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm'],mgrOf:r.to,head:1,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to Salah',mail:{to:'Salah · Head of Projects',b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'. Manager already alerted.'}});
+  if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm'],mgrOf:r.to,head:1,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to Ghandour + Salah',mail:{to:'Ghandour · Head of Extra Work + Salah · Head of Projects',b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'. Manager already alerted.'}});
   else if(late>=HPD)out.push({k:r.id+'e1',to:[r.to,'pm'],mgrOf:r.to,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to '+MGR[r.to],mail:{to:MGR[r.to],b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'.'}});
   else if(late>=0)out.push({k:r.id+'late',to:[r.to,'pm'],lvl:'bad',m:r.id+' is LATE (promise '+dur(sla)+') · owner '+who,mail:{to:who+' · ClickUp overdue',b:r.id+' “'+esc(r.t)+'” passed its reply time ('+dur(sla)+').'}});
   else if(age>=sla*0.75)out.push({k:r.id+'soon',to:[r.to],lvl:'warn',m:r.id+' reply due in '+dur(sla-age)})});
@@ -132,7 +133,7 @@ function alerts(){const now=dh(),out=[];if(!G.clk||!S.paid)return out;
   else if(age>=5*HPD)out.push({k:p.id+'p2',to:['client','family'],lvl:'warn',m:'Second reminder: '+p.name+' is still pending',mail:{to:S.client,b:'Second reminder: '+p.name+' is still pending.'}});
   else if(age>=2*HPD)out.push({k:p.id+'p1',to:['client','family'],lvl:'warn',m:'Reminder: '+p.name+' is waiting for your confirmation',mail:{to:S.client,b:'Friendly reminder: '+p.name+' is waiting for your confirmation.'}})});
  return out}
-const isMine=a=>a.to.includes(role)||(isMgr()&&a.mgrOf==role)||(role=='head'&&a.head);
+const isMine=a=>a.to.includes(role)||(isMgr()&&(a.mgrOf==role||(role=='cost'&&a.mgrOf=='finance')))||((role=='head'||role=='extra')&&a.head);
 function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';return a.map(x=>`<div class="${x.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px;${x.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${x.lvl=='bad'?'⛔ ':'⏰ '}${esc(x.m)}</div>`).join('')}
 function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to==S.client:a.mail.to!=S.client));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
 const KEY='opdemo4';let S,role='client',tab='overview';
@@ -172,6 +173,7 @@ function render(){
  $('#roles').innerHTML=Object.keys(PEOPLE).map(k=>`<button class="${k===me?'on':''}" data-r="${k}">${PN(k)}</button>`).join('');
  $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
  const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
+ if(focus()){['ucode','uname','steps'].forEach(id=>$('#'+id).style.display='none');$('#who').innerHTML=`<div style="font-size:22px;font-weight:700;color:#001641">${PN(me)}</div><div class="muted">${roleLine()}</div>`;$('#tabs').innerHTML='';$('#main').innerHTML=todo()+`<p style="margin-top:28px;text-align:center"><a href="#" id="full" class="muted">Show the full portal</a></p>`;Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e)e.value=keep[k]});return}
  $('#who').innerHTML=`Playing <b>${PN(me)}</b> · ${R.title}${isMgr()?' (manager)':''}${isTeam()&&role!='board'&&role!='time'&&myUnits().length>1?' · Case: '+myUnits().map(u=>`<button class="btn sm ${u==unit?'':'ghost'}" data-unit="${u}">${G.U[u].client}</button>`).join(' '):''}`;
  if(!S.paid&&!['sales','board','time','head'].includes(role)&&!(role=='pm'&&isMgr())){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Case not open yet</h2><div class="muted">Waiting for the client to pay the quotation. Sales starts the case.</div></div>`;return}
  if(S.paid&&!S.team&&!['sales','head','client','family','board','time'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Quotation paid · waiting for kick-off</h2><div class="muted">Head of Projects assigns the unit team. Then this case opens for you.</div></div>`;return}
@@ -184,6 +186,38 @@ function render(){
  $('#main').innerHTML=alertBox()+V[tab]()+(['overview','pay','clock','req'].includes(tab)?mailsBox():'');
  Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e)e.value=keep[k]});if(fid){const e=document.getElementById(fid);if(e)e.focus()}
 }
+// ---- Focus mode: each person sees only their name, their role and what is waiting for them ----
+let FULL=false;
+const focus=()=>!FULL&&!['c1','board','time'].includes(me);
+function roleLine(){const P=PEOPLE[me]||{};const cases=myUnits().map(u=>G.U[u].client).join(', ');
+ if(P.u)return 'Client · '+G.U[P.u].code;
+ const t={sales:'Sales',pm:'Project Manager',design:'Designer',cost:'Cost',finance:'Cost & Finance · cheques',extra:'Head of Extra Work + Sales',head:'Head of Projects'}[P.fn]||P.fn;
+ if(P.mgr)return ({pm:'Construction manager (PMs)',design:'Design manager',cost:'Cost & Finance manager'}[P.fn])+' · you get your team\'s escalations';
+ if(P.fn=='head')return t+' · kick-off and final escalations';
+ return t+(['extra','finance'].includes(P.fn)?'':' · '+cases)}
+function todo(){const out=[],keep=S,P=PEOPLE[me]||{};
+ const card=(u,title,sub,btns)=>out.push(`<div class="card" style="border-left:6px solid #F0B323"><div class="eyebrow">${esc(G.U[u].client)} · ${esc(G.U[u].code)}</div><b style="font-size:17px">${title}</b>${sub?`<div class="muted" style="margin:4px 0 10px">${sub}</div>`:'<div style="height:10px"></div>'}${btns}</div>`);
+ const al=[];
+ myUnits().forEach(u=>{S=G.U[u];
+  alerts().filter(isMine).forEach(a=>al.push(`<div class="${a.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px">${a.lvl=='bad'?'⛔ ':'⏰ '}${esc(S.client)}: ${esc(a.m)}</div>`));
+  if(role=='sales'&&!S.paid)card(u,'Quotation '+esc(S.q.replace('Quotation ',''))+' is paid?',esc(S.scope),`<button class="btn big amber full" data-a="paid" data-u="${u}">Quotation paid · open the case</button>`);
+  if(role=='head'&&S.paid&&!S.team)card(u,'Kick-off: confirm the unit team','PM '+T('pm')+' · Designer '+T('design')+' · Cost '+T('cost'),`<button class="btn big amber full" data-a="team" data-u="${u}">Confirm team · open the case</button>`);
+  if(S.team&&!isClientSide())S.req.filter(r=>r.st=='Open'&&r.to==role&&!P.mgr&&role!='head').forEach(r=>{
+   const left=SLA[r.type]-(dh()-r.h0),due=left>=0?'reply due in '+dur(left):'<b style="color:#A8392C">LATE by '+dur(-left)+'</b>';
+   const b=role=='design'?`<button class="btn full" data-a="r2sel" data-u="${u}" data-i="${r.id}">Send options to the client (Design selection)</button><div style="height:8px"></div><button class="btn ghost full" data-a="r2mod" data-u="${u}" data-i="${r.id}">It is extra work · send to Cost</button>`
+    :`<input id="ra${u}_${r.id}" placeholder="Write your reply" value="${esc(r.sg||'')}"><div style="height:8px"></div><button class="btn ok full" data-a="reqdone" data-u="${u}" data-i="${r.id}">Reply &amp; resolve</button>`;
+   card(u,'“'+esc(r.t)+'”',RT[r.type].n+' · '+due,b)});
+  if(role=='cost'&&!P.mgr)S.mods.filter(m=>m.st=='Costing').forEach(m=>card(u,m.id+' · '+esc(m.title),'Extra work waiting for your costing. Site cannot execute it yet.',`<input id="mn${u}_${m.id}" value="Addendum A-01 · +10 working days"><div style="height:8px"></div><button class="btn full" data-a="costdone" data-u="${u}" data-i="${m.id}">Cost adjusted · send to client</button>`));
+  if(role=='extra')S.mods.filter(m=>m.st=='Client approved').forEach(m=>card(u,m.id+' · '+esc(m.title),'Costed and approved by the client.',`<button class="btn ok big full" data-a="release" data-u="${u}" data-i="${m.id}">Release to site</button>`));
+  if(role=='finance'&&u=='u1'&&S.team){const p=S.pay.find(x=>x.st=='Scheduled');const c=S.pay.find(x=>x.st=='Client confirmed');
+   if(c)card(u,esc(c.name),'Client said he will hand it over.',`<button class="btn ok big full" data-a="payrec" data-u="${u}" data-i="${c.id}">Mark received</button>`);
+   else if(p&&!S.pay.some(x=>x.st=='Requested'))card(u,esc(p.name)+' · '+p.pct,'Due '+esc(p.due),`<button class="btn big full" data-a="payask" data-u="${u}" data-i="${p.id}">Request it from the client now</button>`)}
+  if(isClientSide()){S.sel.filter(x=>x.st=='Waiting').forEach(x=>card(u,esc(x.title),esc(x.opt),`<button class="btn ok big full" data-a="selok" data-u="${u}" data-i="${x.id}">Approve</button>`));
+   S.mods.filter(m=>m.st=='Awaiting client').forEach(m=>card(u,'Addendum for '+esc(m.title),esc(m.note||''),`<button class="btn ok big full" data-a="modok" data-u="${u}" data-i="${m.id}">Approve addendum</button>`));
+   S.pay.filter(p=>p.st=='Requested'||p.st=='Overdue').forEach(p=>card(u,esc(p.name),'Requested by Finance',`<button class="btn ok big full" data-a="payconf" data-u="${u}" data-i="${p.id}">I will hand it over</button>`))}
+ });S=keep;
+ const done=role=='sales'&&myUnits().every(u=>G.U[u].paid)?`<div class="note" style="margin-bottom:10px">✓ You opened the case. The client got the welcome email.</div>`:'';
+ return al.join('')+done+(out.length?`<div class="eyebrow" style="margin:6px 0 8px">Waiting for you · ${out.length}</div>`+out.join(''):`<div class="hero" style="text-align:center"><h2>Nothing for you right now</h2><div class="muted">Keep this page open. Your phone buzzes the moment something needs you.</div></div>`)}
 const V={
 overview(){
  if(role=='sales')return S.paid?`<div class="hero"><h2>Done. Case handed over.</h2><div class="muted">Client emailed the portal link. Head of Projects assigns the team next.</div>${NEXT[me]?`<div style="margin-top:14px"><button class="btn big amber" data-next="${NEXT[me]}">Now play ${PN(NEXT[me])}${PEOPLE[NEXT[me]].fn=='family'?' (family)':' (the client)'} ▶</button></div>`:''}</div>${mailBox()}`:
@@ -236,7 +270,7 @@ pay(){
  ${S.lastMail&&(role=='finance'||role=='pm'||isClientSide())?mailBox():''}
  <p class="muted">Shares and dates only. Amounts stay in the official Finance statement.</p>`},
 chat(){
- return `<div class="card"><div class="chat">${S.chat.length?'':'<div class="muted">No messages yet.</div>'}${S.chat.map(m=>`<div class="msg ${m.role==role?'me':''}"><div class="by">${esc(m.by)}</div>${esc(m.t)}</div>`).join('')}</div>
+ return `<div class="card"><div class="chat">${S.chat.length?'':'<div class="muted">No messages yet.</div>'}${S.chat.map(m=>`<div class="msg ${m.role==role?'me':''}"><div class="by">${esc(m.by)}</div>${esc(m.title)}</div>`).join('')}</div>
  <div class="row" style="margin-top:10px"><input id="ct" class="grow" placeholder="Write a message"><button class="btn" data-a="send">Send</button></div></div>`},
 files(){const vis=S.files;return `${vis.length?'':'<div class="muted">No files yet.</div>'}${vis.map(f=>`<div class="card row"><div class="grow"><b>${esc(f.n)}</b><div class="muted">by ${esc(f.by)}</div></div><button class="btn ghost sm">Download</button></div>`).join('')}`},
 sitecam(){const asks=S.req.filter(r=>r.ask&&!r.photo);
@@ -249,7 +283,7 @@ board(){const now=dh();
   ${al.map(a=>`<div class="${a.lvl=='bad'?'lock':'note'}" style="${a.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${a.lvl=='bad'?'⛔ ':'⏰ '}${esc(a.m)}${a.mail?' · <b>email sent</b>':''}</div>`).join('')||'<div class="muted" style="margin-top:6px">✓ Everything on time</div>'}
   ${S.req.filter(r=>r.st!='Resolved').map(r=>{const left=SLA[r.type]-(now-r.h0);return `<div class="muted" style="margin-top:6px">${r.id} · ${esc(r.t)} · owner ${T(r.to)} · <b style="color:${left<0?'#A8392C':'#1A2238'}">${left<0?'late by '+dur(-left):'due in '+dur(left)}</b></div>`}).join('')}</div>`});
  const ctl=role=='board'?`<div class="card" style="text-align:center"><button class="btn sm" data-a="jump" data-x="1">+1 hour</button> <button class="btn sm" data-a="jump" data-x="9">+1 day</button> <button class="btn sm red" data-a="jump" data-x="18">+2 days</button></div>`:'';
- return ctl+`<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late → owner · +1 day → team manager · +2 days → Salah</div></div>`+(role=='board'?feed():'')+rows.join('')},
+ return ctl+`<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late → owner · +1 day → team manager · +2 days → Ghandour + Salah</div></div>`+(role=='board'?feed():'')+rows.join('')},
 clock(){const sp=G.clk?G.clk.spd:SPD0,dm=Math.round(sp*HPD/60);
  return `<div class="hero"><h2 style="font-size:34px">${G.clk?fmt(dh()):'Clock starts when the first client pays'}</h2><div class="muted">Working day 09:00 to 18:00. Now 1 day = ${dm} minutes (1 hour ≈ ${Math.round(sp)} s). Reminders and escalations fire by themselves.</div></div>
  <div class="card"><h2>Speed</h2>${[3,5,9].map(x=>`<button class="btn ${x==dm?'':'ghost'}" data-a="speed" data-x="${x}">1 day = ${x} min</button> `).join('')}</div>
@@ -334,13 +368,14 @@ async function pull(mine){if(!API)return;if(busy&&!mine)return;busy=true;try{con
  if(j.n<seen||(epoch!==null&&j.epoch!==epoch)){epoch=j.epoch;if(seen>0){G=freshG();S=G.U[curUnit()];seen=0;busy=false;return pull(mine)}}epoch=j.epoch;
  if(j.items&&j.items.length){const before=myCount();let last='',own='';j.items.forEach(x=>{const m=apply(x);if(x.id&&x.id===mine)own=m||'Done';else if(m)last=m});seen=j.n;const after=myCount();
   if(own)toast(own);else if(after>before&&!document.hidden){toast('🔔 '+(last||'New update'));try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}render()}
- $('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
+ director();$('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
 async function dispatch(A){A.ts=Date.now();A.u=A.u||curUnit();A.p=A.p||me;A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
  if(!API){const m=apply(A);if(m)toast(m);return render()}
  toast('Sending…');
  try{await fetch(API+'?op=add&d='+encodeURIComponent(JSON.stringify(A)),{cache:'no-store'});}catch(e){return toast('Not sent. Check the connection and try again')}
  while(busy)await new Promise(r=>setTimeout(r,100));await pull(A.id)}
 document.addEventListener('click',e=>{
+ if(e.target.id=='full'){e.preventDefault();FULL=!FULL;return render()}
  if(e.target.id=='reset'){e.preventDefault();if(!confirmReset())return;return dispatch({a:'reset',r:role})}
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.unit){unit=b.dataset.unit;if(tab=='board')tab=ROLES[role].tabs.find(t=>t!='board')||'board';return render()}
@@ -350,11 +385,11 @@ document.addEventListener('click',e=>{
  const a=b.dataset.a;if(!a)return;
  if(role=='family'&&OWNER_ACTS.includes(a))return toast('Only the unit owner can approve or request. Family can follow, not act.');
  const v={};(NEED[a]||[]).forEach(k=>v[k]=($('#'+k)||{}).value||'');
- if(b.dataset.i){['ra','mn'].forEach(p=>{const el=$('#'+p+b.dataset.i);if(el)v[p+b.dataset.i]=el.value})}
+ if(b.dataset.i){['ra','mn'].forEach(p=>{const el=$('#'+p+(b.dataset.u?b.dataset.u+'_':'')+b.dataset.i)||$('#'+p+b.dataset.i);if(el)v[p+b.dataset.i]=el.value})}
  if(b.dataset.x){v.spd=b.dataset.x;v.h=b.dataset.x}
  if(a=='reqnew'&&!v.rx)return toast('Write your request first');
  if(a=='send'&&!v.ct)return;
- dispatch({a,r:role,i:b.dataset.i,s:b.dataset.s,v});
+ dispatch({a,r:role,i:b.dataset.i,s:b.dataset.s,u:b.dataset.u,v});
 });
 function confirmReset(){return S.log.length<1||window.confirm('Reset the demo for everyone?')}
 document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value)dispatch({a:'move',r:role,i:e.target.dataset.move,v:{to:e.target.value}})});

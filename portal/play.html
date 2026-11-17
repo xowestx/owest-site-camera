@@ -28,21 +28,21 @@ const R=[
 ['board','Big screen','Projector laptop · runs the show'],
 ['c1','MORCOS','Client Hesham Adel · live'],
 ['yara','Yara','Sales · presses Quotation paid'],
-['salah','Salah','Head of Projects · confirms team'],
+['salah','Salah','Head of Projects · kick-off + final escalations'],
 ['saad','Saad','PM of Hesham'],
 ['nouran','Nouran','Designer of Hesham'],
 ['sharbagy','Sharbagy','Cost of Hesham and Tarek'],
 ['salma','Salma','Finance · cheques'],
-['ghandour','Ghandour','Head of Extra Work · release'],
+['ghandour','Ghandour','Head of Extra Work + Sales · release, escalations'],
 ['amira','Amira','PM of Tarek'],
 ['ali','Ali','Designer of Tarek and Karim'],
 ['alaa','Alaa','Cost of Karim'],
 ['abugabal','Omar Abu Gabal','PM of Karim · stays silent'],
 ['c2','Ashiry','Plays client Tarek · one tap'],
 ['c3','Dina','Plays client Karim · one tap'],
-['omark','Omar Khaled','PM manager · gets escalations'],
-['maksoud','Abdelmaksoud','Design manager · sees all'],
-['omar','Omar','Cost manager · sees all']];
+['omark','Omar Khaled','Construction manager (PMs) · escalations'],
+['maksoud','Abdelmaksoud','Design manager · escalations'],
+['omar','Omar Nada','Cost + Finance manager · escalations']];
 const base=location.href.replace(/play\.html.*$/,'demo.html');
 const g=document.getElementById('g');
 R.forEach(([k,t,s])=>{const url=base+'?p='+k;const d=document.createElement('div');d.className='c';d.innerHTML=`<b>${t}</b><span>${s}</span><div class="q" id="q-${k}"></div><a href="${url}" style="font-size:11px;color:#001641">open</a>`;g.appendChild(d);
