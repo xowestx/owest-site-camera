@@ -25,25 +25,25 @@ a{color:#F0B323}
 </div>
 <script>
 const R=[
-['board','MORCOS · Big screen','Starts the show · Quotation paid'],
-['c1','Yara','Plays the client Hesham Adel (live)'],
-['salah','Salah','Head of Projects · final escalation'],
-['saad','Saad','PM of Hesham'],
-['nouran','Nouran','Designer of Hesham'],
-['sharbagy','Sharbagy','Cost · quotation for Hesham'],
-['salma','Salma','Finance · cheques'],
-['ghandour','Ghandour','Head of Extra Work + Sales · release, escalations'],
-['amira','Emeira','PM of Tarek'],
-['ali','Ali','Designer of Tarek and Karim · marble options'],
-['alaa','Alaa','Cost · glass house quotation for Karim'],
-['abugabal','Omar Abu Gabal','PM of Karim · stays silent'],
-['ashiry','Ashiry','Sales of all 3 clients · extra work to Cost'],
-['c2','MORCOS','Plays the client Tarek Nabil'],
-['c3','Dina','Plays the client Karim Fouad'],
-['omark','Omar Sheir','Construction manager (PMs) · escalations'],
-['maksoud','Abdelmaksoud','Design manager · escalations'],
-['omar','Omar Nada','Cost + Finance manager · escalations']];
-const base=location.href.replace(/play\.html.*$/,'demo.html');
+['board','MORCOS · Big screen','Starts the show · moves time'],
+['client','MORCOS · Clients','Plays the 3 clients'],
+['ashiry','Ashiry','Sales · Hesham Adel'],
+['yara','Yara','Sales · Tarek Nabil'],
+['dina','Dina','Sales · Karim Fouad'],
+['saad','Saad','PM · Hesham Adel'],
+['amira','Emeira','PM · Tarek Nabil'],
+['abugabal','Omar Abu Gabal','PM · Karim Fouad'],
+['nouran','Nouran','Design · Hesham Adel'],
+['ali','Ali','Design · Tarek Nabil'],
+['alaa','Alaa','Cost · Karim Fouad quotation'],
+['sharbagy','Sharbagy','Cost · contractor payment'],
+['salma','Salma','Cost · finance & cheques'],
+['ghandour','Ghandour','Audit · Sales + every escalation'],
+['omark','Omar Sheir','Audit · PMs'],
+['maksoud','Abdelmaksoud','Audit · Design'],
+['omar','Omar Nada','Audit · Cost'],
+['salah','Salah','Top management · dashboard']];
+const base=location.href.replace(/play\.html.*$/,'show.html');
 const g=document.getElementById('g');
 R.forEach(([k,t,s])=>{const url=base+'?p='+k;const d=document.createElement('div');d.className='c';d.innerHTML=`<b>${t}</b><span>${s}</span><div class="q" id="q-${k}"></div><a href="${url}" style="font-size:11px;color:#001641">open</a>`;g.appendChild(d);
  try{new QRCode(document.getElementById('q-'+k),{text:url,width:150,height:150,correctLevel:QRCode.CorrectLevel.M})}catch(e){}});

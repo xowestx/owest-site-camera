@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>O-Plus Portal · Live show</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#001641;--amber:#F0B323;--ink:#1A2238;--muted:#5F677A;--line:#DCDFE6;--panel:#F3F5F9;--ok:#2F6E4E;--bad:#A8392C;--tint:#FCEFD3;--tintx:#8A5800}
+*{box-sizing:border-box}body{margin:0;font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:#fff;font-size:14px}
+header{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header img{height:26px}header .t{font-weight:600;letter-spacing:.08em;font-size:12px;text-transform:uppercase;opacity:.85}
+header .sp{flex:1}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-size:22px;margin:4px 0 2px;color:var(--navy)}h2{font-size:16px;margin:0 0 8px}
+.card{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;background:#fff}
+.card.act{border-left:6px solid var(--amber)}.card.late{border-left:6px solid var(--bad)}
+.muted{color:var(--muted);font-size:12px}
+.btn{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:12px 16px;font:600 15px Poppins;cursor:pointer;width:100%;margin-top:8px}
+.btn.ok{background:var(--ok)}.btn.red{background:var(--bad)}.btn.amber{background:var(--amber);color:var(--navy)}.btn.ghost{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.btn.sm{width:auto;padding:7px 12px;font-size:13px;margin:0 4px 0 0}
+input{font:14px Poppins;padding:10px;border:1px solid var(--line);border-radius:8px;width:100%;margin-top:8px}
+.info{background:var(--panel);padding:10px 12px;border-radius:8px;margin-top:8px;font-size:13px;line-height:1.55}
+.warn{background:#FBEAE8;color:var(--bad);font-weight:600;padding:8px 10px;border-radius:8px;margin-top:8px;font-size:13px}
+.good{background:#E6F1EA;color:var(--ok);font-weight:600;padding:8px 10px;border-radius:8px;margin-top:8px;font-size:13px}
+.fu{background:var(--tint);color:var(--tintx);font-weight:600;padding:8px 10px;border-radius:8px;margin-top:8px;font-size:13px}
+.hero{background:var(--navy);color:#fff;border-radius:10px;padding:18px;margin:0 0 12px}.hero h2{color:#fff}.hero .muted{color:#C9D2E3}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.line{padding:5px 0;border-bottom:1px dashed var(--line);font-size:13px}.line:last-child{border:0}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:12px;white-space:nowrap}
+.p-bad{background:var(--bad);color:#fff}.p-ok{background:var(--ok);color:#fff}.p-act{background:var(--tint);color:var(--tintx)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;display:none;max-width:92%;z-index:9;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:12px}.kpi b{font-size:28px;color:var(--navy);display:block}
+.feed .l{padding:6px 0}.feed .l:first-child{font-weight:600;font-size:18px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <img src="assets/oplus-mark-white.png" alt="O-Plus">
+  <span class="t">Client Portal · Live show</span>
+  <span class="sp"></span><span id="clock" class="t" style="font-size:13px;opacity:1;color:#F0B323"></span><span id="live" class="t" style="font-size:11px"></span>
+</header>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+window.DEMO_API='https://script.google.com/macros/s/AKfycbxbzqm0Do6EaCJSBU5v4GEa546stTm7zT0BR33SKqS7Ua3hmwuIsXbDN9N5wTGGX0ph/exec';
+// ---------- Cast ----------
+const P={
+ client:{n:'Client',d:'client',line:'You play the 3 clients'},
+ ashiry:{n:'Ashiry',d:'sales',line:'Sales · Hesham Adel'},yara:{n:'Yara',d:'sales',line:'Sales · Tarek Nabil'},dina:{n:'Dina',d:'sales',line:'Sales · Karim Fouad'},
+ saad:{n:'Saad',d:'pm',line:'PM · site execution · Hesham Adel'},amira:{n:'Emeira',d:'pm',line:'PM · site execution · Tarek Nabil'},abugabal:{n:'Omar Abu Gabal',d:'pm',line:'PM · site execution · Karim Fouad'},
+ nouran:{n:'Nouran',d:'design',line:'Design · Hesham Adel'},ali:{n:'Ali',d:'design',line:'Design · Tarek Nabil'},
+ alaa:{n:'Alaa',d:'cost',line:'Cost · Karim Fouad'},sharbagy:{n:'Sharbagy',d:'cost',line:'Cost · contractors & payments'},salma:{n:'Salma',d:'cost',line:'Cost · finance & cheques'},
+ ghandour:{n:'Ghandour',d:'audit',aud:'sales',line:'Audit · Sales team + every escalation before Salah'},omark:{n:'Omar Sheir',d:'audit',aud:'pm',line:'Audit · PMs team'},maksoud:{n:'Abdelmaksoud',d:'audit',aud:'design',line:'Audit · Design team'},omar:{n:'Omar Nada',d:'audit',aud:'cost',line:'Audit · Cost team'},
+ salah:{n:'Salah',d:'top',line:'Top management · follow-up dashboard'},
+ board:{n:'Big screen',d:'board',line:''}};
+const AUDIT={sales:'ghandour',pm:'omark',design:'maksoud',cost:'omar'};
+const DEPT={sales:'Sales',pm:'PMs',design:'Design',cost:'Cost'};
+const CASES={A:{c:'Hesham Adel',u:'OW/RV4-2TB · Whyt',s:'Scenario 1 + 4: a question, then the site asks Design'},B:{c:'Tarek Nabil',u:'OW/RV2-68-VA · Whyt',s:'Scenario 2: a design selection'},C:{c:'Karim Fouad',u:'OW/RV4-15A · Type G · Whyt',s:'Scenario 3: a new item, cheques, contractor payment'}};
+const HPD=9;
+// ---------- The play: every step has one owner. Doing it opens the next step(s). ----------
+const R=(id)=>(G.st[id]||{}).res||'';const CM=(id)=>(G.st[id]||{}).cm||'';
+const S={
+ A1:{c:'A',o:'client',t:()=>'Hesham asks his team',x:()=>'“When will the workers start the parking pergola?”',b:[['Send','ok']],nx:{ok:['A2']},log:'Hesham asked: when will the workers start?'},
+ A2:{c:'A',o:'ashiry',sla:1,t:()=>'Hesham asks: “When will the workers start the parking pergola?”',x:()=>'Questions about the site go to the PM.',b:[['Send to Saad (PM)','ok']],nx:{ok:['A3']},log:'Ashiry sent the question to Saad (PM)'},
+ A3:{c:'A',o:'saad',sla:4,t:()=>'Hesham asks: “When will the workers start the parking pergola?”',inp:'Sunday 9 AM. The steel frame is ready in the workshop.',b:[['Reply to the client','ok']],nx:{ok:['A4','D1']},log:'Saad replied to Hesham'},
+ A4:{c:'A',o:'client',t:()=>'Saad (PM) replied to Hesham',x:()=>'“'+R('A3')+'”',b:[['👍 Thanks','ok']],nx:{},log:'Hesham: thanks 👍'},
+ D1:{c:'A',o:'saad',sla:4,t:()=>'On site: the contractor needs the exact clear height of the parking pergola',x:()=>'Anything the site needs from Design goes through the portal.',b:[['Ask Nouran (Design) for the dimension','ok']],nx:{ok:['D2']},log:'Saad asked Design for the pergola height'},
+ D2:{c:'A',o:'nouran',sla:4,t:()=>'Saad needs the clear height of the parking pergola for the site',inp:'Clear height 2.60 m · drawing PG-02 rev C uploaded',b:[['Upload drawing & reply','ok']],nx:{ok:['D3']},log:'Nouran uploaded drawing PG-02 rev C'},
+ D3:{c:'A',o:'saad',sla:4,t:()=>'Nouran sent the dimension',x:()=>'“'+R('D2')+'”',b:[['Got it · build on site','ok']],nx:{},log:'Saad: building on site ✓'},
+ B1:{c:'B',o:'client',t:()=>'Tarek asks his team',x:()=>'“I want a lighter marble for the entrance floor.”',b:[['Send','ok']],nx:{ok:['B2']},log:'Tarek asked for a lighter entrance marble'},
+ B2:{c:'B',o:'yara',sla:1,t:()=>'Tarek wants a lighter marble for the entrance floor',x:()=>'Design changes go to the designer.',b:[['Send to Ali (Design)','ok']],nx:{ok:['B3']},log:'Yara sent the request to Ali (Design)'},
+ B3:{c:'B',o:'ali',sla:9,t:()=>'Tarek wants a lighter marble for the entrance floor',inp:'Option A: Carrara white · Option B: Crema Marfil',b:[['Send options to the client','ok']],nx:{ok:['B4']},log:'Ali sent marble options to Tarek'},
+ B4:{c:'B',o:'client',t:()=>'Tarek: choose the entrance marble',x:()=>R(G.st.B5&&G.st.B5.done?'B5':'B3'),cmt:'Too yellow. Show me something whiter.',b:[['Approve','ok'],['Reject with comment','no']],nx:{ok:['B6'],no:['B5']},log:'Tarek'},
+ B5:{c:'B',o:'ali',sla:4,t:()=>'Tarek rejected the options',x:()=>'Comment: “'+CM('B4')+'”',inp:'Option C: Bianco Lasa (whiter) · Option D: Carrara Gioia',b:[['Send revised options','ok']],nx:{ok:['B4']},log:'Ali sent revised options'},
+ B6:{c:'B',o:'amira',sla:4,t:()=>'Ready for site: entrance marble approved by Tarek',x:()=>'Approved: '+R(G.st.B5&&G.st.B5.done?'B5':'B3')+' · drawing FL-01 rev B',b:[['Received · schedule it on site','ok']],nx:{},log:'Emeira scheduled the marble on site ✓'},
+ C1:{c:'C',o:'client',t:()=>'Karim asks his team',x:()=>'“I want to add a glass house on the roof.”',b:[['Send','ok']],nx:{ok:['C2']},log:'Karim asked for a glass house on the roof'},
+ C2:{c:'C',o:'dina',sla:1,t:()=>'Karim wants a glass house on the roof',x:()=>'A new item needs a price from Cost first.',b:[['Send to Alaa (Cost) for a quotation','ok']],nx:{ok:['C3']},log:'Dina sent the glass house to Alaa (Cost)'},
+ C3:{c:'C',o:'alaa',sla:9,t:()=>'Price this: glass house on the roof',x:()=>G.st.C4&&G.st.C4.ch==='no'?'Karim rejected: “'+CM('C4')+'”':'Karim Fouad · OW/RV4-15A · Type G',inp:()=>G.st.C4&&G.st.C4.ch==='no'?'Quotation 1563-A1 rev 2 · Glass house 4 x 5 m · 20 working days (PDF)':'Quotation 1563-A1 · Glass house 4 x 5 m · 25 working days (PDF)',b:[['Send quotation to the client','ok']],nx:{ok:['C4']},log:'Alaa sent the glass house quotation'},
+ C4:{c:'C',o:'client',t:()=>'Karim: quotation for the glass house',x:()=>R('C3'),cmt:'Can you do it in 20 days?',b:[['Approve','ok'],['Reject with comment','no']],nx:{ok:['C5'],no:['C3']},log:'Karim'},
+ C5:{c:'C',o:'abugabal',sla:4,t:()=>'New work for you: glass house on the roof',x:()=>`<div class="good">✓ Karim approved: ${esc(R('C3'))}</div><div class="good">✓ Down payment received</div><div class="warn">⚠ Cheques NOT secured yet</div><div class="info"><b>Team rule:</b> no work starts on site until the client deposits his cheques.</div>`,html:1,b:[['Ask Cost: are the cheques secured?','ok']],nx:{ok:['C6']},log:'Abu Gabal asked Cost: are the cheques secured?'},
+ C6:{c:'C',o:'salma',sla:4,t:()=>'Abu Gabal asks: are Karim’s cheques secured?',x:()=>'He cannot start the glass house on site before the cheques are in.',inp:'Yes. Karim deposited his 3 cheques today.',b:[['Confirm: cheques secured','ok']],nx:{ok:['C7']},log:'Salma: Karim’s cheques are secured ✓'},
+ C7:{c:'C',o:'abugabal',sla:4,t:()=>'Cheques secured ✓',x:()=>'Salma: “'+R('C6')+'”',b:[['Start the glass house on site','ok']],nx:{ok:['C8']},log:'Abu Gabal started the glass house on site'},
+ C8:{c:'C',o:'abugabal',sla:4,t:()=>'The glass contractor asks for his first payment',x:()=>'Money for contractors goes through Cost.',b:[['Request the payment from Sharbagy (Cost)','ok']],nx:{ok:['C9']},log:'Abu Gabal requested the contractor payment'},
+ C9:{c:'C',o:'sharbagy',sla:9,t:()=>'Abu Gabal requests the glass contractor’s first payment',x:()=>`<div class="good">✓ Karim’s cheques secured</div><div class="good">✓ Work started on site</div>`,html:1,b:[['Approve payment to the contractor','ok']],nx:{},log:'Sharbagy approved the contractor payment ✓'}
+};
+const FIRST=['A1','B1','C1'];
+// ---------- State ----------
+let G;const fresh=()=>({h:0,on:false,st:{},log:[],seq:0});
+const dept=id=>P[S[id].o].d;
+function lateOf(id){const s=G.st[id],d=S[id];if(!s||s.done||!d.sla)return null;return G.h-(s.h+d.sla)}
+// escalation level now: 0 none, 1 audit, 2 Ghandour, 3 Salah
+function lvl(id){const L=lateOf(id);if(L===null||L<0)return 0;const s=G.st[id],aud=AUDIT[dept(id)];
+ if(s.fu)return s.fu.l; // somebody above already followed up: escalation stops there
+ if(aud==='ghandour')return L>=HPD?3:1;
+ return L>=2*HPD?3:L>=HPD?2:1}
+function holder(l,id){return l==1?AUDIT[dept(id)]:l==2?'ghandour':'salah'}
+function active(){return Object.keys(G.st).filter(k=>G.st[k].on&&!G.st[k].done)}
+function apply(A){
+ if(A.a==='reset'){G=fresh();return}
+ if(A.a==='start'){if(G.on)return;G.on=true;FIRST.forEach(k=>open(k));G.log.unshift({t:'The show started · 3 cases open · team already assigned',c:'',w:'MORCOS',ts:A.ts});return 'Started'}
+ if(A.a==='jump'){G.h+=(+A.h||1);G.log.unshift({t:'Time moved forward '+dur(+A.h),c:'',w:'Clock',ts:A.ts});return}
+ if(A.a==='do'){const s=G.st[A.s],d=S[A.s];if(!s||s.done||!s.on)return;s.done=1;if(A.v)s.res=A.v;s.ch=A.ch;s.cm=A.cm||'';s.by=A.p;
+  const fn=CASES[d.c].c.split(' ')[0];let t=d.log;if(d.o==='client'&&d.b.length>1)t=A.ch==='ok'?fn+' approved ✓':fn+' rejected: “'+(A.cm||'')+'”';
+  G.log.unshift({t,c:d.c,w:P[A.p]?P[A.p].n:'',ts:A.ts});
+  (d.nx[A.ch]||[]).forEach(k=>open(k));return 'Done ✓'}
+ if(A.a==='fu'){const s=G.st[A.s];if(!s||s.done)return;s.fu={l:A.l,by:A.p};G.log.unshift({t:P[A.p].n+' followed up with '+P[S[A.s].o].n,c:S[A.s].c,w:P[A.p].n,ts:A.ts});return 'Follow-up sent to '+P[S[A.s].o].n}
+}
+function open(k){const prev=G.st[k];G.st[k]={on:1,h:G.h,res:prev&&prev.res||'',cm:'',n:++G.seq}}
+// ---------- helpers ----------
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fmt(h){const d=Math.floor(h/HPD)+1,m=Math.round((h%HPD)*60),hh=9+Math.floor(m/60);return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+function dur(h){h=Math.abs(h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}return Math.round(h*10)/10+(h==1?' hour':' hours')}
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',4000)}
+const me=(new URLSearchParams(location.search).get('p'))||'board';
+const ME=P[me]||P.board;
+// ---------- Views ----------
+function stepCard(id){const d=S[id],s=G.st[id],L0=lateOf(id),late=L0!==null&&L0>=0,L=L0||0,l=lvl(id),C=CASES[d.c];
+ const due=d.sla?(late?`<span class="pill p-bad">LATE by ${dur(L)}</span>`:`<span class="pill p-act">due in ${dur(-L)}</span>`):'';
+ const x=d.x?(d.html?d.x():`<div class="info">${esc(d.x())}</div>`):'';
+ const iv=typeof d.inp==='function'?d.inp():d.inp,inp=iv?`<input id="v_${id}" value="${esc(iv)}">`:'';
+ const fu=s.fu?`<div class="fu">🔔 ${esc(P[s.fu.by].n)} is following up on this. Please act now.</div>`:late&&l>=1?`<div class="warn">⛔ Late · ${esc(P[holder(l,id)].n)} has been alerted</div>`:'';
+ const cm=d.cmt?`<input id="c_${id}" placeholder="Your comment (for Reject)" value="${esc(d.cmt)}">`:'';
+ const btns=d.b.map(([t,ch])=>`<button class="btn ${ch==='no'?'red':'ok'}" data-do="${id}" data-ch="${ch}">${esc(t)}</button>`).join('');
+ return `<div class="card ${late?'late':'act'}"><div class="eyebrow">${esc(C.c)} · ${esc(C.u)} ${due}</div><b style="font-size:17px;display:block;margin-top:4px">${esc(d.t())}</b>${x}${fu}${inp}${d.cmt&&d.b.length>1?btns.replace(/(<button class="btn red)/,cm+'$1'):btns}</div>`}
+function escCard(id,l){const d=S[id],o=P[d.o],L=lateOf(id),C=CASES[d.c];
+ const au=P[AUDIT[dept(id)]].n,ladder=l==1?'First escalation · your team':l==2?au+' (audit) did not act for 1 day':'Not solved by '+(au==='Ghandour'?'Ghandour':au+' or Ghandour');
+ return `<div class="card late"><div class="eyebrow">${esc(C.c)} · ${esc(DEPT[dept(id)])} · ${ladder}</div><b style="font-size:17px;display:block;margin-top:4px">⛔ ${esc(o.n)} is late by ${dur(L)}</b><div class="info">“${esc(d.t())}”</div><button class="btn amber" data-fu="${id}" data-l="${l}">Follow up with ${esc(o.n)}</button></div>`}
+function myItems(){const items=[];
+ active().sort((a,b)=>G.st[a].n-G.st[b].n).forEach(id=>{if(S[id].o===me)items.push({k:id,h:stepCard(id)});const l=lvl(id);if(l&&holder(l,id)===me&&!G.st[id].fu)items.push({k:id+'e'+l,h:escCard(id,l),bad:1})});
+ return items}
+function caseCol(c){const C=CASES[c];const done=G.log.filter(l=>l.c===c).slice().reverse();
+ const act=active().filter(id=>S[id].c===c).map(id=>{const L=lateOf(id),l=lvl(id),o=P[S[id].o];
+  return `<div class="line"><b>⏳ ${esc(o.n)}</b> · ${esc(S[id].t())}<br>${S[id].sla?(L>=0?`<span class="pill p-bad">late ${dur(L)}</span> ${l?'→ escalated to <b>'+esc(P[holder(l,id)].n)+'</b>':''}${G.st[id].fu?' · '+esc(P[G.st[id].fu.by].n)+' following up':''}`:`<span class="pill p-act">due in ${dur(-L)}</span>`):'<span class="pill p-act">waiting for the client</span>'}</div>`}).join('');
+ return `<div class="card"><div class="eyebrow">${esc(C.u)}</div><h2 style="margin:2px 0 2px;font-size:20px">${esc(C.c)}</h2><div class="muted" style="margin-bottom:8px">${esc(C.s)}</div>${done.map(l=>`<div class="line">✓ ${esc(l.t)}</div>`).join('')}${act||(done.length?'<div class="line"><span class="pill p-ok">Nothing waiting</span></div>':'<div class="muted">Not started</div>')}</div>`}
+function escCounts(){const n=[0,0,0,0];active().forEach(id=>n[lvl(id)]++);return n}
+function feed(){return G.log.length?`<div class="card feed"><div class="eyebrow">Happening now</div>${G.log.slice(0,4).map(l=>`<div class="l">${l.c?esc(CASES[l.c].c)+' · ':''}${esc(l.t)}</div>`).join('')}</div>`:''}
+function render(){const keep={};document.querySelectorAll('#app input').forEach(e=>{if(e.id)keep[e.id]=e.value});
+ $('#clock').textContent=G.on?fmt(G.h):'';let h='';
+ if(ME.d==='board'||me==='salah'){
+  const n=escCounts();
+  const ctl=ME.d==='board'?`<div class="card"><div class="ctl">${G.on?'':'<button class="btn amber" style="width:auto" data-start="1">▶ Start the show</button>'}<span class="muted">Move time:</span><button class="btn sm" data-jump="1">+1 hour</button><button class="btn sm" data-jump="4">+4 hours</button><button class="btn sm red" data-jump="9">+1 day</button><span style="flex:1"></span><a href="#" id="reset" class="muted">Reset</a></div></div>`:'';
+  h+=ctl+`<div class="hero"><div class="row" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><div class="muted">${me==='salah'?'Salah · follow-up dashboard':'O-Plus · all cases · live'}</div><h2 style="font-size:40px;margin:4px 0">${G.on?fmt(G.h):'Waiting to start'}</h2></div><div class="muted" style="max-width:420px">Late → audit of the team (Ghandour · Omar Sheir · Abdelmaksoud · Omar Nada) → no action for 1 day → Ghandour → no action for 1 more day → Salah</div></div></div>`+
+  `<div class="kpis"><div class="kpi"><span class="eyebrow">Open steps</span><b>${active().length}</b></div><div class="kpi"><span class="eyebrow">With the audit</span><b>${n[1]}</b></div><div class="kpi"><span class="eyebrow">With Ghandour</span><b>${n[2]}</b></div><div class="kpi"><span class="eyebrow">With Salah</span><b style="color:${n[3]?'#A8392C':'#001641'}">${n[3]}</b></div></div>`;
+  if(me==='salah'){const it=myItems();h=`<h1>Salah</h1><div class="muted" style="margin-bottom:12px">${esc(ME.line)}</div>`+(it.length?it.map(x=>x.h).join(''):'')+h}
+  h+=feed()+`<div class="cols">${['A','B','C'].map(caseCol).join('')}</div>`;
+ }else{
+  const it=myItems();
+  h=`<h1>${esc(ME.n)}</h1><div class="muted" style="margin-bottom:12px">${esc(ME.line)}</div>`;
+  if(!G.on)h+=`<div class="hero" style="text-align:center"><h2>Get ready 🎬</h2><div class="muted">The show starts at 3 PM. Keep this page open. Your phone buzzes when something needs you.</div></div>`;
+  else if(it.length)h+=`<div class="eyebrow" style="margin:6px 0 8px">Waiting for you · ${it.length}</div>`+it.map(x=>x.h).join('');
+  else h+=`<div class="hero" style="text-align:center"><h2>Nothing for you right now</h2><div class="muted">Keep this page open. Your phone buzzes the moment something needs you.</div></div>`;
+  if(ME.d==='audit'){const mine=active().filter(id=>ME.aud===dept(id)||(me==='ghandour'&&lvl(id)>=2));
+   h+=`<div class="card"><div class="eyebrow">${me==='ghandour'?'Sales team + escalations':'Your team'} · live</div>${mine.length?mine.map(id=>{const L=lateOf(id);return `<div class="line"><b>${esc(P[S[id].o].n)}</b> · ${esc(CASES[S[id].c].c)} · ${esc(S[id].t())} · ${L>=0?'<span class="pill p-bad">late '+dur(L)+'</span>':'<span class="pill p-act">due in '+dur(-L)+'</span>'}</div>`}).join(''):'<div class="muted">Everyone is on time ✓</div>'}</div>`}
+  const did=G.log.filter(l=>l.w===ME.n).slice(0,5);if(did.length)h+=`<div class="card"><div class="eyebrow">Done by you</div>${did.map(l=>`<div class="line">✓ ${l.c?esc(CASES[l.c].c)+' · ':''}${esc(l.t)}</div>`).join('')}</div>`;
+ }
+ $('#app').innerHTML=h;Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e&&keep[k]!=='')e.value=keep[k]});
+ const ks=myItems().map(x=>x.k);const nw=ks.filter(k=>!seenK.has(k));ks.forEach(k=>seenK.add(k));
+ if(nw.length&&loaded){toast('🔔 '+(nw[0].includes('e')?'Escalation: something is late':'New: '+S[nw[0]].t()));try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}}
+const seenK=new Set();let loaded=false;
+// ---------- Sync ----------
+const API=(new URLSearchParams(location.search).get('api'))||window.DEMO_API||'';
+let seen=0,busy=false,epoch=null;
+async function pull(mine){if(!API)return;if(busy&&!mine)return;busy=true;try{const r=await fetch(API+'?op=get&since='+seen,{cache:'no-store'});const j=await r.json();
+ if(j.n<seen||(epoch!==null&&j.epoch!==epoch)){epoch=j.epoch;if(seen>0){G=fresh();seen=0;seenK.clear();loaded=false;busy=false;return pull(mine)}}epoch=j.epoch;
+ if(j.items&&j.items.length){let own='';j.items.forEach(x=>{if(x.show!==1&&x.a!=='reset')return;const m=apply(x);if(x.id&&x.id===mine)own=m||'Done'});seen=j.n;if(own)toast(own);render()}
+ if(!loaded){loaded=true;render()}$('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
+async function send(A){A.ts=Date.now();A.p=me;A.show=1;A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
+ if(!API){apply(A);return render()}
+ toast('Sending…');
+ try{await fetch(API+'?op=add&d='+encodeURIComponent(JSON.stringify(A)),{cache:'no-store'})}catch(e){return toast('Not sent. Check the connection and try again')}
+ while(busy)await new Promise(r=>setTimeout(r,100));await pull(A.id)}
+document.addEventListener('click',e=>{
+ if(e.target.id==='reset'){e.preventDefault();if(window.confirm('Reset the show for everyone?'))send({a:'reset'});return}
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.start)return send({a:'start'});
+ if(b.dataset.jump)return send({a:'jump',h:+b.dataset.jump});
+ if(b.dataset.fu)return send({a:'fu',s:b.dataset.fu,l:+b.dataset.l});
+ if(b.dataset.do){const id=b.dataset.do,ch=b.dataset.ch,vi=document.getElementById('v_'+id),ci=document.getElementById('c_'+id);
+  if(ch==='no'&&ci&&!ci.value)return toast('Write your comment first');
+  b.disabled=true;return send({a:'do',s:id,ch,v:vi?vi.value:'',cm:ch==='no'&&ci?ci.value:''})}
+});
+G=fresh();render();if(API){pull();setInterval(pull,2500)}
+</script>
+</body>
+</html>
