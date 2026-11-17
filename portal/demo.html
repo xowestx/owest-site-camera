@@ -98,7 +98,7 @@ const PEOPLE={
  sharbagy:{name:'Sharbagy',fn:'cost'},alaa:{name:'Alaa',fn:'cost'},omar:{name:'Omar Nada',fn:'cost',mgr:1},
  salma:{name:'Salma',fn:'finance'},ghandour:{name:'Ghandour',fn:'extra'},salah:{name:'Salah',fn:'head'},
  site:{name:'Site Engineer',fn:'site'},board:{name:'Big screen',fn:'board'},time:{name:'Timekeeper',fn:'time'}};
-const UTEAM={u1:{sales:'yara',pm:'saad',design:'nouran',cost:'sharbagy'},u2:{sales:'ashiry',pm:'amira',design:'ali',cost:'sharbagy'},u3:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'}};
+const UTEAM={u1:{sales:'ashiry',pm:'saad',design:'nouran',cost:'sharbagy'},u2:{sales:'ashiry',pm:'amira',design:'ali',cost:'sharbagy'},u3:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'}};
 const NEXT={}; // nobody switches roles during the show
 // Hierarchy: Salah (Head of Projects) > Ghandour (Head of Extra Work, also leads Sales) > Omar Sheir (PMs), Omar Nada (Cost + Finance), Abdelmaksoud (Design)
 const MGR={pm:'Omar Sheir (PM manager)',design:'Abdelmaksoud (Design manager)',cost:'Omar Nada (Cost manager)',finance:'Omar Nada (Cost manager)',sales:'Ghandour (Head of Extra Work)'};
@@ -109,10 +109,10 @@ const isMgr=()=>!!(PEOPLE[me]||{}).mgr;
 function myUnits(){const P=PEOPLE[me]||{};if(P.u)return [P.u];if(['pm','design','cost','sales'].includes(P.fn)&&!P.mgr)return UNITS.filter(u=>UTEAM[u][P.fn]==me);return UNITS}
 const STAGES=['Quotation paid','Kick-off','Design & selections','Execution','Snagging','Handover'];
 
-const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change or add something',to:'design',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
+const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change a design item',to:'design',sla:'1 working day'},extra:{n:'Extra work (new item)',to:'sales',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
 const SEED={paid:false,team:false,stage:-1,day:0,req:[],sel:[],mods:[],chat:[],files:[],log:[],
  pay:[{id:1,name:'Down payment',pct:'30%',due:'At contract',st:'Scheduled'},{id:2,name:'Installment 2 · Cheque',pct:'25%',due:'15 Dec 2026',st:'Scheduled'},{id:3,name:'Installment 3 · Cheque',pct:'25%',due:'15 Feb 2027',st:'Scheduled'},{id:4,name:'Final payment · at handover',pct:'20%',due:'Handover',st:'Scheduled'}]};
-const SPD0=300/9,HPD=9,SLA={q:4,chg:9,pay:9,site:1};let CURH=0;
+const SPD0=300/9,HPD=9,SLA={q:4,chg:9,extra:9,pay:9,site:1};let CURH=0;
 function dh(ts){if(!G||!G.clk)return 0;return G.clk.base+((ts||Date.now())-G.clk.ts)/1000/G.clk.spd}
 function fmt(h){h=Math.max(0,h);const d=Math.floor(h/HPD)+1,m=Math.floor((h%HPD)*60),hh=9+Math.floor(m/60),mm=m%60;return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
 function dur(h){h=Math.max(0,h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h>=1)return Math.round(h*10)/10+' h';return Math.max(1,Math.round(h*60))+' min'}
@@ -139,7 +139,7 @@ function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';retur
 function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to==S.client:a.mail.to!=S.client));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
 const KEY='opdemo4';let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
-const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/QV1-24C · Hillside Villas',client:'Karim Fouad',q:'Quotation 1815',scope:'Luxury finishing package'}};
+const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/RV?-?? · Type G · Whyt',client:'Karim Fouad',q:'Quotation 1815',scope:'Finishing works'}};
 // Cases 2 and 3 are already running when the show starts (history only, no typing needed).
 function seedHistory(S){S.paid=true;S.team=true;S.stage=3;S.pay[0].st='Received';S.pay[1].st=S.u=='u2'?'Received':'Scheduled';
  S.files=[{n:'Signed quotation '+S.q+'.pdf',by:'Sales'},{n:'Approved design drawings.pdf',by:'Design'},{n:'Site photos week 45.zip',by:'Site'}];
@@ -151,7 +151,7 @@ const SCRIPT=[
  {k:'s1',h:1,u:'u3',rt:'q',rx:'When will the bathroom tiles arrive?',note:'nobody answers this one'},
  {k:'s2',h:3,u:'u2',rt:'q',rx:'Will the workers come on Saturday?',sg:'Yes, Saturday 9 AM to 4 PM. The site engineer will be there.'},
  {k:'s3',h:5,u:'u2',rt:'chg',rx:'I want a lighter marble for the entrance floor'},
- {k:'s4',h:7,u:'u3',rt:'chg',rx:'Please add a pergola on the roof terrace'}];
+ {k:'s4',h:7,u:'u3',rt:'extra',rx:'I want to add a glass house on the roof'}];
 const fresh=u=>Object.assign(JSON.parse(JSON.stringify(SEED)),UINFO[u||'u1'],{u:u||'u1'});
 const freshG=()=>({clk:null,sent:{},U:{u1:fresh('u1'),u2:seedHistory(fresh('u2')),u3:seedHistory(fresh('u3'))}});let G;
 function eachUnit(f){const keep=S,out=[];myUnits().forEach(u=>{S=G.U[u];out.push(f(u))});S=keep;return out}
@@ -205,7 +205,7 @@ function todo(){const out=[],keep=S,P=PEOPLE[me]||{};
   if(role=='head'&&S.paid&&!S.team)card(u,'Kick-off: confirm the unit team','PM '+T('pm')+' · Designer '+T('design')+' · Cost '+T('cost'),`<button class="btn big amber full" data-a="team" data-u="${u}">Confirm team · open the case</button>`);
   if(S.team&&!isClientSide())S.req.filter(r=>r.st=='Open'&&r.to==role&&!P.mgr&&role!='head').forEach(r=>{
    const left=SLA[r.type]-(dh()-r.h0),due=left>=0?'reply due in '+dur(left):'<b style="color:#A8392C">LATE by '+dur(-left)+'</b>';
-   const b=role=='design'?`<button class="btn full" data-a="r2sel" data-u="${u}" data-i="${r.id}">Send options to the client (Design selection)</button><div style="height:8px"></div><button class="btn ghost full" data-a="r2mod" data-u="${u}" data-i="${r.id}">It is extra work · send to Cost</button>`
+   const b=role=='sales'?`<button class="btn full" data-a="r2mod" data-u="${u}" data-i="${r.id}">Send to Cost for a quotation</button>`:role=='design'?`<button class="btn full" data-a="r2sel" data-u="${u}" data-i="${r.id}">Send options to the client (Design selection)</button><div style="height:8px"></div><button class="btn ghost full" data-a="r2mod" data-u="${u}" data-i="${r.id}">It is extra work · send to Cost</button>`
     :`<input id="ra${u}_${r.id}" placeholder="Write your reply" value="${esc(r.sg||'')}"><div style="height:8px"></div><button class="btn ok full" data-a="reqdone" data-u="${u}" data-i="${r.id}">Reply &amp; resolve</button>`;
    card(u,'“'+esc(r.t)+'”',RT[r.type].n+' · '+due,b)});
   if(role=='cost'&&!P.mgr)S.mods.filter(m=>m.st=='Costing').forEach(m=>card(u,'Price this: “'+esc(m.title)+'”',m.id+' · the client asked for it. Site cannot execute it until it is released.',`<input id="mn${u}_${m.id}" value="Quotation ${esc(S.q.replace('Quotation ',''))}-A${m.id.slice(-1)} (PDF attached) · +10 working days"><div style="height:8px"></div><button class="btn full" data-a="costdone" data-u="${u}" data-i="${m.id}">Send quotation to client</button>`));
@@ -221,7 +221,7 @@ function todo(){const out=[],keep=S,P=PEOPLE[me]||{};
    S.mods.filter(m=>m.st=='Awaiting client').forEach(m=>card(u,'Quotation for “'+esc(m.title)+'”',esc(m.note||''),ar('modok','modno',m.id)));
    S.pay.filter(p=>p.st=='Requested'||p.st=='Overdue').forEach(p=>card(u,esc(p.name),'Requested by Finance',`<button class="btn ok big full" data-a="payconf" data-u="${u}" data-i="${p.id}">I will hand it over</button>`))}
  });S=keep;
- const done=role=='sales'&&myUnits().every(u=>G.U[u].paid)?`<div class="note" style="margin-bottom:10px">✓ You opened the case. The client got the welcome email.</div>`:'';
+ const done='';
  return al.join('')+done+(out.length?`<div class="eyebrow" style="margin:6px 0 8px">Waiting for you · ${out.length}</div>`+out.join(''):`<div class="hero" style="text-align:center"><h2>Nothing for you right now</h2><div class="muted">Keep this page open. Your phone buzzes the moment something needs you.</div></div>`)}
 const V={
 overview(){
@@ -402,7 +402,7 @@ document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value)
 const fired=new Set();let first=true;
 function feed(){const it=[];UNITS.forEach(u=>G.U[u].log.forEach(l=>{if(l.ts)it.push({...l,c:G.U[u].client})}));it.sort((a,b)=>b.ts-a.ts);
  return it.length?`<div class="card"><div class="eyebrow">Happening now</div>${it.slice(0,5).map((l,i)=>`<div style="padding:6px 0;${i?'':'font-weight:600;font-size:18px'}">${esc(l.c)} · ${esc(l.t)} <span class="muted">· ${esc(l.who)}</span></div>`).join('')}</div>`:''}
-const PRESET=[['q','What wood is used for the garden pergola?'],['chg','Can the parking pergola be white instead of grey?'],['chg','Please add LED lighting to the garden pergola']];
+const PRESET=[['q','What wood is used for the garden pergola?'],['chg','Can the parking pergola be white instead of grey?'],['extra','Please add lighting in the landscape']];
 const pend=new Set();
 function director(){if(role!='board'||!G.clk||!G.U.u1.paid)return;const now=dh();G.sent=G.sent||{};
  SCRIPT.forEach(x=>{if(now>=x.h&&!G.sent[x.k]&&!pend.has(x.k)){pend.add(x.k);dispatch({a:'reqnew',r:'client',u:x.u,k:x.k,p:x.u=='u2'?'c2':'c3',v:{rt:x.rt,rx:x.rx,sg:x.sg||''}})}})}
