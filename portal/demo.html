@@ -77,7 +77,6 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px
 window.DEMO_API=''; // set to the Apps Script /exec URL of portal/demo-backend/Code.gs
 const ROLES={
  client:{name:'Ahmed Hassan',title:'Client (unit owner)',tabs:['overview','req','design','site','mods','pay','chat','files']},
- client2:{name:'Sara Kamel',title:'Client 2 (unit owner)',tabs:['overview','req','design','site','mods','pay','chat','files']},
  board:{name:'Big screen',title:'Big screen',tabs:['board']},
  family:{name:'Mona Hassan',title:'Family (view only)',tabs:['overview','req','design','site','mods','pay','chat','files']},
  sales:{name:'Omar Nabil',title:'Sales',tabs:['overview']},
@@ -91,8 +90,24 @@ const ROLES={
  time:{name:'Timekeeper',title:'Timekeeper',tabs:['clock','board']}
 };
 const TABN={board:'All cases',overview:'Overview',req:'Requests',design:'Design selections',site:'Site selections',mods:'Extra modifications',pay:'Payments',chat:'Chat',files:'Files',reports:'Reports',access:'Who sees what',sitecam:'Site Camera',clock:'Clock'};
+const PEOPLE={
+ c1:{name:'Hesham Adel',fn:'client',u:'u1'},c2:{name:'Tarek Nabil',fn:'client',u:'u2'},c3:{name:'Karim Fouad',fn:'client',u:'u3'},fam1:{name:'Mona Adel',fn:'family',u:'u1'},
+ yara:{name:'Yara',fn:'sales'},ashiry:{name:'Ashiry',fn:'sales'},dina:{name:'Dina',fn:'sales'},
+ amira:{name:'Amira',fn:'pm'},saad:{name:'Saad',fn:'pm'},abugabal:{name:'Omar Abu Gabal',fn:'pm'},omark:{name:'Omar Khaled',fn:'pm',mgr:1},
+ nouran:{name:'Nouran',fn:'design'},ali:{name:'Ali',fn:'design'},maksoud:{name:'Abdelmaksoud',fn:'design',mgr:1},
+ sharbagy:{name:'Sharbagy',fn:'cost'},alaa:{name:'Alaa',fn:'cost'},omar:{name:'Omar',fn:'cost',mgr:1},
+ salma:{name:'Salma',fn:'finance'},ghandour:{name:'Ghandour',fn:'extra'},salah:{name:'Salah',fn:'head'},
+ site:{name:'Site Engineer',fn:'site'},board:{name:'Big screen',fn:'board'},time:{name:'Timekeeper',fn:'time'}};
+const UTEAM={u1:{sales:'yara',pm:'saad',design:'nouran',cost:'sharbagy'},u2:{sales:'ashiry',pm:'amira',design:'ali',cost:'sharbagy'},u3:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'}};
+const NEXT={yara:'fam1'};
+const MGR={pm:'Omar Khaled (PM manager)',design:'Abdelmaksoud (Design manager)',cost:'Omar (Cost manager)',finance:'Salah (Head of Projects)'};
+let me='c1';
+const PN=id=>(PEOPLE[id]||{}).name||id;
+function T(fn){if(fn=='finance')return 'Salma';const t=UTEAM[S&&S.u||'u1'];return t&&t[fn]?PN(t[fn]):fn}
+const isMgr=()=>!!(PEOPLE[me]||{}).mgr;
+function myUnits(){const P=PEOPLE[me]||{};if(P.u)return [P.u];if(['pm','design','cost','sales'].includes(P.fn)&&!P.mgr)return UNITS.filter(u=>UTEAM[u][P.fn]==me);return UNITS}
 const STAGES=['Quotation paid','Kick-off','Design & selections','Execution','Snagging','Handover'];
-const TEAM={pm:'Eng. Karim Adel',design:'Nour Samir',finance:'Mai Ali',cost:'Hany Fawzy'};
+
 const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change or add something',to:'design',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
 const SEED={paid:false,team:false,stage:-1,day:0,req:[],sel:[],mods:[],chat:[],files:[],log:[],
  pay:[{id:1,name:'Down payment',pct:'30%',due:'At contract',st:'Scheduled'},{id:2,name:'Installment 2 · Cheque',pct:'25%',due:'15 Dec 2026',st:'Scheduled'},{id:3,name:'Installment 3 · Cheque',pct:'25%',due:'15 Feb 2027',st:'Scheduled'},{id:4,name:'Final payment · at handover',pct:'20%',due:'Handover',st:'Scheduled'}]};
@@ -101,53 +116,65 @@ function dh(ts){if(!G||!G.clk)return 0;return G.clk.base+((ts||Date.now())-G.clk
 function fmt(h){h=Math.max(0,h);const d=Math.floor(h/HPD)+1,m=Math.floor((h%HPD)*60),hh=9+Math.floor(m/60),mm=m%60;return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
 function dur(h){h=Math.max(0,h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h>=1)return Math.round(h*10)/10+' h';return Math.max(1,Math.round(h*60))+' min'}
 function alerts(){const now=dh(),out=[];if(!G.clk||!S.paid)return out;
- S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type],late=age-sla;
-  if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm','head'],lvl:'bad',m:r.id+' late by '+dur(late)+'. Escalated to Head of Project Management',mail:{to:'Eng. Mohamad Salah · Head of Project Management',b:r.id+' “'+esc(r.t)+'” for '+S.client+' is late by '+dur(late)+'. Owner: '+TEAM[r.to]+'.'}});
-  else if(late>=HPD)out.push({k:r.id+'e1',to:[r.to,'pm','head'],lvl:'bad',m:r.id+' late by '+dur(late)+'. Escalated to Head of Projects',mail:{to:'Head of Projects · ClickUp @mention',b:r.id+' “'+esc(r.t)+'” for '+S.client+' is late by '+dur(late)+'. Owner: '+TEAM[r.to]+'.'}});
-  else if(late>=0)out.push({k:r.id+'late',to:[r.to,'pm'],lvl:'bad',m:r.id+' is LATE (promise '+dur(sla)+'). Reply now',mail:{to:TEAM[r.to]+' · ClickUp overdue',b:r.id+' “'+esc(r.t)+'” passed its reply time ('+dur(sla)+').'}});
+ S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type],late=age-sla,who=T(r.to);
+  if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm'],mgrOf:r.to,head:1,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to Salah',mail:{to:'Salah · Head of Projects',b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'. Manager already alerted.'}});
+  else if(late>=HPD)out.push({k:r.id+'e1',to:[r.to,'pm'],mgrOf:r.to,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to '+MGR[r.to],mail:{to:MGR[r.to],b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'.'}});
+  else if(late>=0)out.push({k:r.id+'late',to:[r.to,'pm'],lvl:'bad',m:r.id+' is LATE (promise '+dur(sla)+') · owner '+who,mail:{to:who+' · ClickUp overdue',b:r.id+' “'+esc(r.t)+'” passed its reply time ('+dur(sla)+').'}});
   else if(age>=sla*0.75)out.push({k:r.id+'soon',to:[r.to],lvl:'warn',m:r.id+' reply due in '+dur(sla-age)})});
  S.sel.forEach(x=>{if(x.st!='Waiting')return;const age=now-x.h0;
   if(age>=2*HPD)out.push({k:x.id+'s2',to:['pm','design','head'],lvl:'bad',m:'Client has not decided “'+x.title+'” for '+dur(age)+'. Call the client'});
   else if(age>=HPD)out.push({k:x.id+'s1',to:['client','family'],lvl:'warn',m:'Reminder: “'+x.title+'” is waiting for your decision',mail:{to:S.client,b:'Reminder: “'+esc(x.title)+'” is waiting for your decision in the portal.'}})});
  S.mods.forEach(m=>{const age=now-(m.hs||m.h0);
-  if(m.st=='Costing'&&age>=HPD)out.push({k:m.id+'c',to:['cost','extra','head'],lvl:'bad',m:m.id+' not costed after '+dur(age)+' (promise 1 day)'});
+  if(m.st=='Costing'&&age>=HPD)out.push({k:m.id+'c',to:['cost','extra'],mgrOf:'cost',lvl:'bad',m:m.id+' not costed after '+dur(age)+' (promise 1 day)'});
   if(m.st=='Awaiting client'&&age>=HPD)out.push({k:m.id+'a',to:['client','family'],lvl:'warn',m:'Reminder: addendum '+m.id+' is waiting for your approval',mail:{to:S.client,b:'Reminder: the addendum for '+m.id+' is waiting for your approval.'}})});
  S.pay.forEach(p=>{if(p.st!='Requested')return;const age=now-p.h0;
-  if(age>=7*HPD)out.push({k:p.id+'p3',to:['pm','finance','head'],lvl:'bad',m:p.name+': no answer for 7 days. Call the client',mail:{to:'ClickUp @PM @Finance',b:'Client has not responded to '+p.name+' for 7 days. Please call the client.'}});
+  if(age>=7*HPD)out.push({k:p.id+'p3',to:['pm','finance'],head:1,lvl:'bad',m:p.name+': no answer for 7 days. Call the client',mail:{to:'ClickUp @PM @Finance',b:'Client has not responded to '+p.name+' for 7 days. Please call the client.'}});
   else if(age>=5*HPD)out.push({k:p.id+'p2',to:['client','family'],lvl:'warn',m:'Second reminder: '+p.name+' is still pending',mail:{to:S.client,b:'Second reminder: '+p.name+' is still pending.'}});
   else if(age>=2*HPD)out.push({k:p.id+'p1',to:['client','family'],lvl:'warn',m:'Reminder: '+p.name+' is waiting for your confirmation',mail:{to:S.client,b:'Friendly reminder: '+p.name+' is waiting for your confirmation.'}})});
  return out}
-const isMine=a=>a.to.includes(role)||(role=='client2'&&a.to.includes('client'))||(role=='head'&&a.lvl=='bad');
+const isMine=a=>a.to.includes(role)||(isMgr()&&a.mgrOf==role)||(role=='head'&&a.head);
 function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';return a.map(x=>`<div class="${x.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px;${x.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${x.lvl=='bad'?'⛔ ':'⏰ '}${esc(x.m)}</div>`).join('')}
 function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to==S.client:a.mail.to!=S.client));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
 const KEY='opdemo4';let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
-const UINFO={u1:{code:'OW-RV2-68-VA · Villa · O West',client:'Ahmed Hassan',q:'Q-2026-0412',scope:'Kitchen + landscape works'},u2:{code:'OW-RV6-20A · Villa · O West',client:'Sara Kamel',q:'Q-2026-0431',scope:'Bathrooms + outdoor works'}};
+const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/QV1-24C · Hillside Villas',client:'Karim Fouad',q:'Quotation 1815',scope:'Luxury finishing package'}};
+// Cases 2 and 3 are already running when the show starts (history only, no typing needed).
+function seedHistory(S){S.paid=true;S.team=true;S.stage=3;S.pay[0].st='Received';S.pay[1].st=S.u=='u2'?'Received':'Scheduled';
+ S.files=[{n:'Signed quotation '+S.q+'.pdf',by:'Sales'},{n:'Approved design drawings.pdf',by:'Design'},{n:'Site photos week 45.zip',by:'Site'}];
+ S.sel=[{id:'S0'+S.u,sec:'design',title:S.u=='u2'?'Wall paint colour':'Kitchen cabinets finish',opt:'Approved option A',color:'#e8e0d0',due:'done',st:'Approved',by:'Design',h0:-20}];
+ S.req=[{id:'R-0'+(S.u=='u2'?'07':'11'),type:'q',t:'Can I visit the site on Friday?',to:'pm',st:'Resolved',h0:-30,h1:-29,ans:'Yes, Friday 11 AM with the site engineer.'}];
+ S.log=[{t:'Case running · '+STAGES[3],who:'History'},{t:'Quotation paid · case opened',who:'History'}];return S}
+// Scripted client requests on cases 2 and 3. They appear by themselves on the shared clock (demo hours after case 1 is paid).
+const SCRIPT=[
+ {k:'s1',h:1,u:'u3',rt:'q',rx:'When will the bathroom tiles arrive?',note:'nobody answers this one'},
+ {k:'s2',h:3,u:'u2',rt:'q',rx:'Will the workers come on Saturday?',sg:'Yes, Saturday 9 AM to 4 PM. The site engineer will be there.'},
+ {k:'s3',h:5,u:'u2',rt:'chg',rx:'I want a lighter marble for the entrance floor'},
+ {k:'s4',h:7,u:'u3',rt:'chg',rx:'Please add a pergola on the roof terrace'}];
 const fresh=u=>Object.assign(JSON.parse(JSON.stringify(SEED)),UINFO[u||'u1'],{u:u||'u1'});
-const freshG=()=>({clk:null,U:{u1:fresh('u1'),u2:fresh('u2')}});let G;
-function eachUnit(f){const keep=S,out=[];UNITS.forEach(u=>{S=G.U[u];out.push(f(u))});S=keep;return out}
-function load(){try{G=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!G||!G.U)G=freshG();S=G.U.u1;try{role=localStorage.getItem(KEY+'r')||'sales'}catch(e){}if(!ROLES[role])role='sales'}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(G));localStorage.setItem(KEY+'r',role)}catch(e){}}
+const freshG=()=>({clk:null,sent:{},U:{u1:fresh('u1'),u2:seedHistory(fresh('u2')),u3:seedHistory(fresh('u3'))}});let G;
+function eachUnit(f){const keep=S,out=[];myUnits().forEach(u=>{S=G.U[u];out.push(f(u))});S=keep;return out}
+function load(){try{G=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!G||!G.U)G=freshG();S=G.U.u1;try{me=localStorage.getItem(KEY+'p')||'yara'}catch(e){}if(!PEOPLE[me])me='yara';role=PEOPLE[me].fn}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(G));localStorage.setItem(KEY+'p',me)}catch(e){}}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',3500)}
-function log(t){S.log.unshift({t,who:ROLES[role].name})}
+function log(t){S.log.unshift({t,who:PN(me)})}
 function mail(to,b){S.lastMail={to,b}}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function pill(st){const m={Approved:'p-done',Received:'p-done','Released to site':'p-done',Resolved:'p-done',Rejected:'p-bad',Overdue:'p-bad',Declined:'p-bad',Escalated:'p-bad',Waiting:'p-act',Open:'p-act',Requested:'p-act',Costing:'p-act','Awaiting client':'p-act','Client approved':'p-wait','Client confirmed':'p-wait',Scheduled:'p-idle'};return `<span class="pill ${m[st]||'p-wait'}">${st}</span>`}
-const isClientSide=()=>role=='client'||role=='client2'||role=='family';
-const UNITS=['u1','u2'];let unit='u1';
-const curUnit=()=>role=='client2'?'u2':(role=='client'||role=='family')?'u1':unit;
+const isClientSide=()=>role=='client'||role=='family';
+const UNITS=['u1','u2','u3'];let unit='u1';
+const curUnit=()=>{const m=myUnits();return m.includes(unit)?unit:m[0]};
 const isTeam=()=>!isClientSide();
 function ownerOnly(){if(role=='family'){toast('Only the unit owner can approve. Mona can follow, not approve.');return true}return false}
 function n(){return S.req.length+S.mods.length+1}
 
 function render(){
- S=G.U[curUnit()];save();$('#ucode').textContent='Unit '+S.code;$('#uname').textContent=S.client+"'s home";['ucode','uname','steps'].forEach(id=>$('#'+id).style.display=role=='board'?'none':'');const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#main input,#main select').forEach(e=>{if(e.id&&e.type!='file')keep[e.id]=e.value});
- $('#roles').innerHTML=Object.keys(ROLES).map(k=>`<button class="${k===role?'on':''}" data-r="${k}">${ROLES[k].title.split(' (')[0]}</button>`).join('');
+ S=G.U[curUnit()];save();$('#ucode').textContent='Unit '+S.code;$('#uname').textContent=S.client+"'s home";['ucode','uname','steps'].forEach(id=>$('#'+id).style.display=role=='board'?'none':'');const keep={},fid=document.activeElement&&document.activeElement.id;document.querySelectorAll('#main input,#main select').forEach(e=>{if(e.id&&e.type!='file'&&e.value!=='')keep[e.id]=e.value});
+ $('#roles').innerHTML=Object.keys(PEOPLE).map(k=>`<button class="${k===me?'on':''}" data-r="${k}">${PN(k)}</button>`).join('');
  $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
  const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
- $('#who').innerHTML=`Playing <b>${R.name}</b> · ${R.title}${isTeam()&&role!='board'&&role!='time'?' · Case: '+UNITS.map(u=>`<button class="btn sm ${u==unit?'':'ghost'}" data-unit="${u}">${G.U[u].client}</button>`).join(' '):''}`;
- if(!S.paid&&!['sales','board','time','head','pm'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Case not open yet</h2><div class="muted">Waiting for the client to pay the quotation. Sales starts the case.</div></div>`;return}
- if(S.paid&&!S.team&&!['sales','head','client','client2','family','board','time','pm'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Quotation paid · waiting for kick-off</h2><div class="muted">Head of Projects assigns the unit team. Then this case opens for you.</div></div>`;return}
+ $('#who').innerHTML=`Playing <b>${PN(me)}</b> · ${R.title}${isMgr()?' (manager)':''}${isTeam()&&role!='board'&&role!='time'&&myUnits().length>1?' · Case: '+myUnits().map(u=>`<button class="btn sm ${u==unit?'':'ghost'}" data-unit="${u}">${G.U[u].client}</button>`).join(' '):''}`;
+ if(!S.paid&&!['sales','board','time','head'].includes(role)&&!(role=='pm'&&isMgr())){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Case not open yet</h2><div class="muted">Waiting for the client to pay the quotation. Sales starts the case.</div></div>`;return}
+ if(S.paid&&!S.team&&!['sales','head','client','family','board','time'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Quotation paid · waiting for kick-off</h2><div class="muted">Head of Projects assigns the unit team. Then this case opens for you.</div></div>`;return}
  const mine=r=>r.st=='Open'&&(role=='pm'||role=='head'||r.to==role);
  const badge={req:isClientSide()?0:S.req.filter(mine).length,design:isClientSide()?S.sel.filter(x=>x.sec=='design'&&x.st=='Waiting').length:0,site:isClientSide()?S.sel.filter(x=>x.sec=='site'&&x.st=='Waiting').length:0,
   mods:S.mods.filter(m=>(role=='cost'&&m.st=='Costing')||(isClientSide()&&m.st=='Awaiting client')||(role=='extra'&&m.st=='Client approved')).length,
@@ -159,16 +186,16 @@ function render(){
 }
 const V={
 overview(){
- if(role=='sales')return S.paid?`<div class="hero"><h2>Done. Case handed over.</h2><div class="muted">Client emailed the portal link. Head of Projects assigns the team next.</div></div>${mailBox()}`:
+ if(role=='sales')return S.paid?`<div class="hero"><h2>Done. Case handed over.</h2><div class="muted">Client emailed the portal link. Head of Projects assigns the team next.</div>${NEXT[me]?`<div style="margin-top:14px"><button class="btn big amber" data-next="${NEXT[me]}">Now play ${PN(NEXT[me])}${PEOPLE[NEXT[me]].fn=='family'?' (family)':' (the client)'} ▶</button></div>`:''}</div>${mailBox()}`:
   `<div class="hero"><h2>Quotation ${S.q} · ${S.client}</h2><div class="muted">${S.scope}. Client paid the down payment today.</div><div style="margin-top:14px"><button class="btn big amber" data-a="paid">Quotation paid · open the case</button></div></div><div class="muted">Before payment the case runs in ClickUp (case, design, quotation). Payment opens the portal.</div>`;
- const kick=role=='head'&&!S.team?`<div class="hero"><h2>Kick-off · assign the unit team</h2><div class="muted">PM: ${TEAM.pm} · Designer: ${TEAM.design} · Finance: ${TEAM.finance} · Cost: ${TEAM.cost}</div><div style="margin-top:14px"><button class="btn big amber" data-a="team">Confirm team · open the case for everyone</button></div></div>`:'';
+ const kick=role=='head'&&!S.team?`<div class="hero"><h2>Kick-off · assign the unit team</h2><div class="muted">PM: ${T('pm')} · Designer: ${T('design')} · Finance: ${T('finance')} · Cost: ${T('cost')}</div><div style="margin-top:14px"><button class="btn big amber" data-a="team">Confirm team · open the case for everyone</button></div></div>`:'';
  const w=S.sel.filter(x=>x.st=='Waiting').length,p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');
  return `${kick}${role=='client'&&S.stage==0?mailBox():''}<div class="grid">
  <div class="kpi"><span class="eyebrow">Stage</span><b style="font-size:18px">${STAGES[Math.max(0,S.stage)]}</b></div>
  <div class="kpi"><span class="eyebrow">Open requests</span><b>${S.req.filter(r=>r.st!='Resolved').length}</b></div>
  <div class="kpi"><span class="eyebrow">Selections waiting</span><b>${w}</b></div>
  <div class="kpi"><span class="eyebrow">Next payment</span><b style="font-size:18px">${p?p.name:'None due'}</b></div></div>
- ${S.team?`<div class="card" style="margin-top:12px"><h2>${isClientSide()?'Your team':'Unit team'}</h2><div class="muted">PM: ${TEAM.pm} · Designer: ${TEAM.design} · Sales: Omar Nabil${isTeam()?' · Finance: '+TEAM.finance+' · Cost: '+TEAM.cost:''}</div></div>`:''}
+ ${S.team?`<div class="card" style="margin-top:12px"><h2>${isClientSide()?'Your team':'Unit team'}</h2><div class="muted">PM: ${T('pm')} · Designer: ${T('design')} · Sales: ${T('sales')}${isTeam()?' · Finance: '+T('finance')+' · Cost: '+T('cost'):''}</div></div>`:''}
  ${isTeam()&&S.team&&(role=='pm'||role=='head')?`<div class="card"><button class="btn ghost sm" data-a="stage-1">◀ Previous stage</button> <button class="btn sm" data-a="stage1">Next stage ▶</button> <span class="muted">Each stage change emails the client.</span></div>`:''}
  <div class="card"><h2>Activity</h2>${S.log.length?S.log.slice(0,10).map(l=>`<div class="muted">• ${esc(l.t)} · ${esc(l.who)}</div>`).join(''):'<div class="muted">Nothing yet.</div>'}</div>`},
 req(){
@@ -176,17 +203,17 @@ req(){
  const form=isClientSide()?`<div class="card"><h2>New request</h2><div class="form"><select id="rt">${Object.keys(RT).map(k=>`<option value="${k}">${RT[k].n}</option>`).join('')}</select><input id="rx" placeholder="e.g. What marble is in my kitchen?"><button class="btn full" data-a="reqnew">Send</button></div><div class="muted">You don't need to know who handles it. We route it to the right person.</div></div>`:
  `<div class="note" style="margin-bottom:10px">Auto-routing from the unit team: question → PM · change → Designer · payment → Finance · urgent → PM (Head of Projects after 1 hour). ${role=='pm'?'You are the case owner and see every request.':''}</div>`;
  return form+(list.length?'':'<div class="muted">No requests yet.</div>')+list.map(r=>{
-  const act=r.st!='Resolved'&&isTeam()&&(r.to==role||role=='pm'||role=='head');
+  const act=r.st!='Resolved'&&isTeam()&&(r.to==role||role=='head');
   return `<div class="card"><div class="row"><div class="grow"><div class="eyebrow">${r.id} · ${RT[r.type].n}</div><b>${esc(r.t)}</b>
-  <div class="muted">${isClientSide()?(r.st=='Resolved'?'Resolved':'Received · we reply within '+RT[r.type].sla):'Owner: '+TEAM[r.to]+' · '+(r.st=='Resolved'?'answered in '+dur(r.h1-r.h0):(dh()-r.h0>=SLA[r.type]?'LATE by '+dur(dh()-r.h0-SLA[r.type]):'reply due in '+dur(SLA[r.type]-(dh()-r.h0))))+' · ClickUp task assigned'}</div>
+  <div class="muted">${isClientSide()?(r.st=='Resolved'?'Resolved':'Received · we reply within '+RT[r.type].sla):'Owner: '+T(r.to)+' · '+(r.st=='Resolved'?'answered in '+dur(r.h1-r.h0):(dh()-r.h0>=SLA[r.type]?'LATE by '+dur(dh()-r.h0-SLA[r.type]):'reply due in '+dur(SLA[r.type]-(dh()-r.h0))))+' · ClickUp task assigned'}</div>
   ${r.esc?'<div class="esc">Escalated to Head of Projects · SLA missed</div>':''}
   ${r.ask&&!r.photo?'<div class="note">Waiting for site photo from the Site Engineer</div>':''}
   ${r.photo?'<div class="row" style="margin-top:8px"><div class="photo">Site photo · today</div><div class="muted">Uploaded from Site Camera by Eng. Mahmoud</div></div>':''}
   ${r.ans?`<div class="note"><b>Reply:</b> ${esc(r.ans)}</div>`:''}</div>${pill(r.esc&&r.st!='Resolved'?'Escalated':r.st)}</div>
-  ${act?`<div class="row" style="margin-top:8px"><input id="ra${r.id}" class="grow" placeholder="Reply to the client"><button class="btn ok sm" data-a="reqdone" data-i="${r.id}">Reply &amp; resolve</button></div>
-  <div class="row" style="margin-top:6px">${(role=='pm'||role=='head')&&!r.ask?`<button class="btn ghost sm" data-a="askphoto" data-i="${r.id}">Ask site for a photo</button>`:''}
+  ${act?`<div class="row" style="margin-top:8px"><input id="ra${r.id}" class="grow" placeholder="Reply to the client" value="${esc(r.sg||'')}"><button class="btn ok sm" data-a="reqdone" data-i="${r.id}">Reply &amp; resolve</button></div>
+  <div class="row" style="margin-top:6px">
   ${(role=='design'||role=='pm'||role=='head')?`<button class="btn ghost sm" data-a="r2sel" data-i="${r.id}">→ ${role=='pm'?'Site':'Design'} selection</button> <button class="btn ghost sm" data-a="r2mod" data-i="${r.id}">→ Extra modification (to Cost)</button>`:''}
-  <select data-move="${r.id}" style="width:auto"><option value="">Reassign to…</option>${Object.keys(TEAM).filter(k=>k!=r.to).map(k=>`<option value="${k}">${TEAM[k]}</option>`).join('')}</select></div>`:''}</div>`}).join('')},
+  </div>`:''}</div>`}).join('')},
 design(){return selView('design')},site(){return selView('site')},
 mods(){
  return `${isClientSide()?`<div class="card"><h2>Request extra work</h2><div class="form"><input id="mt" class="full" value="" placeholder="e.g. Extend the landscape and add a pergola"><button class="btn" data-a="modreq">Submit</button></div><div class="muted">Nothing extra is executed on site until it is costed and you approve it.</div></div>`:''}
@@ -218,10 +245,11 @@ sitecam(){const asks=S.req.filter(r=>r.ask&&!r.photo);
 board(){const now=dh();
  const rows=eachUnit(u=>{const al=alerts();const open=S.req.filter(r=>r.st!='Resolved').length+S.sel.filter(x=>x.st=='Waiting').length+S.mods.filter(m=>!['Released to site','Declined'].includes(m.st)).length+S.pay.filter(p=>p.st=='Requested').length;
   const bad=al.filter(a=>a.lvl=='bad'),warn=al.filter(a=>a.lvl=='warn');
-  return `<div class="card" style="border-left:6px solid ${bad.length?'#A8392C':warn.length?'#F0B323':'#2F6E4E'}"><div class="row"><div class="grow"><div class="eyebrow">${S.code}</div><h2 style="margin:2px 0">${S.client}</h2><div class="muted">${S.paid?STAGES[Math.max(0,S.stage)]:'Not paid yet'} · ${open} open items · ${S.req.filter(r=>r.st=='Resolved').length} resolved</div></div>${isTeam()&&role!='board'?`<button class="btn sm ghost" data-unit="${u}">Open case</button>`:''}</div>
+  return `<div class="card" style="border-left:6px solid ${bad.length?'#A8392C':warn.length?'#F0B323':'#2F6E4E'}"><div class="row"><div class="grow"><div class="eyebrow">${S.code}</div><h2 style="margin:2px 0">${S.client}</h2><div class="muted">Sales ${T('sales')} · PM ${T('pm')} · Designer ${T('design')} · Cost ${T('cost')}</div><div class="muted">${S.paid?STAGES[Math.max(0,S.stage)]:'Not paid yet'} · ${open} open items · ${S.req.filter(r=>r.st=='Resolved').length} resolved</div></div>${isTeam()&&role!='board'?`<button class="btn sm ghost" data-unit="${u}">Open case</button>`:''}</div>
   ${al.map(a=>`<div class="${a.lvl=='bad'?'lock':'note'}" style="${a.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${a.lvl=='bad'?'⛔ ':'⏰ '}${esc(a.m)}${a.mail?' · <b>email sent</b>':''}</div>`).join('')||'<div class="muted" style="margin-top:6px">✓ Everything on time</div>'}
-  ${S.req.filter(r=>r.st!='Resolved').map(r=>{const left=SLA[r.type]-(now-r.h0);return `<div class="muted" style="margin-top:6px">${r.id} · ${esc(r.t)} · owner ${TEAM[r.to]} · <b style="color:${left<0?'#A8392C':'#1A2238'}">${left<0?'late by '+dur(-left):'due in '+dur(left)}</b></div>`}).join('')}</div>`});
- return `<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late +1 day → Head of Projects · +2 days → Head of Project Management</div></div>`+rows.join('')},
+  ${S.req.filter(r=>r.st!='Resolved').map(r=>{const left=SLA[r.type]-(now-r.h0);return `<div class="muted" style="margin-top:6px">${r.id} · ${esc(r.t)} · owner ${T(r.to)} · <b style="color:${left<0?'#A8392C':'#1A2238'}">${left<0?'late by '+dur(-left):'due in '+dur(left)}</b></div>`}).join('')}</div>`});
+ const ctl=role=='board'?`<div class="card" style="text-align:center"><button class="btn sm" data-a="jump" data-x="1">+1 hour</button> <button class="btn sm" data-a="jump" data-x="9">+1 day</button> <button class="btn sm red" data-a="jump" data-x="18">+2 days</button></div>`:'';
+ return ctl+`<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late → owner · +1 day → team manager · +2 days → Salah</div></div>`+(role=='board'?feed():'')+rows.join('')},
 clock(){const sp=G.clk?G.clk.spd:SPD0,dm=Math.round(sp*HPD/60);
  return `<div class="hero"><h2 style="font-size:34px">${G.clk?fmt(dh()):'Clock starts when the first client pays'}</h2><div class="muted">Working day 09:00 to 18:00. Now 1 day = ${dm} minutes (1 hour ≈ ${Math.round(sp)} s). Reminders and escalations fire by themselves.</div></div>
  <div class="card"><h2>Speed</h2>${[3,5,9].map(x=>`<button class="btn ${x==dm?'':'ghost'}" data-a="speed" data-x="${x}">1 day = ${x} min</button> `).join('')}</div>
@@ -234,10 +262,10 @@ reports(){const c=(a,s)=>a.filter(x=>x.st==s).length;
  <div class="kpi"><span class="eyebrow">Extra modifications</span><b>${S.mods.length}</b><span class="muted">${c(S.mods,'Released to site')} released to site</span></div>
  <div class="kpi"><span class="eyebrow">Payments</span><b>${c(S.pay,'Received')}/${S.pay.length}</b><span class="muted">${S.pay.reduce((a,p)=>a+(p.remind?p.remind.length:0),0)} auto reminders</span></div></div>
  <div class="card" style="margin-top:12px"><h2>Everything on this unit</h2><table><tr><th>Item</th><th>Type</th><th>Owner</th><th>Status</th></tr>
- ${S.req.map(r=>`<tr><td>${esc(r.t)}</td><td>Request · ${RT[r.type].n}</td><td>${TEAM[r.to]}</td><td>${pill(r.st)}</td></tr>`).join('')}
+ ${S.req.map(r=>`<tr><td>${esc(r.t)}</td><td>Request · ${RT[r.type].n}</td><td>${T(r.to)}</td><td>${pill(r.st)}</td></tr>`).join('')}
  ${S.sel.map(x=>`<tr><td>${esc(x.title)}</td><td>${x.sec=='design'?'Design':'Site'} selection</td><td>${esc(x.by)}</td><td>${pill(x.st)}</td></tr>`).join('')}
- ${S.mods.map(m=>`<tr><td>${esc(m.title)}</td><td>Extra modification</td><td>${TEAM.cost}</td><td>${pill(m.st)}</td></tr>`).join('')}
- <tr><td>Landscape lighting points</td><td>Site selection</td><td>${TEAM.pm}</td><td><span class="pill p-idle">Not requested yet</span></td></tr></table></div>`},
+ ${S.mods.map(m=>`<tr><td>${esc(m.title)}</td><td>Extra modification</td><td>${T('cost')}</td><td>${pill(m.st)}</td></tr>`).join('')}
+ <tr><td>Landscape lighting points</td><td>Site selection</td><td>${T('pm')}</td><td><span class="pill p-idle">Not requested yet</span></td></tr></table></div>`},
 access(){const T=['overview','req','design','site','mods','pay','chat','reports'];
  return `<div class="card"><h2>Who sees what</h2><table><tr><th>Role</th>${T.map(t=>`<th>${TABN[t]}</th>`).join('')}</tr>${Object.keys(ROLES).filter(k=>k!='time').map(k=>`<tr><td><b>${ROLES[k].title}</b></td>${T.map(t=>ROLES[k].tabs.includes(t)?'<td class="y">✓</td>':'<td class="x">·</td>').join('')}</tr>`).join('')}</table></div>`}
 };
@@ -254,19 +282,19 @@ function addMod(title,from){const id='MOD-0'+(S.mods.length+1);S.mods.unshift({i
 const OWNER_ACTS=['reqnew','selok','selno','modreq','modok','modno','payconf'];
 const NEED={reqnew:['rt','rx'],selnew:['st','so','sd'],modreq:['mt'],send:['ct']};
 function apply(A){if(A.a=='reset'){G=freshG();S=G.U[curUnit()];return 'Demo reset'}const keep=S;S=G.U[A.u||'u1'];try{return apply1(A)}finally{S=G.U[curUnit()]}}
-function apply1(A){const R=A.r,v=A.v||{},i=A.i,nm=(ROLES[R]||{}).name||R;
- const log=t=>S.log.unshift({t,who:nm});const H=dh(A.ts);CURH=H;
+function apply1(A){const R=A.r,v=A.v||{},i=A.i,nm=PN(A.p)||R;
+ const log=t=>S.log.unshift({t,who:nm,ts:A.ts});const H=dh(A.ts);CURH=H;
  const sel=()=>S.sel.find(x=>x.id==i),mod=()=>S.mods.find(x=>x.id==i),pay=()=>S.pay.find(x=>x.id==i),req=()=>S.req.find(x=>x.id==i);
  try{switch(A.a){
  case 'reset':S=fresh();return 'Demo reset';
  case 'paid':if(S.paid)return;S.paid=true;S.stage=0;if(!G.clk)G.clk={base:0,ts:A.ts,spd:SPD0};S.pay[0].st='Received';S.files.unshift({n:'Signed quotation '+S.q+'.pdf',by:'Sales'});log('Quotation paid · case opened');mail(S.client,'Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');return 'Client emailed the portal link · kick-off task to Head of Projects';
  case 'team':if(S.team)return;S.team=true;S.stage=1;log('Unit team assigned · case open for PM, Designer, Finance, Cost');return 'Case opened for the whole team · ClickUp tasks created';
  case 'stage1':case 'stage-1':S.stage=Math.max(0,Math.min(5,S.stage+(A.a=='stage1'?1:-1)));log('Stage → '+STAGES[S.stage]);return 'Client emailed: home moved to '+STAGES[S.stage];
- case 'reqnew':{const k=v.rt;S.req.unshift({id:'R-0'+n(),type:k,t:v.rx,to:RT[k].to,st:'Open',h0:H});log('Request: '+RT[k].n+' → '+TEAM[RT[k].to]);return 'Assigned automatically to '+TEAM[RT[k].to]+' · ClickUp task created'}
+ case 'reqnew':{const k=v.rt;if(A.k){G.sent=G.sent||{};if(G.sent[A.k])return;G.sent[A.k]=1}S.req.unshift({id:'R-0'+n(),type:k,t:v.rx,to:RT[k].to,st:'Open',h0:H,sg:v.sg||''});log('Request: '+RT[k].n+' → '+T(RT[k].to));return 'Assigned automatically to '+T(RT[k].to)+' · ClickUp task created'}
  case 'askphoto':req().ask=1;log('PM asked site for a photo ('+i+')');return 'Site Engineer notified in Site Camera';
  case 'photo':req().photo=1;log('Site photo uploaded for '+i);return 'Photo uploaded · PM sees it on the request';
  case 'reqdone':{const r=req();if(r.st=='Resolved')return;r.ans=v['ra'+i]||'Done, thank you.';r.st='Resolved';r.h1=H;log(i+' resolved');mail(S.client,'Reply to your request '+i+': '+esc(r.ans));return 'Client notified · ClickUp task closed'}
- case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Kitchen countertop marble':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm,h0:H});r.st='Resolved';r.h1=H;r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
+ case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Marble selection':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm,h0:H});r.st='Resolved';r.h1=H;r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
  case 'r2mod':{const r=req();if(r.st=='Resolved')return;const id=addMod(r.t,'Client request '+i);r.st='Resolved';r.h1=H;r.ans='Registered as extra modification '+id+'. Cost will send you the addendum.';log(i+' → '+id+' (to Cost)');return id+' sent to Cost · site locked until released'}
  case 'selnew':S.sel.unshift({id:'S'+A.ts,sec:A.s,title:v.st,opt:v.so,color:A.s=='design'?'#efe9df':'#cfd6e3',due:v.sd,st:'Waiting',by:nm,h0:H});log('Selection sent: '+v.st);mail(S.client,'New selection for your approval: '+esc(v.st));return 'Sent · client emailed + badge in the portal';
  case 'selok':sel().st='Approved';log('Approved: '+sel().title);return 'Code 482913 confirmed · approved and recorded';
@@ -289,11 +317,11 @@ function apply1(A){const R=A.r,v=A.v||{},i=A.i,nm=(ROLES[R]||{}).name||R;
  case 'speed':if(G.clk)G.clk={base:dh(A.ts),ts:A.ts,spd:(+v.spd||5)*60/HPD};return 'Clock speed: 1 day = '+(+v.spd||5)+' minutes';
  case 'jump':if(G.clk)G.clk.base+=(+v.h||1);return 'Time moved forward '+dur(+v.h||1);
  case 'send':S.chat.push({by:nm,role:R,t:v.ct});return;
- case 'move':{const r=req();r.to=v.to;log(r.id+' reassigned to '+TEAM[r.to]);return 'Reassigned to '+TEAM[r.to]+' · ClickUp task moved'}
+ case 'move':{const r=req();r.to=v.to;log(r.id+' reassigned to '+T(r.to));return 'Reassigned to '+T(r.to)+' · ClickUp task moved'}
  }}catch(e){console.warn('skip',A,e)}}
 // ---- live sync (shared across phones) ----
 const API=(new URLSearchParams(location.search).get('api'))||window.DEMO_API||'';
-const FIXED=new URLSearchParams(location.search).get('role');
+const FIXED=new URLSearchParams(location.search).get('p');
 let seen=0,busy=false,epoch=null;
 function myCount(){const m=r=>r.st=='Open'&&(role=='pm'||role=='head'||r.to==role);let c=0;
  if(isClientSide())c+=S.sel.filter(x=>x.st=='Waiting').length+S.mods.filter(m=>m.st=='Awaiting client').length+S.pay.filter(p=>p.st=='Requested'||p.st=='Overdue').length+S.req.filter(r=>r.st=='Resolved').length;
@@ -307,7 +335,7 @@ async function pull(mine){if(!API)return;if(busy&&!mine)return;busy=true;try{con
  if(j.items&&j.items.length){const before=myCount();let last='',own='';j.items.forEach(x=>{const m=apply(x);if(x.id&&x.id===mine)own=m||'Done';else if(m)last=m});seen=j.n;const after=myCount();
   if(own)toast(own);else if(after>before&&!document.hidden){toast('🔔 '+(last||'New update'));try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}render()}
  $('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
-async function dispatch(A){A.ts=Date.now();A.u=A.u||curUnit();A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
+async function dispatch(A){A.ts=Date.now();A.u=A.u||curUnit();A.p=A.p||me;A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
  if(!API){const m=apply(A);if(m)toast(m);return render()}
  toast('Sending…');
  try{await fetch(API+'?op=add&d='+encodeURIComponent(JSON.stringify(A)),{cache:'no-store'});}catch(e){return toast('Not sent. Check the connection and try again')}
@@ -316,10 +344,11 @@ document.addEventListener('click',e=>{
  if(e.target.id=='reset'){e.preventDefault();if(!confirmReset())return;return dispatch({a:'reset',r:role})}
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.unit){unit=b.dataset.unit;if(tab=='board')tab=ROLES[role].tabs.find(t=>t!='board')||'board';return render()}
- if(b.dataset.r){if(FIXED)return;role=b.dataset.r;tab=ROLES[role].tabs[0];return render()}
+ if(b.dataset.next){me=b.dataset.next;role=PEOPLE[me].fn;tab=ROLES[role].tabs[0];fired.clear();first=true;return render()}
+ if(b.dataset.r){if(FIXED)return;me=b.dataset.r;role=PEOPLE[me].fn;tab=ROLES[role].tabs[0];return render()}
  if(b.dataset.t){tab=b.dataset.t;return render()}
  const a=b.dataset.a;if(!a)return;
- if(role=='family'&&OWNER_ACTS.includes(a))return toast('Only the unit owner can approve or request. Mona can follow, not act.');
+ if(role=='family'&&OWNER_ACTS.includes(a))return toast('Only the unit owner can approve or request. Family can follow, not act.');
  const v={};(NEED[a]||[]).forEach(k=>v[k]=($('#'+k)||{}).value||'');
  if(b.dataset.i){['ra','mn'].forEach(p=>{const el=$('#'+p+b.dataset.i);if(el)v[p+b.dataset.i]=el.value})}
  if(b.dataset.x){v.spd=b.dataset.x;v.h=b.dataset.x}
@@ -330,10 +359,15 @@ document.addEventListener('click',e=>{
 function confirmReset(){return S.log.length<1||window.confirm('Reset the demo for everyone?')}
 document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value)dispatch({a:'move',r:role,i:e.target.dataset.move,v:{to:e.target.value}})});
 const fired=new Set();let first=true;
-function tick(){$('#clock').textContent=G.clk?fmt(dh()):'';const us=isClientSide()?[curUnit()]:UNITS;const all=[];us.forEach(u=>{const k=S;S=G.U[u];alerts().forEach(a=>{a.k=u+a.k;if(!isClientSide()&&us.length>1)a.m=S.client+': '+a.m;all.push(a)});S=k});const fresh_=all.filter(a=>isMine(a)&&!fired.has(a.k));fresh_.forEach(a=>fired.add(a.k));
+function feed(){const it=[];UNITS.forEach(u=>G.U[u].log.forEach(l=>{if(l.ts)it.push({...l,c:G.U[u].client})}));it.sort((a,b)=>b.ts-a.ts);
+ return it.length?`<div class="card"><div class="eyebrow">Happening now</div>${it.slice(0,5).map((l,i)=>`<div style="padding:6px 0;${i?'':'font-weight:600;font-size:18px'}">${esc(l.c)} · ${esc(l.t)} <span class="muted">· ${esc(l.who)}</span></div>`).join('')}</div>`:''}
+const pend=new Set();
+function director(){if(role!='board'||!G.clk||!G.U.u1.paid)return;const now=dh();G.sent=G.sent||{};
+ SCRIPT.forEach(x=>{if(now>=x.h&&!G.sent[x.k]&&!pend.has(x.k)){pend.add(x.k);dispatch({a:'reqnew',r:'client',u:x.u,k:x.k,p:x.u=='u2'?'c2':'c3',v:{rt:x.rt,rx:x.rx,sg:x.sg||''}})}})}
+function tick(){director();$('#clock').textContent=G.clk?fmt(dh()):'';const us=myUnits();const all=[];us.forEach(u=>{const k=S;S=G.U[u];alerts().forEach(a=>{a.k=u+a.k;if(!isClientSide()&&us.length>1)a.m=S.client+': '+a.m;all.push(a)});S=k});const fresh_=all.filter(a=>isMine(a)&&!fired.has(a.k));fresh_.forEach(a=>fired.add(a.k));
  if(fresh_.length&&!first){toast((fresh_[0].lvl=='bad'?'⛔ ':'⏰ ')+fresh_[0].m);try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
  if(fresh_.length||tab=='clock'||tab=='board'||Date.now()%10000<1000)render();first=false}
-load();if(FIXED&&ROLES[FIXED]){role=FIXED;document.getElementById('roles').style.display='none'}if(API){G=freshG();S=G.U.u1;seen=0}render();setInterval(tick,1000);if(API){pull();setInterval(pull,2500)}
+load();if(FIXED&&PEOPLE[FIXED]){me=FIXED;role=PEOPLE[me].fn;document.getElementById('roles').style.display='none'}if(API){G=freshG();S=G.U.u1;seen=0}render();setInterval(tick,1000);if(API){pull();setInterval(pull,2500)}
 </script>
 </body>
 </html>
