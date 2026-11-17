@@ -93,14 +93,15 @@ const TABN={board:'All cases',overview:'Overview',req:'Requests',design:'Design 
 const PEOPLE={
  c1:{name:'Hesham Adel',fn:'client',u:'u1'},c2:{name:'Tarek Nabil',fn:'client',u:'u2'},c3:{name:'Karim Fouad',fn:'client',u:'u3'},fam1:{name:'Mona Adel',fn:'family',u:'u1'},
  yara:{name:'Yara',fn:'sales'},ashiry:{name:'Ashiry',fn:'sales'},dina:{name:'Dina',fn:'sales'},
- amira:{name:'Amira',fn:'pm'},saad:{name:'Saad',fn:'pm'},abugabal:{name:'Omar Abu Gabal',fn:'pm'},omark:{name:'Omar Khaled',fn:'pm',mgr:1},
+ amira:{name:'Emeira',fn:'pm'},saad:{name:'Saad',fn:'pm'},abugabal:{name:'Omar Abu Gabal',fn:'pm'},omark:{name:'Omar Sheir',fn:'pm',mgr:1},
  nouran:{name:'Nouran',fn:'design'},ali:{name:'Ali',fn:'design'},maksoud:{name:'Abdelmaksoud',fn:'design',mgr:1},
- sharbagy:{name:'Sharbagy',fn:'cost'},alaa:{name:'Alaa',fn:'cost'},omar:{name:'Omar',fn:'cost',mgr:1},
+ sharbagy:{name:'Sharbagy',fn:'cost'},alaa:{name:'Alaa',fn:'cost'},omar:{name:'Omar Nada',fn:'cost',mgr:1},
  salma:{name:'Salma',fn:'finance'},ghandour:{name:'Ghandour',fn:'extra'},salah:{name:'Salah',fn:'head'},
  site:{name:'Site Engineer',fn:'site'},board:{name:'Big screen',fn:'board'},time:{name:'Timekeeper',fn:'time'}};
-const UTEAM={u1:{sales:'yara',pm:'saad',design:'nouran',cost:'sharbagy'},u2:{sales:'ashiry',pm:'amira',design:'ali',cost:'sharbagy'},u3:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'}};
-const NEXT={yara:'fam1'};
-const MGR={pm:'Omar Khaled (PM manager)',design:'Abdelmaksoud (Design manager)',cost:'Omar (Cost manager)',finance:'Salah (Head of Projects)'};
+const UTEAM={u1:{sales:'ashiry',pm:'saad',design:'nouran',cost:'sharbagy'},u2:{sales:'ashiry',pm:'amira',design:'ali',cost:'sharbagy'},u3:{sales:'ashiry',pm:'abugabal',design:'ali',cost:'alaa'}};
+const NEXT={}; // nobody switches roles during the show
+// Hierarchy: Salah (Head of Projects) > Ghandour (Head of Extra Work, also leads Sales) > Omar Sheir (PMs), Omar Nada (Cost + Finance), Abdelmaksoud (Design)
+const MGR={pm:'Omar Sheir (PM manager)',design:'Abdelmaksoud (Design manager)',cost:'Omar Nada (Cost manager)',finance:'Omar Nada (Cost manager)',sales:'Ghandour (Head of Extra Work)'};
 let me='c1';
 const PN=id=>(PEOPLE[id]||{}).name||id;
 function T(fn){if(fn=='finance')return 'Salma';const t=UTEAM[S&&S.u||'u1'];return t&&t[fn]?PN(t[fn]):fn}
@@ -108,16 +109,17 @@ const isMgr=()=>!!(PEOPLE[me]||{}).mgr;
 function myUnits(){const P=PEOPLE[me]||{};if(P.u)return [P.u];if(['pm','design','cost','sales'].includes(P.fn)&&!P.mgr)return UNITS.filter(u=>UTEAM[u][P.fn]==me);return UNITS}
 const STAGES=['Quotation paid','Kick-off','Design & selections','Execution','Snagging','Handover'];
 
-const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change or add something',to:'design',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
+const RT={q:{n:'I have a question',to:'pm',sla:'4 working hours'},chg:{n:'Change a design item',to:'design',sla:'1 working day'},extra:{n:'Extra work (new item)',to:'sales',sla:'1 working day'},pay:{n:'Payment or cheques',to:'finance',sla:'1 working day'},site:{n:'Problem on site / urgent',to:'pm',sla:'1 hour'}};
 const SEED={paid:false,team:false,stage:-1,day:0,req:[],sel:[],mods:[],chat:[],files:[],log:[],
  pay:[{id:1,name:'Down payment',pct:'30%',due:'At contract',st:'Scheduled'},{id:2,name:'Installment 2 · Cheque',pct:'25%',due:'15 Dec 2026',st:'Scheduled'},{id:3,name:'Installment 3 · Cheque',pct:'25%',due:'15 Feb 2027',st:'Scheduled'},{id:4,name:'Final payment · at handover',pct:'20%',due:'Handover',st:'Scheduled'}]};
-const SPD0=300/9,HPD=9,SLA={q:4,chg:9,pay:9,site:1};let CURH=0;
+const SPD0=300/9,HPD=9,SLA={q:4,chg:9,extra:9,pay:9,site:1};let CURH=0;
 function dh(ts){if(!G||!G.clk)return 0;return G.clk.base+((ts||Date.now())-G.clk.ts)/1000/G.clk.spd}
 function fmt(h){h=Math.max(0,h);const d=Math.floor(h/HPD)+1,m=Math.floor((h%HPD)*60),hh=9+Math.floor(m/60),mm=m%60;return 'Day '+d+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
 function dur(h){h=Math.max(0,h);if(h>=HPD){const d=Math.round(h/HPD*10)/10;return d+(d==1?' day':' days')}if(h>=1)return Math.round(h*10)/10+' h';return Math.max(1,Math.round(h*60))+' min'}
 function alerts(){const now=dh(),out=[];if(!G.clk||!S.paid)return out;
  S.req.forEach(r=>{if(r.st=='Resolved')return;const age=now-r.h0,sla=SLA[r.type],late=age-sla,who=T(r.to);
-  if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm'],mgrOf:r.to,head:1,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to Salah',mail:{to:'Salah · Head of Projects',b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'. Manager already alerted.'}});
+  if(late>=3*HPD)out.push({k:r.id+'e3',to:[r.to,'pm'],mgrOf:r.to,gh:1,head:1,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to Salah',mail:{to:'Salah · Head of Projects',b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'. Manager and Ghandour already alerted.'}});
+  else if(late>=2*HPD)out.push({k:r.id+'e2',to:[r.to,'pm'],mgrOf:r.to,gh:1,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to Ghandour',mail:{to:'Ghandour · Head of Extra Work',b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'. '+MGR[r.to]+' already alerted.'}});
   else if(late>=HPD)out.push({k:r.id+'e1',to:[r.to,'pm'],mgrOf:r.to,lvl:'bad',m:r.id+' late by '+dur(late)+' · escalated to '+MGR[r.to],mail:{to:MGR[r.to],b:r.id+' “'+esc(r.t)+'” ('+S.client+') is late by '+dur(late)+'. Owner: '+who+'.'}});
   else if(late>=0)out.push({k:r.id+'late',to:[r.to,'pm'],lvl:'bad',m:r.id+' is LATE (promise '+dur(sla)+') · owner '+who,mail:{to:who+' · ClickUp overdue',b:r.id+' “'+esc(r.t)+'” passed its reply time ('+dur(sla)+').'}});
   else if(age>=sla*0.75)out.push({k:r.id+'soon',to:[r.to],lvl:'warn',m:r.id+' reply due in '+dur(sla-age)})});
@@ -132,12 +134,12 @@ function alerts(){const now=dh(),out=[];if(!G.clk||!S.paid)return out;
   else if(age>=5*HPD)out.push({k:p.id+'p2',to:['client','family'],lvl:'warn',m:'Second reminder: '+p.name+' is still pending',mail:{to:S.client,b:'Second reminder: '+p.name+' is still pending.'}});
   else if(age>=2*HPD)out.push({k:p.id+'p1',to:['client','family'],lvl:'warn',m:'Reminder: '+p.name+' is waiting for your confirmation',mail:{to:S.client,b:'Friendly reminder: '+p.name+' is waiting for your confirmation.'}})});
  return out}
-const isMine=a=>a.to.includes(role)||(isMgr()&&a.mgrOf==role)||(role=='head'&&a.head);
+const isMine=a=>a.to.includes(role)||(isMgr()&&(a.mgrOf==role||(role=='cost'&&a.mgrOf=='finance')))||(role=='head'&&a.head)||(role=='extra'&&a.gh);
 function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';return a.map(x=>`<div class="${x.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px;${x.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${x.lvl=='bad'?'⛔ ':'⏰ '}${esc(x.m)}</div>`).join('')}
 function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to==S.client:a.mail.to!=S.client));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
 const KEY='opdemo4';let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
-const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/QV1-24C · Hillside Villas',client:'Karim Fouad',q:'Quotation 1815',scope:'Luxury finishing package'}};
+const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/RV4-15A · Type G · Whyt',client:'Karim Fouad',q:'Quotation 1815',scope:'Finishing works'}};
 // Cases 2 and 3 are already running when the show starts (history only, no typing needed).
 function seedHistory(S){S.paid=true;S.team=true;S.stage=3;S.pay[0].st='Received';S.pay[1].st=S.u=='u2'?'Received':'Scheduled';
  S.files=[{n:'Signed quotation '+S.q+'.pdf',by:'Sales'},{n:'Approved design drawings.pdf',by:'Design'},{n:'Site photos week 45.zip',by:'Site'}];
@@ -149,7 +151,7 @@ const SCRIPT=[
  {k:'s1',h:1,u:'u3',rt:'q',rx:'When will the bathroom tiles arrive?',note:'nobody answers this one'},
  {k:'s2',h:3,u:'u2',rt:'q',rx:'Will the workers come on Saturday?',sg:'Yes, Saturday 9 AM to 4 PM. The site engineer will be there.'},
  {k:'s3',h:5,u:'u2',rt:'chg',rx:'I want a lighter marble for the entrance floor'},
- {k:'s4',h:7,u:'u3',rt:'chg',rx:'Please add a pergola on the roof terrace'}];
+ {k:'s4',h:7,u:'u3',rt:'extra',rx:'I want to add a glass house on the roof'}];
 const fresh=u=>Object.assign(JSON.parse(JSON.stringify(SEED)),UINFO[u||'u1'],{u:u||'u1'});
 const freshG=()=>({clk:null,sent:{},U:{u1:fresh('u1'),u2:seedHistory(fresh('u2')),u3:seedHistory(fresh('u3'))}});let G;
 function eachUnit(f){const keep=S,out=[];myUnits().forEach(u=>{S=G.U[u];out.push(f(u))});S=keep;return out}
@@ -172,6 +174,7 @@ function render(){
  $('#roles').innerHTML=Object.keys(PEOPLE).map(k=>`<button class="${k===me?'on':''}" data-r="${k}">${PN(k)}</button>`).join('');
  $('#steps').innerHTML=STAGES.map((s,i)=>`<div class="step ${i<S.stage?'done':i==S.stage?'cur':''}">${i<S.stage?'✓ ':''}${s}</div>`).join('');
  const R=ROLES[role];if(!R.tabs.includes(tab))tab=R.tabs[0];
+ if(focus()){['ucode','uname','steps'].forEach(id=>$('#'+id).style.display='none');$('#who').innerHTML=`<div style="font-size:22px;font-weight:700;color:#001641">${PN(me)}</div><div class="muted">${roleLine()}</div>`;$('#tabs').innerHTML='';$('#main').innerHTML=todo()+`<p style="margin-top:28px;text-align:center"><a href="#" id="full" class="muted">Show the full portal</a></p>`;Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e)e.value=keep[k]});return}
  $('#who').innerHTML=`Playing <b>${PN(me)}</b> · ${R.title}${isMgr()?' (manager)':''}${isTeam()&&role!='board'&&role!='time'&&myUnits().length>1?' · Case: '+myUnits().map(u=>`<button class="btn sm ${u==unit?'':'ghost'}" data-unit="${u}">${G.U[u].client}</button>`).join(' '):''}`;
  if(!S.paid&&!['sales','board','time','head'].includes(role)&&!(role=='pm'&&isMgr())){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Case not open yet</h2><div class="muted">Waiting for the client to pay the quotation. Sales starts the case.</div></div>`;return}
  if(S.paid&&!S.team&&!['sales','head','client','family','board','time'].includes(role)){$('#tabs').innerHTML='';$('#main').innerHTML=`<div class="hero"><h2>Quotation paid · waiting for kick-off</h2><div class="muted">Head of Projects assigns the unit team. Then this case opens for you.</div></div>`;return}
@@ -184,9 +187,45 @@ function render(){
  $('#main').innerHTML=alertBox()+V[tab]()+(['overview','pay','clock','req'].includes(tab)?mailsBox():'');
  Object.keys(keep).forEach(k=>{const e=document.getElementById(k);if(e)e.value=keep[k]});if(fid){const e=document.getElementById(fid);if(e)e.focus()}
 }
+// ---- Focus mode: each person sees only their name, their role and what is waiting for them ----
+let FULL=false;
+const focus=()=>!FULL&&!['board','time'].includes(me);
+function roleLine(){const P=PEOPLE[me]||{};const cases=myUnits().map(u=>G.U[u].client).join(', ');
+ if(P.u)return 'Client · '+G.U[P.u].code;
+ const t={sales:'Sales',pm:'Project Manager',design:'Designer',cost:'Cost',finance:'Cost & Finance · cheques',extra:'Head of Extra Work + Sales',head:'Head of Projects'}[P.fn]||P.fn;
+ if(P.mgr)return ({pm:'Construction manager (PMs)',design:'Design manager',cost:'Cost & Finance manager'}[P.fn])+' · you get your team\'s escalations';
+ if(P.fn=='head')return t+' · you get the final escalation';
+ return t+(['extra','finance'].includes(P.fn)?'':' · '+cases)}
+function todo(){const out=[],keep=S,P=PEOPLE[me]||{};
+ const card=(u,title,sub,btns)=>out.push(`<div class="card" style="border-left:6px solid #F0B323"><div class="eyebrow">${esc(G.U[u].client)} · ${esc(G.U[u].code)}</div><b style="font-size:17px">${title}</b>${sub?`<div class="muted" style="margin:4px 0 10px">${sub}</div>`:'<div style="height:10px"></div>'}${btns}</div>`);
+ const al=[];
+ myUnits().forEach(u=>{S=G.U[u];
+  alerts().filter(isMine).forEach(a=>al.push(`<div class="${a.lvl=='bad'?'lock':'note'}" style="margin:0 0 8px">${a.lvl=='bad'?'⛔ ':'⏰ '}${esc(S.client)}: ${esc(a.m)}</div>`));
+  if(role=='sales'&&!S.paid)card(u,'Quotation '+esc(S.q.replace('Quotation ',''))+' is paid?',esc(S.scope),`<button class="btn big amber full" data-a="paid" data-u="${u}">Quotation paid · open the case</button>`);
+  if(role=='head'&&S.paid&&!S.team)card(u,'Kick-off: confirm the unit team','PM '+T('pm')+' · Designer '+T('design')+' · Cost '+T('cost'),`<button class="btn big amber full" data-a="team" data-u="${u}">Confirm team · open the case</button>`);
+  if(S.team&&!isClientSide())S.req.filter(r=>r.st=='Open'&&r.to==role&&!P.mgr&&role!='head').forEach(r=>{
+   const left=SLA[r.type]-(dh()-r.h0),due=left>=0?'reply due in '+dur(left):'<b style="color:#A8392C">LATE by '+dur(-left)+'</b>';
+   const b=role=='sales'?`<button class="btn full" data-a="r2mod" data-u="${u}" data-i="${r.id}">Send to Cost for a quotation</button>`:role=='design'?`<button class="btn full" data-a="r2sel" data-u="${u}" data-i="${r.id}">Send options to the client (Design selection)</button><div style="height:8px"></div><button class="btn ghost full" data-a="r2mod" data-u="${u}" data-i="${r.id}">It is extra work · send to Cost</button>`
+    :`<input id="ra${u}_${r.id}" placeholder="Write your reply" value="${esc(r.sg||'')}"><div style="height:8px"></div><button class="btn ok full" data-a="reqdone" data-u="${u}" data-i="${r.id}">Reply &amp; resolve</button>`;
+   card(u,'“'+esc(r.t)+'”',RT[r.type].n+' · '+due,b)});
+  if(role=='cost'&&!P.mgr)S.mods.filter(m=>m.st=='Costing').forEach(m=>card(u,'Price this: “'+esc(m.title)+'”',m.id+' · the client asked for it. Site cannot execute it until it is released.',`<input id="mn${u}_${m.id}" value="Quotation ${esc(S.q.replace('Quotation ',''))}-A${m.id.slice(-1)} (PDF attached) · +10 working days"><div style="height:8px"></div><button class="btn full" data-a="costdone" data-u="${u}" data-i="${m.id}">Send quotation to client</button>`));
+  if(role=='cost'&&!P.mgr)S.mods.filter(m=>m.st=='Declined').forEach(m=>card(u,'Client rejected your quotation',`“${esc(m.title)}” · comment: <b>${esc(m.reason||'')}</b>`,`<input id="mn${u}_${m.id}" value="Revised quotation ${esc(S.q.replace('Quotation ',''))}-A${m.id.slice(-1)} rev 2 (PDF attached)"><div style="height:8px"></div><button class="btn full" data-a="costdone" data-u="${u}" data-i="${m.id}">Send revised quotation</button>`));
+  if(role=='design'&&!P.mgr)S.sel.filter(x=>x.st=='Rejected'&&x.sec=='design').forEach(x=>card(u,'Client rejected: '+esc(x.title),'Comment: <b>'+esc(x.reason||'')+'</b>',`<button class="btn full" data-a="selrev" data-u="${u}" data-i="${x.id}">Send a revised option</button>`));
+  if(role=='extra')S.mods.filter(m=>m.st=='Client approved').forEach(m=>card(u,m.id+' · '+esc(m.title),'Costed and approved by the client.',`<button class="btn ok big full" data-a="release" data-u="${u}" data-i="${m.id}">Release to site</button>`));
+  if(role=='finance'&&u=='u1'&&S.team){const p=S.pay.find(x=>x.st=='Scheduled');const c=S.pay.find(x=>x.st=='Client confirmed');
+   if(c)card(u,esc(c.name),'Client said he will hand it over.',`<button class="btn ok big full" data-a="payrec" data-u="${u}" data-i="${c.id}">Mark received</button>`);
+   else if(p&&!S.pay.some(x=>x.st=='Requested'))card(u,esc(p.name)+' · '+p.pct,'Due '+esc(p.due),`<button class="btn big full" data-a="payask" data-u="${u}" data-i="${p.id}">Request it from the client now</button>`)}
+  if(isClientSide()){const ar=(ok,no,id)=>`<button class="btn ok big full" data-a="${ok}" data-u="${u}" data-i="${id}">Approve</button><div style="height:10px"></div><input id="cm${u}_${id}" placeholder="Not happy? Write your comment"><div style="height:8px"></div><button class="btn red full" data-a="${no}" data-u="${u}" data-i="${id}">Reject with comment</button>`;
+   if(me=='c1'&&S.paid)card(u,'Ask your team anything','Tap one, or write your own below. It goes to the right person automatically.',PRESET.map(x=>`<button class="btn ghost full" style="margin-bottom:8px;text-align:left" data-a="reqnew" data-u="${u}" data-rt="${x[0]}" data-rx="${esc(x[1])}">${RT[x[0]].n}: “${esc(x[1])}”</button>`).join('')+`<div class="form" style="margin-top:6px"><select id="rt">${Object.keys(RT).map(k=>`<option value="${k}">${RT[k].n}</option>`).join('')}</select><input id="rx" placeholder="Or write your own request"><button class="btn full" data-a="reqnew" data-u="${u}">Send</button></div>`);
+   S.sel.filter(x=>x.st=='Waiting').forEach(x=>card(u,'Choose: '+esc(x.title),esc(x.opt),ar('selok','selno',x.id)));
+   S.mods.filter(m=>m.st=='Awaiting client').forEach(m=>card(u,'Quotation for “'+esc(m.title)+'”',esc(m.note||''),ar('modok','modno',m.id)));
+   S.pay.filter(p=>p.st=='Requested'||p.st=='Overdue').forEach(p=>card(u,esc(p.name),'Requested by Finance',`<button class="btn ok big full" data-a="payconf" data-u="${u}" data-i="${p.id}">I will hand it over</button>`))}
+ });S=keep;
+ const done='';
+ return al.join('')+done+(out.length?`<div class="eyebrow" style="margin:6px 0 8px">Waiting for you · ${out.length}</div>`+out.join(''):`<div class="hero" style="text-align:center"><h2>Nothing for you right now</h2><div class="muted">Keep this page open. Your phone buzzes the moment something needs you.</div></div>`)}
 const V={
 overview(){
- if(role=='sales')return S.paid?`<div class="hero"><h2>Done. Case handed over.</h2><div class="muted">Client emailed the portal link. Head of Projects assigns the team next.</div>${NEXT[me]?`<div style="margin-top:14px"><button class="btn big amber" data-next="${NEXT[me]}">Now play ${PN(NEXT[me])}${PEOPLE[NEXT[me]].fn=='family'?' (family)':' (the client)'} ▶</button></div>`:''}</div>${mailBox()}`:
+ if(role=='sales')return S.paid?`<div class="hero"><h2>Done. Case handed over.</h2><div class="muted">Client emailed the portal link. The team was already assigned in ClickUp, so the case is open for everyone.</div>${NEXT[me]?`<div style="margin-top:14px"><button class="btn big amber" data-next="${NEXT[me]}">Now play ${PN(NEXT[me])}${PEOPLE[NEXT[me]].fn=='family'?' (family)':' (the client)'} ▶</button></div>`:''}</div>${mailBox()}`:
   `<div class="hero"><h2>Quotation ${S.q} · ${S.client}</h2><div class="muted">${S.scope}. Client paid the down payment today.</div><div style="margin-top:14px"><button class="btn big amber" data-a="paid">Quotation paid · open the case</button></div></div><div class="muted">Before payment the case runs in ClickUp (case, design, quotation). Payment opens the portal.</div>`;
  const kick=role=='head'&&!S.team?`<div class="hero"><h2>Kick-off · assign the unit team</h2><div class="muted">PM: ${T('pm')} · Designer: ${T('design')} · Finance: ${T('finance')} · Cost: ${T('cost')}</div><div style="margin-top:14px"><button class="btn big amber" data-a="team">Confirm team · open the case for everyone</button></div></div>`:'';
  const w=S.sel.filter(x=>x.st=='Waiting').length,p=S.pay.find(x=>x.st=='Requested'||x.st=='Overdue');
@@ -236,7 +275,7 @@ pay(){
  ${S.lastMail&&(role=='finance'||role=='pm'||isClientSide())?mailBox():''}
  <p class="muted">Shares and dates only. Amounts stay in the official Finance statement.</p>`},
 chat(){
- return `<div class="card"><div class="chat">${S.chat.length?'':'<div class="muted">No messages yet.</div>'}${S.chat.map(m=>`<div class="msg ${m.role==role?'me':''}"><div class="by">${esc(m.by)}</div>${esc(m.t)}</div>`).join('')}</div>
+ return `<div class="card"><div class="chat">${S.chat.length?'':'<div class="muted">No messages yet.</div>'}${S.chat.map(m=>`<div class="msg ${m.role==role?'me':''}"><div class="by">${esc(m.by)}</div>${esc(m.title)}</div>`).join('')}</div>
  <div class="row" style="margin-top:10px"><input id="ct" class="grow" placeholder="Write a message"><button class="btn" data-a="send">Send</button></div></div>`},
 files(){const vis=S.files;return `${vis.length?'':'<div class="muted">No files yet.</div>'}${vis.map(f=>`<div class="card row"><div class="grow"><b>${esc(f.n)}</b><div class="muted">by ${esc(f.by)}</div></div><button class="btn ghost sm">Download</button></div>`).join('')}`},
 sitecam(){const asks=S.req.filter(r=>r.ask&&!r.photo);
@@ -248,8 +287,8 @@ board(){const now=dh();
   return `<div class="card" style="border-left:6px solid ${bad.length?'#A8392C':warn.length?'#F0B323':'#2F6E4E'}"><div class="row"><div class="grow"><div class="eyebrow">${S.code}</div><h2 style="margin:2px 0">${S.client}</h2><div class="muted">Sales ${T('sales')} · PM ${T('pm')} · Designer ${T('design')} · Cost ${T('cost')}</div><div class="muted">${S.paid?STAGES[Math.max(0,S.stage)]:'Not paid yet'} · ${open} open items · ${S.req.filter(r=>r.st=='Resolved').length} resolved</div></div>${isTeam()&&role!='board'?`<button class="btn sm ghost" data-unit="${u}">Open case</button>`:''}</div>
   ${al.map(a=>`<div class="${a.lvl=='bad'?'lock':'note'}" style="${a.lvl=='warn'?'background:#FCEFD3;color:#8A5800;font-weight:600':''}">${a.lvl=='bad'?'⛔ ':'⏰ '}${esc(a.m)}${a.mail?' · <b>email sent</b>':''}</div>`).join('')||'<div class="muted" style="margin-top:6px">✓ Everything on time</div>'}
   ${S.req.filter(r=>r.st!='Resolved').map(r=>{const left=SLA[r.type]-(now-r.h0);return `<div class="muted" style="margin-top:6px">${r.id} · ${esc(r.t)} · owner ${T(r.to)} · <b style="color:${left<0?'#A8392C':'#1A2238'}">${left<0?'late by '+dur(-left):'due in '+dur(left)}</b></div>`}).join('')}</div>`});
- const ctl=role=='board'?`<div class="card" style="text-align:center"><button class="btn sm" data-a="jump" data-x="1">+1 hour</button> <button class="btn sm" data-a="jump" data-x="9">+1 day</button> <button class="btn sm red" data-a="jump" data-x="18">+2 days</button></div>`:'';
- return ctl+`<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late → owner · +1 day → team manager · +2 days → Salah</div></div>`+(role=='board'?feed():'')+rows.join('')},
+ const ctl=role=='board'?`<div class="card" style="text-align:center">${G.U.u1.paid?'':`<button class="btn big amber" data-a="paid" data-u="u1">▶ Start · ${esc(G.U.u1.client)} paid ${esc(G.U.u1.q)}</button><div style="height:10px"></div>`}<button class="btn sm" data-a="jump" data-x="1">+1 hour</button> <button class="btn sm" data-a="jump" data-x="9">+1 day</button> <button class="btn sm red" data-a="jump" data-x="18">+2 days</button></div>`:'';
+ return ctl+`<div class="hero" style="text-align:center"><div class="muted">O-Plus · all cases · live</div><h2 style="font-size:44px;margin:6px 0">${G.clk?fmt(now):'Waiting for the first payment'}</h2><div class="muted">1 day = ${G.clk?Math.round(G.clk.spd*HPD/60):5} minutes · promises: question 4 h · change 1 day · urgent 1 h · late → owner · +1 day → team manager · +2 days → Ghandour · +3 days → Salah</div></div>`+(role=='board'?feed():'')+rows.join('')},
 clock(){const sp=G.clk?G.clk.spd:SPD0,dm=Math.round(sp*HPD/60);
  return `<div class="hero"><h2 style="font-size:34px">${G.clk?fmt(dh()):'Clock starts when the first client pays'}</h2><div class="muted">Working day 09:00 to 18:00. Now 1 day = ${dm} minutes (1 hour ≈ ${Math.round(sp)} s). Reminders and escalations fire by themselves.</div></div>
  <div class="card"><h2>Speed</h2>${[3,5,9].map(x=>`<button class="btn ${x==dm?'':'ghost'}" data-a="speed" data-x="${x}">1 day = ${x} min</button> `).join('')}</div>
@@ -287,23 +326,23 @@ function apply1(A){const R=A.r,v=A.v||{},i=A.i,nm=PN(A.p)||R;
  const sel=()=>S.sel.find(x=>x.id==i),mod=()=>S.mods.find(x=>x.id==i),pay=()=>S.pay.find(x=>x.id==i),req=()=>S.req.find(x=>x.id==i);
  try{switch(A.a){
  case 'reset':S=fresh();return 'Demo reset';
- case 'paid':if(S.paid)return;S.paid=true;S.stage=0;if(!G.clk)G.clk={base:0,ts:A.ts,spd:SPD0};S.pay[0].st='Received';S.files.unshift({n:'Signed quotation '+S.q+'.pdf',by:'Sales'});log('Quotation paid · case opened');mail(S.client,'Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');return 'Client emailed the portal link · kick-off task to Head of Projects';
+ case 'paid':if(S.paid)return;S.paid=true;S.team=true;S.stage=1;if(!G.clk)G.clk={base:0,ts:A.ts,spd:SPD0};S.pay[0].st='Received';S.files.unshift({n:'Signed quotation '+S.q+'.pdf',by:'Sales'});log('Quotation paid · case opened');mail(S.client,'Welcome to O-Plus. Your home portal is ready: <u>portal link</u>. Follow progress, approve selections and talk to your team here.');log('Team already assigned in ClickUp · case open for everyone');return 'Client emailed the portal link · case open for the whole team';
  case 'team':if(S.team)return;S.team=true;S.stage=1;log('Unit team assigned · case open for PM, Designer, Finance, Cost');return 'Case opened for the whole team · ClickUp tasks created';
  case 'stage1':case 'stage-1':S.stage=Math.max(0,Math.min(5,S.stage+(A.a=='stage1'?1:-1)));log('Stage → '+STAGES[S.stage]);return 'Client emailed: home moved to '+STAGES[S.stage];
  case 'reqnew':{const k=v.rt;if(A.k){G.sent=G.sent||{};if(G.sent[A.k])return;G.sent[A.k]=1}S.req.unshift({id:'R-0'+n(),type:k,t:v.rx,to:RT[k].to,st:'Open',h0:H,sg:v.sg||''});log('Request: '+RT[k].n+' → '+T(RT[k].to));return 'Assigned automatically to '+T(RT[k].to)+' · ClickUp task created'}
  case 'askphoto':req().ask=1;log('PM asked site for a photo ('+i+')');return 'Site Engineer notified in Site Camera';
  case 'photo':req().photo=1;log('Site photo uploaded for '+i);return 'Photo uploaded · PM sees it on the request';
  case 'reqdone':{const r=req();if(r.st=='Resolved')return;r.ans=v['ra'+i]||'Done, thank you.';r.st='Resolved';r.h1=H;log(i+' resolved');mail(S.client,'Reply to your request '+i+': '+esc(r.ans));return 'Client notified · ClickUp task closed'}
- case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Marble selection':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm,h0:H});r.st='Resolved';r.h1=H;r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
+ case 'r2sel':{const r=req();if(r.st=='Resolved')return;const sec=R=='pm'?'site':'design';S.sel.unshift({id:'S'+A.ts,sec,title:/marble/i.test(r.t)?'Marble selection':/white|grey|gray|colou?r/i.test(r.t)?'Parking pergola colour':r.t.slice(0,70),opt:/marble/i.test(r.t)?'Option A: Carrara white · Option B: Crema Marfil (lighter)':/white|grey|gray|colou?r/i.test(r.t)?'Option A: White RAL 9010 · Option B: Grey RAL 7016 (current)':'Options as discussed',color:'#e8e0d0',due:'in 3 days',st:'Waiting',by:nm,h0:H});r.st='Resolved';r.h1=H;r.ans='Sent to you as a '+sec+' selection.';log(i+' → '+sec+' selection');return 'Selection created · client sees it in '+TABN[sec]}
  case 'r2mod':{const r=req();if(r.st=='Resolved')return;const id=addMod(r.t,'Client request '+i);r.st='Resolved';r.h1=H;r.ans='Registered as extra modification '+id+'. Cost will send you the addendum.';log(i+' → '+id+' (to Cost)');return id+' sent to Cost · site locked until released'}
  case 'selnew':S.sel.unshift({id:'S'+A.ts,sec:A.s,title:v.st,opt:v.so,color:A.s=='design'?'#efe9df':'#cfd6e3',due:v.sd,st:'Waiting',by:nm,h0:H});log('Selection sent: '+v.st);mail(S.client,'New selection for your approval: '+esc(v.st));return 'Sent · client emailed + badge in the portal';
  case 'selok':sel().st='Approved';log('Approved: '+sel().title);return 'Code 482913 confirmed · approved and recorded';
- case 'selno':sel().st='Rejected';sel().reason='Please show a lighter option';log('Rejected: '+sel().title);return 'Rejected · team notified';
- case 'selrev':sel().st='Waiting';sel().opt+=' (rev 2)';sel().reason='';log('Revised option sent');return 'Revised option sent as version 2';
+ case 'selno':sel().st='Rejected';sel().reason=v['cm'+i]||'Please show another option';log('Client rejected: '+sel().title+' · “'+sel().reason+'”');return 'Rejected · designer notified with your comment';
+ case 'selrev':sel().st='Waiting';sel().opt+=' (rev 2)';sel().reason='';sel().h0=H;log('Revised option sent');mail(S.client,'A revised option for “'+esc(sel().title)+'” is ready for your approval.');return 'Revised option sent as version 2';
  case 'modreq':{const id=addMod(v.mt||'Extend the landscape and add a pergola','Client');log(id+' requested');return 'Sent to Cost · site will not execute it yet'}
- case 'costdone':mod().note=v['mn'+i]||'Addendum A-01';mod().st='Awaiting client';mod().hs=H;log('Cost adjusted '+i);mail(S.client,'Your extra work '+i+' is costed. Please review and approve the addendum in your portal.');return 'Client emailed to approve the addendum';
+ case 'costdone':mod().note=v['mn'+i]||'Quotation A-01 (PDF)';mod().st='Awaiting client';mod().hs=H;mod().reason='';log('Quotation sent for '+i);mail(S.client,'Your quotation for “'+esc(mod().title)+'” is ready. Please review it in your portal and approve or comment.');return 'Quotation sent · client emailed';
  case 'modok':mod().st='Client approved';log('Client approved '+i);return 'Approved with email code · Head of Extra Work notified in ClickUp';
- case 'modno':mod().st='Declined';log('Client declined '+i);return 'Declined · nothing executed';
+ case 'modno':mod().st='Declined';mod().reason=v['cm'+i]||'Please review the price';log('Client rejected the quotation for '+i+' · “'+mod().reason+'”');return 'Rejected · Cost notified with your comment · nothing executed';
  case 'release':mod().st='Released to site';log(i+' released to site');return 'Released · PM and Site Engineer can execute';
  case 'payask':pay().st='Requested';pay().remind=[];pay().h0=H;S.day=0;log('Payment requested: '+pay().name);mail(S.client,'O-Plus requests: '+pay().name+' ('+pay().pct+'), due '+pay().due+'. Please confirm in your portal.');return 'Client emailed · sees it in Payments';
  case 'payconf':pay().st='Client confirmed';log('Client confirmed '+pay().name);return 'Finance notified in ClickUp';
@@ -334,13 +373,14 @@ async function pull(mine){if(!API)return;if(busy&&!mine)return;busy=true;try{con
  if(j.n<seen||(epoch!==null&&j.epoch!==epoch)){epoch=j.epoch;if(seen>0){G=freshG();S=G.U[curUnit()];seen=0;busy=false;return pull(mine)}}epoch=j.epoch;
  if(j.items&&j.items.length){const before=myCount();let last='',own='';j.items.forEach(x=>{const m=apply(x);if(x.id&&x.id===mine)own=m||'Done';else if(m)last=m});seen=j.n;const after=myCount();
   if(own)toast(own);else if(after>before&&!document.hidden){toast('🔔 '+(last||'New update'));try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}render()}
- $('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
+ director();$('#live').textContent='● Live';$('#live').style.color='#7BD69B'}catch(e){$('#live').textContent='● Reconnecting…';$('#live').style.color='#FF9A8A'}busy=false}
 async function dispatch(A){A.ts=Date.now();A.u=A.u||curUnit();A.p=A.p||me;A.id=A.ts+'-'+Math.random().toString(36).slice(2,7);
  if(!API){const m=apply(A);if(m)toast(m);return render()}
  toast('Sending…');
  try{await fetch(API+'?op=add&d='+encodeURIComponent(JSON.stringify(A)),{cache:'no-store'});}catch(e){return toast('Not sent. Check the connection and try again')}
  while(busy)await new Promise(r=>setTimeout(r,100));await pull(A.id)}
 document.addEventListener('click',e=>{
+ if(e.target.id=='full'){e.preventDefault();FULL=!FULL;return render()}
  if(e.target.id=='reset'){e.preventDefault();if(!confirmReset())return;return dispatch({a:'reset',r:role})}
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.unit){unit=b.dataset.unit;if(tab=='board')tab=ROLES[role].tabs.find(t=>t!='board')||'board';return render()}
@@ -350,17 +390,19 @@ document.addEventListener('click',e=>{
  const a=b.dataset.a;if(!a)return;
  if(role=='family'&&OWNER_ACTS.includes(a))return toast('Only the unit owner can approve or request. Family can follow, not act.');
  const v={};(NEED[a]||[]).forEach(k=>v[k]=($('#'+k)||{}).value||'');
- if(b.dataset.i){['ra','mn'].forEach(p=>{const el=$('#'+p+b.dataset.i);if(el)v[p+b.dataset.i]=el.value})}
+ if(b.dataset.rx){v.rt=b.dataset.rt;v.rx=b.dataset.rx}
+ if(b.dataset.i){['ra','mn','cm'].forEach(p=>{const el=$('#'+p+(b.dataset.u?b.dataset.u+'_':'')+b.dataset.i)||$('#'+p+b.dataset.i);if(el)v[p+b.dataset.i]=el.value})}
  if(b.dataset.x){v.spd=b.dataset.x;v.h=b.dataset.x}
  if(a=='reqnew'&&!v.rx)return toast('Write your request first');
  if(a=='send'&&!v.ct)return;
- dispatch({a,r:role,i:b.dataset.i,s:b.dataset.s,v});
+ dispatch({a,r:role,i:b.dataset.i,s:b.dataset.s,u:b.dataset.u,v});
 });
 function confirmReset(){return S.log.length<1||window.confirm('Reset the demo for everyone?')}
 document.addEventListener('change',e=>{if(e.target.dataset.move&&e.target.value)dispatch({a:'move',r:role,i:e.target.dataset.move,v:{to:e.target.value}})});
 const fired=new Set();let first=true;
 function feed(){const it=[];UNITS.forEach(u=>G.U[u].log.forEach(l=>{if(l.ts)it.push({...l,c:G.U[u].client})}));it.sort((a,b)=>b.ts-a.ts);
  return it.length?`<div class="card"><div class="eyebrow">Happening now</div>${it.slice(0,5).map((l,i)=>`<div style="padding:6px 0;${i?'':'font-weight:600;font-size:18px'}">${esc(l.c)} · ${esc(l.t)} <span class="muted">· ${esc(l.who)}</span></div>`).join('')}</div>`:''}
+const PRESET=[['q','What wood is used for the garden pergola?'],['chg','Can the parking pergola be white instead of grey?'],['extra','Please add lighting in the landscape']];
 const pend=new Set();
 function director(){if(role!='board'||!G.clk||!G.U.u1.paid)return;const now=dh();G.sent=G.sent||{};
  SCRIPT.forEach(x=>{if(now>=x.h&&!G.sent[x.k]&&!pend.has(x.k)){pend.add(x.k);dispatch({a:'reqnew',r:'client',u:x.u,k:x.k,p:x.u=='u2'?'c2':'c3',v:{rt:x.rt,rx:x.rx,sg:x.sg||''}})}})}
