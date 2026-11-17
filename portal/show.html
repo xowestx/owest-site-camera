@@ -77,7 +77,7 @@ textarea{min-height:64px;resize:vertical}
 window.DEMO_API='https://script.google.com/macros/s/AKfycbxbzqm0Do6EaCJSBU5v4GEa546stTm7zT0BR33SKqS7Ua3hmwuIsXbDN9N5wTGGX0ph/exec';
 // ================= Cast (each person plays one real role) =================
 const P={
- c1:{n:'Hesham Adel',d:'client',c:'A'},c2:{n:'Tarek Nabil',d:'client',c:'B'},c3:{n:'Karim Fouad',d:'client',c:'C'},
+ c1:{n:'Hesham Adel',d:'client',c:'A'},c2:{n:'Mody Nabil',d:'client',c:'B'},c3:{n:'Karim Fouad',d:'client',c:'C'},
  ashiry:{n:'Ashiry',d:'sales'},yara:{n:'Yara',d:'sales'},dina:{n:'Dina',d:'sales'},
  saad:{n:'Saad',d:'pm'},amira:{n:'Emeira',d:'pm'},abugabal:{n:'Omar Abu Gabal',d:'pm'},
  nouran:{n:'Nouran',d:'design'},ali:{n:'Ali',d:'design'},
@@ -90,7 +90,7 @@ const TEAMS=[['sales','Sales',['ashiry','yara','dina']],['pm','PMs',['saad','ami
 const ROLE={sales:'Sales · company representative to the client',pm:'PM · site execution',design:'Design · selections & drawings',cost:'Cost · quotations & contractor payments',audit:'Audit',top:'Top management'};
 const CASES={
  A:{c:'Hesham Adel',f:'Hesham',u:'OW/RV4-2TB · Whyt',scope:'Retractable pergola for parking + wood pergola for garden',q:'Quotation 1505',team:{sales:'ashiry',pm:'saad',design:'nouran',cost:'sharbagy'},stage:2,pct:58,next:'Pergola installation · Sun 23 Nov'},
- B:{c:'Tarek Nabil',f:'Tarek',u:'OW/RV2-68-VA · Whyt',scope:'Variation order works',q:'Quotation 1423',team:{sales:'yara',pm:'amira',design:'ali',cost:'sharbagy'},stage:2,pct:41,next:'Entrance flooring · Tue 25 Nov'},
+ B:{c:'Mody Nabil',f:'Mody',u:'OW/RV2-68-VA · Whyt',scope:'Variation order works',q:'Quotation 1423',team:{sales:'yara',pm:'amira',design:'ali',cost:'sharbagy'},stage:2,pct:41,next:'Entrance flooring · Tue 25 Nov'},
  C:{c:'Karim Fouad',f:'Karim',u:'OW/RV4-15A · Type G · Whyt',scope:'Finishing works',q:'Quotation 1815',team:{sales:'dina',pm:'abugabal',design:'ali',cost:'alaa'},stage:1,pct:22,next:'Final selections · Thu 20 Nov'}};
 const STAGES=['Quotation paid','Design & selections','Execution','Snagging','Handover'];
 const SEEDSEL={A:[['Garden pergola wood','Teak, oil finish','#a0764e'],['Pergola roof fabric','Sand beige · v2','#e9e4da'],['Frame colour','Anthracite RAL 7016','#5d5f63']],B:[['Wall paint','Off-white RAL 9001','#f1ece1'],['Kitchen worktop','Quartz grey','#b9bcbf']],C:[['Kitchen cabinets','Walnut veneer','#6b4a32']]};
@@ -110,6 +110,7 @@ function late(t){if(t.st!=='open'||!['sales','pm','design','cost'].includes(dep(
 // escalation level: 1 audit · 2 Ghandour · 3 Salah. Triggered by time OR by the client pressing Escalate.
 function lvl(t){if(t.st==='done')return 0;if(t.fu)return 0;let l=0;const r=resp(t),aud=AUDIT[dep(r)];if(!aud)return 0;
  const L=late(t);if(L!==null&&L>=0)l=aud==='ghandour'?(L>=HPD?3:1):(L>=2*HPD?3:L>=HPD?2:1);
+ if(t.esc&&t.esc.top)return 3;
  if(t.esc){const a=G.h-t.esc.h;const e=aud==='ghandour'?(a>=HPD?3:1):(a>=2*HPD?3:a>=HPD?2:1);l=Math.max(l,e)}
  return l}
 function holder(l,t){return l==1?AUDIT[dep(resp(t))]:l==2?'ghandour':'salah'}
@@ -142,7 +143,7 @@ function apply(A){const me=A.p,nm=PN(me),x=(A.x||'').trim(),t=A.i?G.T[A.i]:null;
  case 'ok':case 'no':{if(t.st!=='client')return;if(A.a==='no'&&!x)return;const k=A.a==='ok'?(t.kind==='quote'?'approved the quotation ✓':'approved ✓'):'rejected';H(t,C.f,k,x);
   if(A.a==='ok'&&t.kind==='opts')G.sel[t.c].push({id:'S'+(++G.mseq),title:t.t,opt:t.hist.filter(z=>z.a==='sent options').pop().x,st:'Approved',by:t.ret,from:'req',h:G.h});
   t.st='open';t.hold=t.ret;t.since=G.h;t.kind=null;tr(t,'You '+k+(x?': “'+x+'”':'')+' · back with '+who(t.ret));feed(t.c,C.f+' '+k+(x?': “'+x+'”':''),A.ts);return 'Sent · '+PN(t.ret)+' is notified'}
- case 'esc':{if(t.st==='done'||!x)return;const r=resp(t),aud=AUDIT[dep(r)];t.esc={x,h:G.h};t.fu=null;H(t,C.f,'escalated',x);tr(t,'Escalated to '+PN(aud)+' ('+DEPT[dep(r)]+' audit) · they will follow up');feed(t.c,'⚠ '+C.f+' escalated '+t.id+': “'+x+'” → '+PN(aud),A.ts);return 'Escalated to '+PN(aud)}
+ case 'esc':{if(t.st==='done'||!x)return;const r=resp(t),again=!!(t.esc||t.fu),aud=again?'salah':AUDIT[dep(r)];t.esc={x,h:G.h,top:again?1:0};t.fu=null;H(t,C.f,again?'escalated again':'escalated',x);tr(t,again?'Escalated again · sent straight to Salah (Head of Projects)':'Escalated to '+PN(aud)+' ('+DEPT[dep(r)]+' audit) · they will follow up');feed(t.c,'⚠ '+C.f+(again?' escalated AGAIN ':' escalated ')+t.id+': “'+x+'” → '+PN(aud),A.ts);return 'Escalated to '+PN(aud)}
  case 'fu':{if(t.st==='done')return;const r=resp(t);t.fu={by:me,h:G.h};if(t.esc)t.esc.done=1;H(t,nm,'followed up with '+PN(r),x);tr(t,PN(me)+' is following up with '+PN(r));feed(t.c,nm+' followed up with '+PN(r),A.ts);return 'Follow-up sent to '+PN(r)}
  }}
 // ================= helpers =================
@@ -218,7 +219,7 @@ function viewTeam(){const homes=homesOf(me);const mine=tlist().filter(t=>t.st===
 // ---------- Audit ----------
 function escItems(k){return tlist().filter(t=>{const l=lvl(t);return l&&holder(l,t)===k})}
 function escCard(t){const l=lvl(t),r=resp(t),au=PN(AUDIT[dep(r)]);const why=t.esc&&!t.esc.done?'The client escalated: “'+esc(t.esc.x)+'”':'Late by '+dur(late(t));
- const ladder=l==1?'First escalation · your team':l==2?au+' (audit) did not act for 1 day':'Not solved by '+(au==='Ghandour'?'Ghandour':au+' or Ghandour');
+ const ladder=t.esc&&t.esc.top&&!t.esc.done?'Client escalated again · straight to you':l==1?'First escalation · your team':l==2?au+' (audit) did not act for 1 day':'Not solved by '+(au==='Ghandour'?'Ghandour':au+' or Ghandour');
  return `<div class="card late"><div class="eyebrow">${esc(CASES[t.c].c)} · ${t.id} · ${ladder}</div><b style="font-size:15px;display:block;margin-top:4px">⛔ ${esc(PN(r))} (${DEPT[dep(r)]}) · ${why}</b><div class="info">“${esc(t.t)}”</div>${thread(t)}<textarea id="x_${t.id}" placeholder="Note to ${esc(PN(r))} (optional)" style="min-height:44px"></textarea><button class="btn amber full" data-act="fu" data-i="${t.id}">Follow up with ${esc(PN(r))}</button></div>`}
 function memberStats(k){const ts=tlist().filter(t=>resp(t)===k&&t.st!=='done');const n=ts.filter(t=>t.st==='open'&&t.hold===k).length,lt=ts.filter(t=>late(t)>=0).length,es=ts.filter(t=>lvl(t)).length;const base=homesOf(k).length+DUMMY.length;return {base,on:base-n-lt,n,lt,es}}
 function teamRows(list){return list.map(k=>{const s=memberStats(k),ts=tlist().filter(t=>resp(t)===k&&t.st!=='done');return `<div class="grp"><div class="row" data-x="m_${k}"><div><b>${esc(PN(k))}</b><div class="muted">${s.base} units · ${s.on} on track · ${s.n} need action</div></div>${s.lt||s.es?`<span class="pill p-bad">${s.lt} late · ${s.es} esc.</span>`:'<span class="pill p-ok">on track</span>'}</div>${X['m_'+k]?`<div class="in">${ts.length?ts.map(t=>`<div class="line">${reqHead(t)}</div>`).join(''):'<div class="muted">Nothing open.</div>'}</div>`:''}</div>`}).join('')}
@@ -232,7 +233,7 @@ function viewAudit(){const team=TEAMS.find(t=>t[0]===ME.aud),its=escItems(me);
 // ---------- Salah ----------
 function viewSalah(){const all=TEAMS.flatMap(t=>t[2]);let b=0,on=0;all.forEach(k=>{const s=memberStats(k);b+=s.base;on+=s.on});const its=escItems('salah');
  let h=`<div class="hero"><div class="muted">All homes · today</div><div style="font-size:42px;font-weight:700">${Math.round(100*on/b)}% <span style="font-size:18px">on track</span></div><div class="muted">${b} active cases · ${b-on} need action · ${its.length} escalated to you</div></div>`;
- h+=`<h2>Needs your action · ${its.length}</h2><div class="why" style="margin:-4px 0 8px">Only escalations the audit and Ghandour did not solve reach you.</div>`+(its.length?its.map(escCard).join(''):'<div class="card"><div class="muted">✓ Nothing. Every escalation is being handled.</div></div>');
+ h+=`<h2>Needs your action · ${its.length}</h2><div class="why" style="margin:-4px 0 8px">Escalations the audit and Ghandour did not solve, or a client escalating a second time, reach you.</div>`+(its.length?its.map(escCard).join(''):'<div class="card"><div class="muted">✓ Nothing. Every escalation is being handled.</div></div>');
  h+=`<h2 style="margin-top:14px">Teams</h2><div class="why" style="margin:-4px 0 8px">Tap a team to see its members.</div>`+TEAMS.map(([d,name,list])=>{let b=0,on=0,lt=0,a1=0,a2=0;list.forEach(k=>{const s=memberStats(k);b+=s.base;on+=s.on;lt+=s.lt});tlist().forEach(t=>{if(dep(resp(t))===d){const l=lvl(t);if(l==1)a1++;if(l==2)a2++}});
   return `<div class="grp"><div class="row" data-x="t_${d}"><div><b>${name}</b> · audit ${esc(PN(AUDIT[d]))}<div class="muted">${list.length} members · ${b} cases · ${lt} late · ${a1} with audit · ${a2} with Ghandour</div></div><span class="pill ${on/b>=.95?'p-ok':'p-act'}">${Math.round(100*on/b)}%</span></div>${X['t_'+d]?`<div class="in">${teamRows(list)}</div>`:''}</div>`}).join('');
  return h}
