@@ -139,7 +139,7 @@ function alertBox(){const a=alerts().filter(isMine);if(!a.length)return '';retur
 function mailsBox(){const ms=alerts().filter(a=>a.mail&&(isClientSide()?a.mail.to==S.client:a.mail.to!=S.client));if(!ms.length)return '';return '<div class="card"><h2>Emails sent automatically</h2>'+ms.map(a=>`<div class="email"><div class="h">To ${esc(a.mail.to)}</div><div class="b">${a.mail.b}</div></div>`).join('')+'</div>'}
 const KEY='opdemo4';let S,role='client',tab='overview';
 const $=s=>document.querySelector(s);
-const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/RV?-?? · Type G · Whyt',client:'Karim Fouad',q:'Quotation 1815',scope:'Finishing works'}};
+const UINFO={u1:{code:'OW/RV4-2TB · Whyt',client:'Hesham Adel',q:'Quotation 1505',scope:'Retractable pergola for parking + wood pergola for garden'},u2:{code:'OW/RV2-68-VA · Whyt',client:'Tarek Nabil',q:'Quotation 1423',scope:'Variation order works'},u3:{code:'OW/RV4-15A · Type G · Whyt',client:'Karim Fouad',q:'Quotation 1815',scope:'Finishing works'}};
 // Cases 2 and 3 are already running when the show starts (history only, no typing needed).
 function seedHistory(S){S.paid=true;S.team=true;S.stage=3;S.pay[0].st='Received';S.pay[1].st=S.u=='u2'?'Received':'Scheduled';
  S.files=[{n:'Signed quotation '+S.q+'.pdf',by:'Sales'},{n:'Approved design drawings.pdf',by:'Design'},{n:'Site photos week 45.zip',by:'Site'}];
