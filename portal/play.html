@@ -20,14 +20,32 @@ a{color:#F0B323}
 <body>
 <div class="wrap">
 <h1>O-Plus Client Portal · Role-play</h1>
-<p class="sub">Scan your role with your phone camera. Keep the page open: updates arrive live.</p>
+<p class="sub">Find your name and scan it with your phone camera. Keep the page open: updates arrive live.</p>
 <div class="grid" id="g"></div>
 </div>
 <script>
-const R=[['client','Client','Unit owner'],['family','Family','Can follow, cannot approve'],['sales','Sales','Starts the case'],['head','Head of Projects','Kick-off, escalations, reports'],['design','Designer','Design selections'],['pm','Project Manager','Case owner'],['site','Site Engineer','Site Camera'],['cost','Cost','Prices extra work'],['extra','Head of Extra Work','Releases to site'],['finance','Finance','Cheques and installments'],['time','Timekeeper','Moves time forward']];
+const R=[
+['board','Big screen','Projector laptop · runs the show'],
+['c1','MORCOS','Client Hesham Adel · live'],
+['yara','Yara','Sales · presses Quotation paid'],
+['salah','Salah','Head of Projects · confirms team'],
+['saad','Saad','PM of Hesham'],
+['nouran','Nouran','Designer of Hesham'],
+['sharbagy','Sharbagy','Cost of Hesham and Tarek'],
+['salma','Salma','Finance · cheques'],
+['ghandour','Ghandour','Head of Extra Work · release'],
+['amira','Amira','PM of Tarek'],
+['ali','Ali','Designer of Tarek and Karim'],
+['alaa','Alaa','Cost of Karim'],
+['abugabal','Omar Abu Gabal','PM of Karim · stays silent'],
+['c2','Ashiry','Plays client Tarek · one tap'],
+['c3','Dina','Plays client Karim · one tap'],
+['omark','Omar Khaled','PM manager · gets escalations'],
+['maksoud','Abdelmaksoud','Design manager · sees all'],
+['omar','Omar','Cost manager · sees all']];
 const base=location.href.replace(/play\.html.*$/,'demo.html');
 const g=document.getElementById('g');
-R.forEach(([k,t,s])=>{const url=base+'?role='+k;const d=document.createElement('div');d.className='c';d.innerHTML=`<b>${t}</b><span>${s}</span><div class="q" id="q-${k}"></div><a href="${url}" style="font-size:11px;color:#001641">open</a>`;g.appendChild(d);
+R.forEach(([k,t,s])=>{const url=base+'?p='+k;const d=document.createElement('div');d.className='c';d.innerHTML=`<b>${t}</b><span>${s}</span><div class="q" id="q-${k}"></div><a href="${url}" style="font-size:11px;color:#001641">open</a>`;g.appendChild(d);
  try{new QRCode(document.getElementById('q-'+k),{text:url,width:150,height:150,correctLevel:QRCode.CorrectLevel.M})}catch(e){}});
 </script>
 </body>
