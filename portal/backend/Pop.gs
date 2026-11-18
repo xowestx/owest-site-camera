@@ -10,8 +10,8 @@
  * 4. The POP email goes out from the Sales person's own Outlook (Power Automate flow, subject tag [POP-SEND]),
  *    the client gets the portal welcome from Info.ew, and "Welcome Mail" is ticked in ClickUp.
  *
- * One-time setup: run popSetup() from the editor. It marks every task that is already Paid as old
- * (so no email goes out for them) and starts the 10-minute check.
+ * One-time setup: run popSetup() from the editor. It starts the 10-minute check. Only tasks paid from now on
+ * count: the Payment date must be on or after the setup day (or, with no payment date, the task is new).
  * For reading quotations: in the editor, Services (+) → Drive API → Add.
  */
 
@@ -42,25 +42,30 @@ const POP_F = {
 /* ---------------- setup and the 10-minute check ---------------- */
 
 function popSetup() {
-  const sh = sheet_(POP_TAB, POP_COLS);
-  const known = {};
-  rows_(POP_TAB).forEach(r => known[str_(r['Task ID'])] = 1);
-  const add = cuPaidTasks_().filter(t => !known[t.id]).map(t => [t.id, cuUnit_(t), POP_OLD, '', '', '', '', '', '', '', '', '', '', '']);
-  if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, POP_COLS.length).setValues(add);
+  sheet_(POP_TAB, POP_COLS);
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('POP_START')) props.setProperty('POP_START', String(Date.now()));
+  props.setProperty('POP_CHECKED', String(Date.now() - 3600000));
   if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'popWatch'))
     ScriptApp.newTrigger('popWatch').timeBased().everyMinutes(10).create();
-  try { SpreadsheetApp.getUi().alert(`POP check point is on. ${add.length} tasks that were already Paid are marked as old.`); } catch (e) {}
+  popWatch();
+  try { SpreadsheetApp.getUi().alert('POP check point is on. From now on, ticking Paid in ClickUp starts the POP.'); } catch (e) {}
 }
 
 function popWatch() {
-  if (!PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN')) return;
+  const props = PropertiesService.getScriptProperties();
+  const start = Number(props.getProperty('POP_START') || 0);
+  if (!props.getProperty('CLICKUP_TOKEN') || !start) return; // popSetup() was not run yet
+  const since = Number(props.getProperty('POP_CHECKED') || start) - 15 * 60000, checkedAt = Date.now();
+  const startDay = fmt_(new Date(start - 3 * 86400000), 'yyyy-MM-dd'); // payments up to 3 days before setup count
   const rows = rows_(POP_TAB);
-  if (!rows.length) return; // popSetup() was not run yet: never email for old tasks
   const byId = {};
   rows.forEach(r => byId[str_(r['Task ID'])] = r);
-  cuPaidTasks_().forEach(t => {
+  cuPaidTasks_(since).forEach(t => {
     if (byId[t.id]) return;
-    const f = cuFields_(t);
+    const f = cuFields_(t), pay = f.date(POP_F.payDate);
+    const isNew = pay ? pay >= startDay : Number(t.date_created) >= start;
+    if (!isNew) return; // paid before the check point started
     if (f.check(POP_F.welcome)) { // welcome already sent by hand
       sheet_(POP_TAB, POP_COLS).appendRow([t.id, cuUnit_(t), POP_SKIP, '', '', '', '', '', '', '', '', '', '', '']);
       return;
@@ -68,7 +73,9 @@ function popWatch() {
     const token = newToken_(), sales = popSales_(f.drop(POP_F.sales));
     sheet_(POP_TAB, POP_COLS).appendRow([t.id, cuUnit_(t), POP_WAIT, token, f.text(POP_F.client), f.text(POP_F.email), sales ? sales.name : '', now_(), '', '', '', '', '', '']);
     popNotify_(t.id, cuUnit_(t), token, sales, false);
+    byId[t.id] = 1;
   });
+  props.setProperty('POP_CHECKED', String(checkedAt));
   // one reminder a day later
   const now = Date.now();
   rows.filter(r => str_(r['Status']) === POP_WAIT && !str_(r['Reminded at'])).forEach(r => {
@@ -261,12 +268,11 @@ function cuPost_(path, body) {
   if (r.getResponseCode() >= 300) throw new Error('ClickUp ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
   return JSON.parse(r.getContentText() || '{}');
 }
-/** Every task on the Main Tracking Sheet with Paid ticked. */
-function cuPaidTasks_() {
-  const filter = encodeURIComponent(JSON.stringify([{ field_id: POP_F.paid, operator: '=', value: true }]));
+/** Tasks on the Main Tracking Sheet changed since the given time (ms) with Paid ticked. */
+function cuPaidTasks_(since) {
   const out = [];
-  for (let page = 0; page < 30; page++) {
-    const res = cuGet_(`/list/${POP_LIST}/task?include_closed=true&subtasks=true&page=${page}&custom_fields=${filter}`);
+  for (let page = 0; page < 20; page++) {
+    const res = cuGet_(`/list/${POP_LIST}/task?include_closed=true&page=${page}&date_updated_gt=${Math.floor(since)}&order_by=updated`);
     (res.tasks || []).forEach(t => { if (cuFields_(t).check(POP_F.paid)) out.push(t); });
     if (res.last_page !== false || !(res.tasks || []).length) break;
   }
