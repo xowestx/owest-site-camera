@@ -76,6 +76,7 @@ const SNAG_MAIL_GAP = 1800; // seconds: one email per unit per half hour while a
 function portal_(b) {
   const a = str_(b.action);
   if (a === 'portal.img') return portalImg_(b);
+  if (a.indexOf('pop.') === 0) return popApi_(a, b);
   if (a.indexOf('portal.pm.') === 0) {
     requireAdmin_(b.pmToken);
     if (a === 'portal.pm.home') return pmHome_();
@@ -713,9 +714,14 @@ function pmUnit_(unit) {
 
 function pmInvite_(b) {
   const u = unitInfo_(str_(b.unit));
-  const by = str_(b.by) || 'O West team';
-  const email = str_(b.email) || u.email;
-  const name = str_(b.client) || u.client;
+  inviteClient_(u.unit, str_(b.client) || u.client, str_(b.email) || u.email, str_(b.by) || 'O West team', !!b.send, !!b.newLink);
+  return Object.assign(pmUnit_(u.unit), { sent: !!b.send });
+}
+
+/** Saves the client's private link and, with send, emails the welcome (from Info.ew). Returns the link. */
+function inviteClient_(unit, name, email, by, send, newLink) {
+  const u = { unit: unit };
+  const b = { send: send, newLink: newLink };
   if (b.send && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Add the client email first.');
   let token;
   withLock_(() => {
@@ -745,7 +751,7 @@ function pmInvite_(b) {
     });
     log_(u.unit, 'Portal invitation sent', '', '', '', 'To ' + maskEmail_(email), by, '');
   }
-  return Object.assign(pmUnit_(u.unit), { sent: !!b.send });
+  return link;
 }
 
 function pmUpload_(b) {
@@ -914,7 +920,12 @@ function sitePhotos_(k) {
 function unitInfo_(unit) {
   const k = low_(unit);
   const r = camRows_('Units').find(x => low_(x['Unit']) === k);
-  if (!r) throw new Error('Unit not found: ' + unit);
+  if (!r) {
+    // a new client invited from the POP check point may not be in Site Camera yet
+    const c = rows_(PT.clients).find(x => low_(x['Unit']) === k);
+    if (c) return { unit: str_(c['Unit']), project: '', client: str_(c['Client name']), email: str_(c['Client email']) };
+    throw new Error('Unit not found: ' + unit);
+  }
   return { unit: str_(r['Unit']), project: str_(r['Project']), client: str_(r['Client name']), email: str_(r['Client email']) };
 }
 
