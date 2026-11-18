@@ -1,0 +1,100 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>POP check point · O-Plus</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#001641;--amber:#F0B323;--ink:#1A2238;--muted:#5F677A;--line:#DCDFE6;--bg:#F7F8FB;--card:#fff;--ok:#2F6E4E;--bad:#A8392C;--badbg:#FBEAE7;--okbg:#E6F2EB}
+*{box-sizing:border-box}body{margin:0;font-family:Poppins,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+.hd{background:var(--navy);color:#fff;padding:14px 16px}.hd b{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber)}.hd h1{margin:4px 0 0;font-size:19px}
+.w{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}label i{font-style:normal;font-size:10px;opacity:.8}
+input,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg);font:inherit;color:inherit}
+textarea{min-height:56px}.miss input{border-color:var(--bad);background:var(--badbg)}
+.banner{border-radius:10px;padding:10px 12px;margin-bottom:12px;font-weight:600}.bad{background:var(--badbg);color:var(--bad)}.ok{background:var(--okbg);color:var(--ok)}
+.up{display:block;border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;color:var(--muted);cursor:pointer}.up b{color:var(--ink)}.up.miss{border-color:var(--bad);background:var(--badbg)}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-size:10px;text-transform:uppercase}
+.btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;font:600 15px Poppins,sans-serif;background:var(--ok);color:#fff;cursor:pointer}.btn[disabled]{background:#9aa3b5;cursor:not-allowed}
+.mu{color:var(--muted);font-size:12px}
+</style></head><body>
+<div class="hd"><b>O-Plus · POP check point</b><h1 id="title">Loading…</h1></div>
+<div class="w" id="app"><div class="card mu">Loading…</div></div>
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbw-xsRGbsq-RwQhzx8OclVngxF-tPNwjo8HFiEari0CoXn63w2vD2OtBVDXCBKTHlye/exec";
+const T = (location.hash.match(/t=([\w-]+)/) || [])[1] || "";
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const money = v => v === "" || v == null || isNaN(v) ? "" : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+let V = null, busy = false;
+
+async function api(action, extra) {
+  const r = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ action, t: T }, extra || {})), redirect: "follow", credentials: "omit" });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "Something went wrong");
+  return j;
+}
+
+// [key, label, source]
+const MAIN = [["unit", "Unit", "ClickUp", 1], ["client", "Client name", "ClickUp"], ["email", "Client email", "ClickUp"], ["product", "Product", "ClickUp"],
+  ["amount", "Amount (EGP)", "ClickUp"], ["payDate", "Payment date", "ClickUp"], ["se", "S.E", ""], ["am", "AM (Sales)", "ClickUp", 1], ["pm", "PM", "ClickUp"]];
+const QUOTE = [["quoteNo", "Quotation no.", "quotation"], ["total", "Total incl. VAT", "quotation"], ["dpPct", "Down payment %", "quotation"],
+  ["dpAmount", "Down payment (EGP)", "quotation"], ["months", "Instalments", "quotation"], ["monthly", "Monthly instalment (EGP)", "quotation"]];
+const NEED = { client: "Client name", email: "Client email", amount: "Amount", payDate: "Payment date", product: "Product", pm: "PM" };
+
+function field(f) {
+  const d = V.data, miss = NEED[f[0]] && V.missing.indexOf(NEED[f[0]]) >= 0;
+  return `<div class="${miss ? "miss" : ""}"><label>${f[1]} ${f[2] ? `<i>· ${f[2]}</i>` : ""}</label><input id="f_${f[0]}" value="${esc(d[f[0]] || "")}" ${f[3] || V.status !== "Waiting" ? "readonly" : ""} placeholder="${miss ? "Missing" : ""}"></div>`;
+}
+
+function render() {
+  const d = V.data, sent = V.status !== "Waiting";
+  $("title").textContent = `${d.unit || ""} · ${d.client || ""}`;
+  const q = V.quote || {}, sch = q.schedule || [];
+  let h = sent ? `<div class="banner ok">✓ POP sent${V.sentAt ? " · " + esc(V.sentAt) : ""}. The client got the portal welcome email.</div>`
+    : V.missing.length ? `<div class="banner bad">Missing: ${esc(V.missing.join(", "))}. Fill them, then press Send.</div>`
+    : `<div class="banner ok">Everything is ready. Check it, then press Send.</div>`;
+  h += `<div class="card"><h2>Unit and payment</h2><div class="g">${MAIN.map(field).join("")}</div></div>`;
+  h += `<div class="card"><h2>Signed quotation</h2>`;
+  if (!sent) h += `<label class="up ${V.hasFile ? "" : "miss"}" for="file"><b>${V.hasFile ? "✓ Quotation uploaded · upload again to replace" : "Upload the signed quotation (PDF)"}</b><br>It fills the totals and the cheque schedule for you.</label><input type="file" id="file" accept="application/pdf" hidden>`;
+  h += `<div class="g" style="margin-top:10px">${QUOTE.map(field).join("")}</div>`;
+  if (sch.length) h += `<div class="mu" style="margin:10px 0 4px">Cheque schedule (from the quotation)</div><table><tr><th>Payment</th><th>Amount</th><th>Date</th></tr>${sch.map(s => `<tr><td>${esc(s.label)}</td><td>${money(s.amount)}</td><td>${esc(s.date)}</td></tr>`).join("")}</table>`;
+  h += `</div><div class="card"><h2>Note for finance (optional)</h2><textarea id="f_note" ${sent ? "readonly" : ""} placeholder="e.g. Client paid 10% now and will complete the other 10% next month.">${esc(d.note || "")}</textarea></div>`;
+  if (!sent) h += `<div class="card"><h2>When you press Send</h2><div class="mu">1. The POP goes from <b>your Outlook</b> to the usual finance list, with the quotation attached.<br>2. The client gets the welcome email from <b>Info.ew</b> with the link to their portal.<br>3. ClickUp is updated (Welcome Mail ✓).</div></div>
+    <button class="btn" id="send">Send POP &amp; open the client portal</button>`;
+  $("app").innerHTML = h;
+  const fi = $("file"); if (fi) fi.onchange = upload;
+  const s = $("send"); if (s) s.onclick = send;
+}
+
+function form() {
+  const o = {};
+  MAIN.concat(QUOTE).concat([["note"]]).forEach(f => { const el = $("f_" + f[0]); if (el && !el.readOnly) o[f[0]] = el.value.trim(); });
+  return o;
+}
+
+async function upload(e) {
+  const file = e.target.files[0]; if (!file || busy) return;
+  if (file.type !== "application/pdf") return alert("Please upload a PDF.");
+  busy = true; $("app").insertAdjacentHTML("afterbegin", `<div class="banner ok">Reading the quotation…</div>`);
+  try {
+    const data = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(file); });
+    V = await api("pop.upload", { data, name: file.name }); render();
+  } catch (err) { alert(err.message); render(); } finally { busy = false; }
+}
+
+async function send() {
+  if (busy) return; busy = true;
+  const b = $("send"); b.disabled = true; b.textContent = "Sending…";
+  try { V = await api("pop.send", { form: form() }); render(); window.scrollTo(0, 0); }
+  catch (err) { alert(err.message); b.disabled = false; b.textContent = "Send POP & open the client portal"; }
+  finally { busy = false; }
+}
+
+(async () => {
+  if (!T) { $("app").innerHTML = `<div class="banner bad">This link is not complete. Open it again from the ClickUp comment or the email.</div>`; return; }
+  try { V = await api("pop.get"); render(); }
+  catch (err) { $("title").textContent = "POP check point"; $("app").innerHTML = `<div class="banner bad">${esc(err.message)}</div>`; }
+})();
+</script></body></html>
