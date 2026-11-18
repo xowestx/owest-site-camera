@@ -507,7 +507,7 @@ function makeDaily_(day, send) {
         to: to,
         cc: S['Daily report cc'] || '',
         subject: `${S['Company name'] || 'O-Plus'} · Daily site report · ${day} · ${visits.length} units · ${total} workers`,
-        htmlBody: dailyEmailBody_(day, visits, crew, made),
+        htmlBody: dailyEmailBody_(day, visits, crew, made) + workloadHtml_(day),
         attachments: made.map(m => m.file.getBlob())
       });
     }
@@ -603,6 +603,66 @@ function dailyEmailBody_(day, visits, crew, made) {
     <p><b>Manpower by contractor</b></p><table style="border-collapse:collapse;border:1px solid #ddd">${rows || '<tr><td style="padding:4px 10px">No manpower recorded</td></tr>'}</table>
     <p><b>Engineers</b><br>${Object.keys(eng).map(e => `${esc_(e)}: ${eng[e].length} units`).join('<br>')}</p>
     <p>PDFs attached (${made.length}). Copies are in Drive: ${REPORTS_ROOT} / Daily / ${day}.</p></div>`;
+}
+
+/* ---------- per engineer: his units (ClickUp "Task Owner") vs what was photographed ---------- */
+
+/** Same person written two ways: ClickUp "Seif" / site "SaifAllah Nawar", "Alaa" / "Alaa Negm", "Morcous" / "Morcos". */
+const ENG_ALIAS = { seif: 'saifallah', saif: 'saifallah', morcous: 'morcos', morkos: 'morcos' };
+function engKey_(name) { const w = low_(name).split(/\s+/)[0] || ''; return ENG_ALIAS[w] || w; }
+
+/** { owner: { units:[...], visitedToday:{unit:[by...]}, notToday:[...], never:[...], othersUnits:{unit:[by]} } } */
+function workload_(day) {
+  const own = {};   // display owner name -> Set(units)
+  rows_('ClickUp Tasks').forEach(r => {
+    const u = normUnit_(r['Unit']); if (!u || low_(r['Status']) !== CU.status) return;
+    str_(r['Owner']).split(/\s*,\s*/).forEach(o => {
+      if (!o || o === '-' || low_(o) === 'real estate') return;
+      (own[o] = own[o] || new Set()).add(u);
+    });
+  });
+  const all = closedVisits_(() => true);
+  const ever = {}, today = {};
+  all.forEach(v => {
+    const u = normUnit_(v.unit) || v.unit;
+    ever[u] = true;
+    if (v.date === day) (today[u] = today[u] || []).indexOf(v.by) < 0 && today[u].push(v.by);
+  });
+  const ownerOf = {}; Object.keys(own).forEach(o => own[o].forEach(u => (ownerOf[u] = ownerOf[u] || []).push(engKey_(o))));
+  const out = {};
+  Object.keys(own).sort().forEach(o => {
+    const units = [...own[o]].sort(), k = engKey_(o);
+    const w = { units: units, visited: [], notToday: [], never: [], elsewhere: [] };
+    units.forEach(u => {
+      if (today[u]) w.visited.push({ unit: u, by: today[u].filter(b => engKey_(b) !== k) });
+      else { w.notToday.push(u); if (!ever[u]) w.never.push(u); }
+    });
+    // units he photographed today that are not his
+    Object.keys(today).forEach(u => { if (today[u].some(b => engKey_(b) === k) && units.indexOf(u) < 0) w.elsewhere.push({ unit: u, owner: (ownerOf[u] || []).length ? Object.keys(own).filter(x => own[x].has(u)).join(', ') : 'no owner' }); });
+    out[o] = w;
+  });
+  return out;
+}
+
+function workloadHtml_(day) {
+  let W; try { W = workload_(day); } catch (e) { console.error(e); return ''; }
+  const names = Object.keys(W);
+  if (!names.length) return '<div style="font-family:Arial,sans-serif;font-size:13px;color:#888"><p>Engineer split: not available yet (run "Sync from ClickUp now").</p></div>';
+  const short = u => esc_(u.replace(/^OW\//, ''));
+  const list = a => a.length ? a.map(short).join(' · ') : '—';
+  const rows = names.map(o => {
+    const w = W[o];
+    const vis = w.visited.map(x => short(x.unit) + (x.by.length ? ` <span style="color:#b26a00">(by ${esc_(x.by.join(', '))})</span>` : '')).join(' · ') || '—';
+    const other = w.elsewhere.length ? `<div style="margin-top:4px"><b>Also photographed (not his):</b> ${w.elsewhere.map(x => short(x.unit) + ` <span style="color:#888">(${esc_(x.owner)})</span>`).join(' · ')}</div>` : '';
+    return `<tr><td style="padding:10px;border-top:1px solid #ddd;vertical-align:top">
+      <div style="font-size:15px"><b>${esc_(o)}</b> — ${w.visited.length} of ${w.units.length} units photographed today</div>
+      <div style="margin-top:4px;color:#1f7a4d"><b>✔ Photographed today:</b> ${vis}</div>
+      <div style="margin-top:4px;color:#b3261e"><b>✘ Not photographed today (${w.notToday.length}):</b> ${list(w.notToday)}</div>
+      <div style="margin-top:4px;color:#555"><b>Never photographed since start (${w.never.length}):</b> ${list(w.never)}</div>${other}</td></tr>`;
+  }).join('');
+  return `<div style="font-family:Arial,sans-serif;font-size:13px"><p style="font-size:14px"><b>Engineers · their units (ClickUp Task Owner) · ${day}</b><br>
+    <span style="color:#888">"by …" = photographed by another engineer. "Never" counts from the first day of the site camera.</span></p>
+    <table style="border-collapse:collapse;width:100%;max-width:900px">${rows}</table></div>`;
 }
 
 /* =========================== WEEKLY CLIENT REPORTS =========================== */
@@ -1676,7 +1736,8 @@ const CU = {
     contractor: '8d4a9069-1ade-4b4e-9702-ef05ff3ecf97',
     client: '75747da4-250c-42e7-8d65-98d9d503060f',
     email: 'ecdc4bdb-8444-4074-b32c-cd4c36274f25',
-    mobile: '1707ad3e-025b-457f-a4f3-cf1d7b6b1a7e'
+    mobile: '1707ad3e-025b-457f-a4f3-cf1d7b6b1a7e',
+    owner: 'd7255ee0-9352-4cb6-8e1e-6d412405d400'   // "Task Owner" = site engineer in charge of the unit
   },
   // weekly report button lives only on the private Construction Team list
   team: { list: '901525752325', report: 'dfe137c2-147d-4810-8af3-439514d62fe4', whatsapp: '4180e90a-f5f6-4a54-b010-1aceb35fbd02' },
@@ -1799,7 +1860,7 @@ function syncClickUp_() {
 
 /* ---------- ClickUp task store ("ClickUp Tasks" tab) ---------- */
 const CU_TAB = 'ClickUp Tasks';
-const CU_COLS = ['Unit', 'Task ID', 'Status', 'Client', 'Email', 'Mobile', 'Type', 'Description', 'Contractor', 'Updated', 'Checked'];
+const CU_COLS = ['Unit', 'Task ID', 'Status', 'Client', 'Email', 'Mobile', 'Type', 'Description', 'Contractor', 'Updated', 'Checked', 'Owner'];
 
 /** Compact row from a full ClickUp task object. */
 function cuCompact_(t) {
@@ -1808,7 +1869,8 @@ function cuCompact_(t) {
   return {
     unit: normUnit_(t.name) || str_(t.name), id: str_(t.id), status: str_(t.status && t.status.status),
     client: v(CU.f.client), email: v(CU.f.email), mobile: v(CU.f.mobile), type: dropName_(f[CU.f.requestType]),
-    desc: v(CU.f.description).slice(0, 200), contractor: v(CU.f.contractor), updated: str_(t.date_updated), checked: String(Date.now())
+    desc: v(CU.f.description).slice(0, 200), contractor: v(CU.f.contractor), updated: str_(t.date_updated), checked: String(Date.now()),
+    owner: dropName_(f[CU.f.owner]) || '-'   // '-' = read, no owner set ('' = not read yet by this version)
   };
 }
 
@@ -1820,7 +1882,7 @@ function cuSyncTasks_(token) {
   rows_(CU_TAB).forEach(r => {
     const id = str_(r['Task ID']); if (!id) return;
     byId[id] = { unit: str_(r['Unit']), id: id, status: str_(r['Status']), client: str_(r['Client']), email: str_(r['Email']), mobile: str_(r['Mobile']),
-      type: str_(r['Type']), desc: str_(r['Description']), contractor: str_(r['Contractor']), updated: str_(r['Updated']), checked: str_(r['Checked']) };
+      type: str_(r['Type']), desc: str_(r['Description']), contractor: str_(r['Contractor']), updated: str_(r['Updated']), checked: str_(r['Checked']), owner: str_(r['Owner']) };
   });
   const H = { Authorization: token };
   const props = PropertiesService.getScriptProperties();
@@ -1836,8 +1898,9 @@ function cuSyncTasks_(token) {
     if (j.last_page || !(j.tasks || []).length) break;
   }
   // b) re-read rows never read or not read for 24 h, one task per call, for at most ~2.5 minutes
-  const stale = Object.keys(byId).filter(id => !byId[id].checked || started - Number(byId[id].checked) > 86400000)
-    .sort((a, b) => Number(byId[a].checked || 0) - Number(byId[b].checked || 0));
+  //    (rows without an owner value yet come first, so the engineer split fills in on the first sync)
+  const stale = Object.keys(byId).filter(id => !byId[id].owner || !byId[id].checked || started - Number(byId[id].checked) > 86400000)
+    .sort((a, b) => (byId[a].owner ? 1 : 0) - (byId[b].owner ? 1 : 0) || Number(byId[a].checked || 0) - Number(byId[b].checked || 0));
   for (let i = 0; i < stale.length && Date.now() - started < 150000; i += 25) {
     const ids = stale.slice(i, i + 25);
     const res = UrlFetchApp.fetchAll(ids.map(id => ({ url: `https://api.clickup.com/api/v2/task/${id}`, headers: H, muteHttpExceptions: true })));
@@ -1852,7 +1915,7 @@ function cuSyncTasks_(token) {
   }
   if (incOk) props.setProperty('CU_LAST', String(started));
   const list = Object.keys(byId).map(id => byId[id]).sort((a, b) => (a.unit + a.id).localeCompare(b.unit + b.id));
-  rewrite_(sh, CU_COLS, list.map(t => [t.unit, t.id, t.status, t.client, t.email, t.mobile, t.type, t.desc, t.contractor, t.updated, t.checked]));
+  rewrite_(sh, CU_COLS, list.map(t => [t.unit, t.id, t.status, t.client, t.email, t.mobile, t.type, t.desc, t.contractor, t.updated, t.checked, t.owner || '']));
   CU_UNITS = null;
   return list;
 }
