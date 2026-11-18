@@ -474,7 +474,11 @@ function unitLog_(u, v) {
 /* =========================== DAILY REPORTS =========================== */
 
 /** Scheduled. Also on the sheet menu. */
-function dailyJob() { makeDaily_(fmt_(new Date(), 'yyyy-MM-dd'), true); }
+function dailyJob() {
+  // fresh ClickUp first, so the engineer split in the email is the latest one (sync normally takes a few seconds)
+  try { syncClickUp_(); } catch (e) { console.error('sync before daily: ' + e); }
+  makeDaily_(fmt_(new Date(), 'yyyy-MM-dd'), true);
+}
 
 function makeDaily_(day, send) {
   const S = settings_();
