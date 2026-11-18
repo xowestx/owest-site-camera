@@ -32,7 +32,6 @@
 
 <nav class="tabs" id="tabs" hidden><div class="in">
   <button data-v="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3v-9z"/></svg><span data-t="Home|الرئيسية"></span></button>
-  <button data-v="chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 01-11.6 7.1L4 20l1-4A8 8 0 1120 12z"/></svg><span data-t="Chat|المحادثة"></span><span class="badge" id="chatBadge" hidden></span></button>
   <button data-v="approvals"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg><span data-t="Approvals|الموافقات"></span><span class="badge" id="badge" hidden></span></button>
   <button data-v="concerns"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5z"/></svg><span data-t="Concerns|الاستفسارات"></span></button>
   <button data-v="snags" id="snagTab" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3H8z"/><path d="M8 5H5v16h14V5h-3"/><path d="M9 14l2 2 4-4"/></svg><span data-t="Snags|الاستلام"></span><span class="badge" id="snagBadge" hidden></span></button>
@@ -55,7 +54,7 @@ function start() {
     else token = localStorage.getItem("oplus_t") || "";
   } catch (e) { if (m) token = m[1]; }
   // the link stays in the address bar: "Add to Home Screen" on an iPhone saves this exact address
-  if (/[#&]v=chat/.test(location.hash)) view = "chat";
+  // chat removed (team meeting 17 Nov): no Chat tab
   if (token) history.replaceState(null, "", location.pathname + "#t=" + token);
   if (!token) return fail(L("Please open the portal from the link in your email.", "برجاء فتح البوابة من الرابط المرسل في بريدك الإلكتروني."));
   $("view").innerHTML = `<div class="center">${L("Loading your portal…", "جاري التحميل…")}</div>`;
@@ -110,7 +109,7 @@ document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.da
 function go(v, extra) { view = v; if (extra) Object.assign(window, extra); render(); scrollTo(0, 0); }
 
 function render() {
-  if (view === "chat") return openChat();
+  if (view === "chat") view = "home";
   if (Chat.isOpen()) Chat.close();
   $("tabs").hidden = false;
   $("unitLine").textContent = L("Client portal", "بوابة العميل") + " · " + D.unit;
@@ -121,9 +120,8 @@ function render() {
   const snags = D.snags || [], showSnags = snags.length > 0 || (D.status && D.status.stage >= 4);
   $("snagTab").hidden = !showSnags;
   const un = D.chatUnread || 0;
-  $("chatBadge").hidden = !un; $("chatBadge").textContent = un;
   try { if (navigator.setAppBadge) un + p ? navigator.setAppBadge(un + p) : navigator.clearAppBadge(); } catch (e) {}
-  document.querySelector("#tabs .in").style.gridTemplateColumns = `repeat(${showSnags ? 6 : 5},minmax(0,1fr))`;
+  document.querySelector("#tabs .in").style.gridTemplateColumns = `repeat(${showSnags ? 5 : 4},minmax(0,1fr))`;
   const chk = snags.filter(x => x.status === "Fixed").length;
   $("snagBadge").hidden = !chk; $("snagBadge").textContent = chk;
   const tab = { item: back === "selections" ? "home" : back, selections: "home", concern: "concerns", snag: "snags", cert: "home", docs: "home" }[view] || view;
@@ -142,7 +140,7 @@ const VIEWS = {
         <div><div class="eyebrow m">${L("Progress", "نسبة الإنجاز")}</div><div class="big">${s.poc == null ? "—" : s.poc + "%"}</div></div>
         <div><div class="eyebrow m">${L("Handover", "التسليم")}</div><div class="v">${s.handover ? when(s.handover, true) : "—"}</div></div>
         <div><div class="eyebrow m">${L("PM", "مدير المشروع")}</div><div class="v">${esc(s.pm || D.pm || "—")}</div></div>
-      </div>` + stepper(s.stage) + installBanner() + chatCard() +
+      </div>` + stepper(s.stage) + installBanner() +
       (ct && ct.status === "Sent for signature" ? `<button class="cta" data-go="cert"><span><span class="eyebrow">${L("Handover", "التسليم")}</span><b>${L("Your handover certificate is ready to sign", "شهادة الاستلام جاهزة للتوقيع")}</b><span class="small muted">${L("Review it and sign with an email code", "راجعها ووقّع بكود عبر البريد الإلكتروني")}</span></span>${CHEV}</button>` : "") +
       (p ? `<button class="cta" data-go="approvals" data-filter="Sent for approval"><span><span class="eyebrow">${L("Action needed", "مطلوب منك")}</span><b>${L(`${p} item${p > 1 ? "s" : ""} need${p > 1 ? "" : "s"} your approval`, `${p} بند بانتظار موافقتك`)}</b><span class="small muted">${L("Approve, or tell us what to change", "وافق، أو أخبرنا بما تريد تعديله")}</span></span>${CHEV}</button>` : "") +
       (f ? `<button class="cta" data-go="snags" data-sfilter="Fixed"><span><span class="eyebrow">${L("Snag list", "ملاحظات الاستلام")}</span><b>${L(`${f} fix${f > 1 ? "es" : ""} ready for your check`, `${f} إصلاح جاهز لمراجعتك`)}</b><span class="small muted">${L("See the after photo and confirm", "شاهد صورة ما بعد الإصلاح وأكّد")}</span></span>${CHEV}</button>` : "") +
