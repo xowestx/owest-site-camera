@@ -3,10 +3,11 @@
  *
  * Flow:
  * 1. Sales ticks "Paid" on the unit's task in ClickUp (Main Tracking Sheet).
- * 2. popWatch (every 10 minutes) sees it, posts a comment on the task and emails the Sales person a link
+ * 2. popWatch (every few minutes) sees it, posts a comment on the task and emails the Sales person a link
  *    to the check point page (portal/pop.html).
  * 3. On the page Sales uploads the signed quotation (it fills the totals and cheque schedule),
  *    fills anything missing and presses Send.
+ *    Sales can add other attachments too (proof of payment, signed papers, saved Outlook emails).
  * 4. The POP email goes out from the Sales person's own Outlook (Power Automate flow, subject tag [POP-SEND]),
  *    the client gets the portal welcome from Info.ew, and "Welcome Mail" is ticked in ClickUp.
  *
@@ -17,7 +18,8 @@
 
 const POP_TAB = 'Portal POP';
 const POP_COLS = ['Task ID', 'Unit', 'Status', 'Token', 'Client', 'Client email', 'Sales', 'Notified at', 'Reminded at',
-  'Quote file ID', 'Quote data', 'Form', 'Sent at', 'Sent by'];
+  'Quote file ID', 'Quote data', 'Form', 'Sent at', 'Sent by', 'Extra files'];
+const POP_EXTRA_MAX = 18 * 1024 * 1024; // all attachments together must fit in one email
 const POP_LIST = '1201250000001676'; // ClickUp: O-Plus › Projects Pipeline & Teams › Main Tracking Sheet
 const POP_PAGE = PORTAL_URL + 'pop.html';
 const POP_TAG = '[POP-SEND]';
@@ -94,8 +96,9 @@ function popNotify_(taskId, unit, token, sales, reminder) {
     cuPost_(`/task/${taskId}/comment`, { comment_text: `${head}\nComplete the POP check point (upload the signed quotation, check the data, press Send):\n${link}`, notify_all: true });
   } catch (e) { console.error(e); }
   if (sales && sales.email) {
-    MailApp.sendEmail({
-      to: sales.email, name: 'O-Plus Client Portal', subject: `${reminder ? 'Reminder: ' : ''}Complete the POP · ${unit}`,
+    // through the Info.ew relay: arrives inside the company at once, with no "external email" banner
+    sendClientMail_({
+      to: sales.email, subject: `${reminder ? 'Reminder: ' : ''}Complete the POP · ${unit}`.replace(/\|/g, '/'),
       htmlBody: mailHtml_('O-PLUS · POP CHECK POINT', head, [
         `Dear ${sales.name.split(' ')[0]},`,
         'Upload the signed quotation, check the data, then press Send. The POP goes out from your Outlook and the client gets the welcome email with the portal link.'
@@ -107,12 +110,15 @@ function popNotify_(taskId, unit, token, sales, reminder) {
 /* ---------------- API for pop.html (by token) ---------------- */
 
 function popApi_(a, b) {
+  popCols_();
   const ref = findRow_(POP_TAB, POP_COLS, 'Token', str_(b.t));
   if (!ref || str_(b.t).length < 20) throw new Error('This link is not valid.');
   if (a === 'pop.get') return popView_(ref);
   if (str_(ref.obj['Status']) !== POP_WAIT) throw new Error('This POP was already sent.');
   if (a === 'pop.upload') return popUpload_(ref, b);
   if (a === 'pop.send') return popSend_(ref, b);
+  if (a === 'pop.extra') return popExtra_(ref, b);
+  if (a === 'pop.extraDel') return popExtraDel_(ref, b);
   throw new Error('Unknown action.');
 }
 
@@ -149,7 +155,35 @@ function popMissing_(x) {
 
 function popView_(ref) {
   const x = popData_(ref);
-  return { status: x.status, data: x.d, fromClickUp: x.cu, quote: x.q, hasFile: x.hasFile, sales: x.sales, missing: popMissing_(x), sentAt: dt_(ref.obj['Sent at']) };
+  return { status: x.status, data: x.d, fromClickUp: x.cu, quote: x.q, hasFile: x.hasFile, sales: x.sales, missing: popMissing_(x), sentAt: dt_(ref.obj['Sent at']),
+    extras: popExtras_(ref).map(e => ({ id: e.id, name: e.name, size: e.size })) };
+}
+
+/* Other attachments (proof of payment, signed papers, saved Outlook emails ...): they go with the POP only, never to the client. */
+function popCols_() { // adds columns that came after the tab was made
+  const sh = sheet_(POP_TAB, POP_COLS), h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(x => String(x).trim());
+  POP_COLS.forEach(c => { if (h.indexOf(c) < 0) { h.push(c); sh.getRange(1, h.length).setValue(c).setFontWeight('bold'); } });
+}
+function popExtras_(ref) { try { return JSON.parse(str_(ref.obj['Extra files']) || '[]'); } catch (e) { return []; } }
+function popExtra_(ref, b) {
+  const data = str_(b.data), name = str_(b.name).replace(/[\\/|]/g, '-').slice(0, 120) || 'attachment';
+  if (!data || data.length > DOC_MAX_B64) throw new Error('Each file can be up to 15 MB.');
+  const bytes = Utilities.base64Decode(data), list = popExtras_(ref);
+  const quote = str_(ref.obj['Quote file ID']) ? DriveApp.getFileById(str_(ref.obj['Quote file ID'])).getSize() : 0;
+  const used = list.reduce((n, e) => n + Number(e.size || 0), quote);
+  if (used + bytes.length > POP_EXTRA_MAX) throw new Error('All the attachments together must stay under 18 MB (one email). Remove a file or send a smaller one.');
+  const type = str_(b.type) || (/\.msg$/i.test(name) ? 'application/vnd.ms-outlook' : /\.eml$/i.test(name) ? 'message/rfc822' : 'application/octet-stream');
+  const unit = str_(ref.obj['Unit']);
+  const file = folderPath_([PORTAL_ROOT, safeUnit_(unit), 'POP']).createFile(Utilities.newBlob(bytes, type, name));
+  list.push({ id: file.getId(), name: name, size: bytes.length });
+  setCells_(ref, { 'Extra files': JSON.stringify(list) }); ref.obj['Extra files'] = JSON.stringify(list);
+  return popView_(ref);
+}
+function popExtraDel_(ref, b) {
+  const list = popExtras_(ref), keep = list.filter(e => e.id !== str_(b.id));
+  list.filter(e => e.id === str_(b.id)).forEach(e => { try { DriveApp.getFileById(e.id).setTrashed(true); } catch (x) {} });
+  setCells_(ref, { 'Extra files': JSON.stringify(keep) }); ref.obj['Extra files'] = JSON.stringify(keep);
+  return popView_(ref);
 }
 
 function popUpload_(ref, b) {
@@ -175,12 +209,11 @@ function popSend_(ref, b) {
   if (miss.length) throw new Error('Still missing: ' + miss.join(', '));
   const file = DriveApp.getFileById(str_(ref.obj['Quote file ID']));
 
-  // 1) POP from the Sales person's Outlook (their Power Automate flow takes the part between the markers)
+  // 1) POP from the Sales person's Outlook. The ready POP goes to the Sales person from Info.ew (inside the
+  //    company, so it arrives at once); their Power Automate flow sends it on to finance and deletes it.
   const subject = `${d.unit} ${d.product} POP`.replace(/\|/g, '/');
-  MailApp.sendEmail({
-    to: x.sales.email, name: 'O-Plus Client Portal', subject: `${POP_TAG} | ${subject}`,
-    htmlBody: RELAY_START + popHtml_(d, x.sales) + RELAY_END, attachments: [file.getBlob()]
-  });
+  const files = [file.getBlob()].concat(popExtras_(ref).map(e => DriveApp.getFileById(e.id).getBlob().setName(e.name)));
+  sendClientMail_({ to: x.sales.email, subject: `${POP_TAG} ${subject}`, htmlBody: popHtml_(d, x.sales), attachments: files });
 
   // 2) client portal + welcome email from Info.ew
   inviteClient_(d.unit, d.client, d.email, d.pm || x.sales.name, true, false);
