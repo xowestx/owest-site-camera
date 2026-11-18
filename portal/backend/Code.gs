@@ -46,6 +46,11 @@ const PT = { clients: 'Portal Clients', items: 'Portal Items', concerns: 'Portal
 const PORTAL_URL = 'https://xowestx.github.io/owest-site-camera/portal/';
 const PORTAL_ASSETS = 'https://xowestx.github.io/owest-site-camera/portal/assets/';
 const PORTAL_ROOT = 'O West Client Portal';
+// Client emails go out from the shared mailbox Info.ew through a Power Automate flow on Alaa's account.
+// The portal emails this relay; the flow forwards only the part between the markers.
+// Set CLIENT_MAIL_RELAY to '' to send straight from this Google account instead.
+const CLIENT_MAIL_RELAY = 'Alaa.Nashaat@orascomre.com';
+const RELAY_TAG = '[PORTAL-WELCOME]', RELAY_START = '[[OPLUS-START]]', RELAY_END = '[[OPLUS-END]]';
 const PC_HEADERS = ['Unit', 'Client name', 'Client email', 'Token', 'Invited at', 'Invited by', 'Last opened'];
 const PI_HEADERS = ['Item ID', 'Unit', 'Type', 'Title', 'Details', 'Photo IDs', 'Version', 'Replaces', 'Status', 'Sent at', 'Sent by', 'Decided at', 'Decided by', 'Reason'];
 const PCN_HEADERS = ['Concern ID', 'Unit', 'Subject', 'Status', 'Opened at', 'Updated at'];
@@ -727,8 +732,8 @@ function pmInvite_(b) {
   });
   const link = PORTAL_URL + '#t=' + token;
   if (b.send) {
-    MailApp.sendEmail({
-      to: email, name: 'O West Extra Works',
+    sendClientMail_({
+      to: email,
       subject: `Your O-Plus client portal · ${u.unit}`,
       htmlBody: mailHtml_('O-PLUS · CLIENT PORTAL', 'Your unit now has its own portal', [
         `Dear ${name || 'Client'},`,
@@ -1015,6 +1020,18 @@ function notifyTeam_(subject, eyebrow, title, lines) {
 }
 
 /** One branded email layout: navy band, eyebrow, title, amber bar, lines, one button. */
+// Sends a client-facing email. With a relay set, the email goes to the relay with the
+// subject "[PORTAL-WELCOME] | to | subject" and the body between the markers.
+function sendClientMail_(m) {
+  const to = str_(m.to);
+  if (!to || to.indexOf('|') >= 0 || String(m.subject).indexOf('|') >= 0) throw new Error('Bad email address or subject.');
+  const mail = CLIENT_MAIL_RELAY
+    ? { to: CLIENT_MAIL_RELAY, name: 'O-Plus Client Portal', subject: `${RELAY_TAG} | ${to} | ${m.subject}`, htmlBody: RELAY_START + m.htmlBody + RELAY_END }
+    : { to: to, name: 'O-Plus', subject: m.subject, htmlBody: m.htmlBody };
+  if (m.attachments && m.attachments.length) mail.attachments = m.attachments;
+  MailApp.sendEmail(mail);
+}
+
 function mailHtml_(eyebrow, title, lines, button) {
   const p = lines.map(l => `<p style="margin:0 0 12px;font-size:14px;line-height:22px;color:#1A2238">${esc_(l)}</p>`).join('');
   const btn = button ? `<a href="${esc_(button.url)}" style="display:inline-block;background:#001641;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:8px;margin:6px 0 16px">${esc_(button.label)}</a>` : '';
