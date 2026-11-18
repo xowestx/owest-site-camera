@@ -18,6 +18,7 @@ textarea{min-height:56px}.miss input{border-color:var(--bad);background:var(--ba
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-size:10px;text-transform:uppercase}
 .btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;font:600 15px Poppins,sans-serif;background:var(--ok);color:#fff;cursor:pointer}.btn[disabled]{background:#9aa3b5;cursor:not-allowed}
 .mu{color:var(--muted);font-size:12px}
+.ex{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}.ex span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ex button{border:0;background:none;color:var(--bad);font-size:16px;cursor:pointer;padding:0 4px}
 </style></head><body>
 <div class="hd"><b>O-Plus · POP check point</b><h1 id="title">Loading…</h1></div>
 <div class="w" id="app"><div class="card mu">Loading…</div></div>
@@ -60,11 +61,17 @@ function render() {
   if (!sent) h += `<label class="up ${V.hasFile ? "" : "miss"}" for="file"><b>${V.hasFile ? "✓ Quotation uploaded · upload again to replace" : "Upload the signed quotation (PDF)"}</b><br>It fills the totals and the cheque schedule for you.</label><input type="file" id="file" accept="application/pdf" hidden>`;
   h += `<div class="g" style="margin-top:10px">${QUOTE.map(field).join("")}</div>`;
   if (sch.length) h += `<div class="mu" style="margin:10px 0 4px">Cheque schedule (from the quotation)</div><table><tr><th>Payment</th><th>Amount</th><th>Date</th></tr>${sch.map(s => `<tr><td>${esc(s.label)}</td><td>${money(s.amount)}</td><td>${esc(s.date)}</td></tr>`).join("")}</table>`;
+  const ex = V.extras || [];
+  h += `</div><div class="card"><h2>Other attachments (optional)</h2><div class="mu" style="margin-bottom:8px">Proof of payment, signed papers, photos, or an Outlook email (drag it from Outlook to your desktop, then add the file). They go with the POP only. The client does not see them.</div>`;
+  h += ex.length ? ex.map(e => `<div class="ex"><span>📎 ${esc(e.name)}</span><span class="mu" style="flex:none">${kb(e.size)}</span>${sent ? "" : `<button data-del="${esc(e.id)}" title="Remove">✕</button>`}</div>`).join("") : (sent ? `<div class="mu">None</div>` : "");
+  if (!sent) h += `<label class="up" for="extra" style="margin-top:10px"><b>+ Add files</b><br>PDF, photos, Word, Excel or Outlook emails (.msg)</label><input type="file" id="extra" multiple hidden>`;
   h += `</div><div class="card"><h2>Note for finance (optional)</h2><textarea id="f_note" ${sent ? "readonly" : ""} placeholder="e.g. Client paid 10% now and will complete the other 10% next month.">${esc(d.note || "")}</textarea></div>`;
-  if (!sent) h += `<div class="card"><h2>When you press Send</h2><div class="mu">1. The POP goes from <b>your Outlook</b> to the usual finance list, with the quotation attached.<br>2. The client gets the welcome email from <b>Info.ew</b> with the link to their portal.<br>3. ClickUp is updated (Welcome Mail ✓).</div></div>
+  if (!sent) h += `<div class="card"><h2>When you press Send</h2><div class="mu">1. The POP goes from <b>your Outlook</b> to the usual finance list, with the quotation and the other attachments.<br>2. The client gets the welcome email from <b>Info.ew</b> with the link to their portal.<br>3. ClickUp is updated (Welcome Mail ✓).</div></div>
     <button class="btn" id="send">Send POP &amp; open the client portal</button>`;
   $("app").innerHTML = h;
   const fi = $("file"); if (fi) fi.onchange = upload;
+  const xi = $("extra"); if (xi) xi.onchange = addExtra;
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => delExtra(b.dataset.del));
   const s = $("send"); if (s) s.onclick = send;
 }
 
@@ -82,6 +89,25 @@ async function upload(e) {
     const data = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(file); });
     V = await api("pop.upload", { data, name: file.name }); render();
   } catch (err) { alert(err.message); render(); } finally { busy = false; }
+}
+
+const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+const b64 = file => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(file); });
+
+async function addExtra(e) {
+  const files = Array.from(e.target.files || []); if (!files.length || busy) return;
+  busy = true;
+  try {
+    for (const f of files) {
+      $("app").insertAdjacentHTML("afterbegin", `<div class="banner ok">Adding ${esc(f.name)}…</div>`);
+      V = await api("pop.extra", { data: await b64(f), name: f.name, type: f.type }); render();
+    }
+  } catch (err) { alert(err.message); render(); } finally { busy = false; }
+}
+
+async function delExtra(id) {
+  if (busy) return; busy = true;
+  try { V = await api("pop.extraDel", { id }); render(); } catch (err) { alert(err.message); } finally { busy = false; }
 }
 
 async function send() {
