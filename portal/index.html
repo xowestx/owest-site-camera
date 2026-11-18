@@ -108,8 +108,18 @@ const plural = (n, en1, enN, ar) => AR() ? `${n} ${ar}` : `${n} ${n === 1 ? en1 
 document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
 function go(v, extra) { view = v; if (extra) Object.assign(window, extra); render(); scrollTo(0, 0); }
 
+// Welcome only (Morcos, 18 Nov): the client sees his request and who will contact him. No actions yet.
+const WELCOME_ONLY = true;
+
 function render() {
   if (view === "chat") view = "home";
+  if (WELCOME_ONLY) {
+    $("tabs").hidden = true;
+    $("unitLine").textContent = L("Client portal", "بوابة العميل") + " · " + D.unit;
+    $("clientLine").textContent = D.client || "";
+    $("view").innerHTML = welcomeView() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span class="ltr">${esc(D.unit)}</span></div>`;
+    return;
+  }
   if (Chat.isOpen()) Chat.close();
   $("tabs").hidden = false;
   $("unitLine").textContent = L("Client portal", "بوابة العميل") + " · " + D.unit;
@@ -129,6 +139,28 @@ function render() {
   $("view").innerHTML = (VIEWS[view] || VIEWS.home)() + `<div class="foot"><span><b>O-PLUS</b> · O West by Orascom Development</span><span class="ltr">${esc(D.unit)}</span></div>`;
   bind();
   loadImages($("view"), auth());
+}
+
+function welcomeView() {
+  const r = D.request || {}, s = D.status || {}, pm = r.pm || s.pm || D.pm || "";
+  const row = (k, v) => v ? `<div class="row" style="cursor:default"><span class="col"><span class="s">${k}</span><span class="t">${esc(v)}</span></span></div>` : "";
+  return head(L("O-Plus · Welcome", "O-Plus · أهلاً بك"), L("Dear ", "عزيزنا ") + esc(D.client || L("client", "العميل")),
+      L("Thank you for choosing O-Plus. Your request is confirmed and your unit now has its own page.", "شكراً لاختيارك O-Plus. تم تأكيد طلبك وأصبحت لوحدتك صفحة خاصة بها.")) +
+    `<div class="eyebrow" style="margin:4px 0 8px">${L("Your request", "طلبك")}</div>
+    <div class="rows">
+      ${row(L("Unit", "الوحدة"), D.unit)}
+      ${row(L("Project", "المشروع"), D.project)}
+      ${row(L("Request", "الطلب"), r.product)}
+      ${row(L("Your project manager", "مدير المشروع"), pm)}
+      ${row(L("Your account manager", "مسؤول المبيعات"), r.sales)}
+    </div>
+    <div class="card" style="margin-top:16px;padding:16px;cursor:default;text-align:start">
+      <b>${L("What happens next", "الخطوة القادمة")}</b>
+      <p class="muted" style="margin:8px 0 0;line-height:1.6">${pm
+        ? L(`${esc(pm)}, your project manager, will contact you shortly to agree the start of the works, as soon as possible and within the agreed execution time.`, `سيتواصل معك ${esc(pm)}، مدير المشروع، قريباً للاتفاق على بدء الأعمال في أقرب وقت وفي حدود مدة التنفيذ المتفق عليها.`)
+        : L("Your project manager will contact you shortly to agree the start of the works, as soon as possible and within the agreed execution time.", "سيتواصل معك مدير المشروع قريباً للاتفاق على بدء الأعمال في أقرب وقت وفي حدود مدة التنفيذ المتفق عليها.")}</p>
+      <p class="muted" style="margin:8px 0 0;line-height:1.6">${L("As the works move forward, this page will show your unit's progress, documents and site photos.", "مع تقدم الأعمال، ستعرض هذه الصفحة نسبة الإنجاز والمستندات وصور الموقع الخاصة بوحدتك.")}</p>
+    </div>`;
 }
 
 const VIEWS = {

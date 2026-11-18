@@ -152,8 +152,19 @@ function clientView_(c) {
     email: maskEmail_(c.email), status: unitStatus_(c.unit),
     items: unitItems_(c.unit).filter(x => x.status !== S_OLD),
     concerns: unitConcerns_(c.unit), snags: unitSnags_(c.unit), certs: unitCerts_(c.unit), docs: unitDocs_(c.unit),
-    history: unitLog_(c.unit), chatUnread: chatUnread_(c.unit, 'client')
+    history: unitLog_(c.unit), chatUnread: chatUnread_(c.unit, 'client'),
+    request: clientRequest_(c.unit)
   };
+}
+
+/** The client's request from the POP the Sales person sent (welcome page). Only the request, no prices. */
+function clientRequest_(unit) {
+  try {
+    const q = typeof unitQuote_ === 'function' ? unitQuote_(unit) : null;
+    if (!q) return null;
+    const f = q.fields || {};
+    return { product: str_(f.product), sales: str_(f.am), pm: str_(f.pm) };
+  } catch (e) { console.error(e); return null; }
 }
 
 function clientCode_(c, b) {
