@@ -57,6 +57,14 @@ function doPost(e) {
     if (b.action === 'report') return json_(Object.assign({ ok: true }, report_(b)));
     if (b.action === 'login') return json_(Object.assign({ ok: true }, login_(b)));
     if (b.action === 'sync') { requireAdmin_(b.token); return json_(Object.assign({ ok: true }, syncClickUp_())); }
+    if (b.action === 'pinLogin') return json_(Object.assign({ ok: true }, pinLogin_(b)));
+    if (b.action === 'team') return json_({ ok: true, people: teamPeople_().filter(p => p.active).map(p => p.name) });
+    if (/^(home|unitInfo|visitPhotos|mgr|comments|comment|reply|commentClose|commentReopen)$/.test(b.action)) {
+      const me = requirePerson_(b.token);
+      const fn = { home: home_, unitInfo: unitInfo_, visitPhotos: visitPhotos_, mgr: mgrHome_, comments: commentsList_,
+        comment: addComment_, reply: replyComment_, commentClose: closeComment_, commentReopen: reopenComment_ }[b.action];
+      return json_(Object.assign({ ok: true }, fn(b, me)));
+    }
     if (b.action === 'dashLogin') return json_(Object.assign({ ok: true }, dashLogin_(b)));
     if (b.action === 'dash') { requireDash_(b.token); return json_(Object.assign({ ok: true }, dash_(b))); }
     if (b.action === 'dashPhotos') { requireDash_(b.token); return json_(Object.assign({ ok: true }, dashPhotos_(b))); }
@@ -744,6 +752,292 @@ function writeWorkloadTab_(tasks) {
   money.forEach(n => sh.getRange(n, 4, 1, 2).setNumberFormat('#,##0'));
   sh.getRange(1, 1).setFontSize(13);
   [12, 30, 18, 18, 10, 16, 14].forEach((w, i) => sh.setColumnWidth(i + 1, w * 8));
+}
+
+/* =========================== TEAM: engineers + managers (team.html) =========================== */
+/* "Team" tab: Name (as on the site) | Role (Engineer / Manager) | ClickUp name (Task Owner) | Active | PIN.
+   PINs are kept as hashes in Script Properties; the PIN column only says when one was set.
+   ClickUp is the master: an engineer's units are the Site Execution tasks whose Task Owner is him. */
+const TEAM_TAB = 'Team', TEAM_COLS = ['Name', 'Role', 'ClickUp name', 'Active', 'PIN'];
+const COMMENTS_TAB = 'Comments';
+const COMMENT_COLS = ['ID', 'Created', 'Unit', 'Visit ID', 'From', 'To', 'Text', 'Status', 'Parent', 'ClickUp', 'Updated', 'Closed by', 'Closed with visit'];
+
+function teamPeople_() {
+  const sh = sheet_(TEAM_TAB, TEAM_COLS);
+  if (sh.getLastRow() < 2) {   // first use: seed from what we know
+    sh.getRange(2, 1, 11, 4).setValues([
+      ['Mohamed Emira', 'Manager', '', 'Yes'], ['Omar Sheir', 'Manager', '', 'Yes'], ['Morcos', 'Manager', 'Morcos', 'Yes'],
+      ['Saad Ali', 'Manager', 'Saad Ali', 'Yes'], ['Admin', 'Manager', '', 'Yes'],
+      ['Alaa Negm', 'Engineer', 'Alaa', 'Yes'], ['SaifAllah Nawar', 'Engineer', 'Seif', 'Yes'], ['David', 'Engineer', 'David', 'Yes'],
+      ['Omar AbuGabal', 'Engineer', 'Omar AbuGabal', 'Yes'], ['Sakr', 'Engineer', 'Sakr', 'Yes'], ['Khaled Salah', 'Engineer', 'Khaled Salah', 'Yes']]);
+  }
+  return rows_(TEAM_TAB).filter(r => str_(r['Name'])).map(r => ({
+    name: str_(r['Name']), manager: low_(r['Role']) === 'manager', cu: str_(r['ClickUp name']) || str_(r['Name']),
+    active: low_(r['Active']) !== 'no' }));
+}
+
+/** Team login keys live apart from the manager password, so changing that password does not log the team out. */
+function teamSecret_(k) {
+  const props = PropertiesService.getScriptProperties();
+  let v = props.getProperty(k);
+  if (!v) { v = Utilities.getUuid() + Utilities.getUuid(); props.setProperty(k, v); }
+  return v;
+}
+function teamSign_(v) { return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(v, teamSecret_('TEAM_SECRET'))).replace(/=+$/, ''); }
+
+function pinKey_(name) { return 'PIN_' + Utilities.base64EncodeWebSafe(low_(name)).replace(/=+$/, ''); }
+
+function pinLogin_(b) {
+  const name = str_(b.name), pin = str_(b.pin);
+  const p = teamPeople_().find(x => x.active && low_(x.name) === low_(name));
+  if (!p) throw new Error('الاسم ده مش في الفريق.');
+  const cache = CacheService.getScriptCache(), ck = 'pinFails:' + low_(name);
+  const fails = Number(cache.get(ck) || 0);
+  if (fails >= 6) throw new Error('محاولات كتير غلط. استنى 10 دقايق.');
+  const props = PropertiesService.getScriptProperties(), saved = props.getProperty(pinKey_(name));
+  if (!saved) throw new Error('مفيش PIN متسجل للاسم ده. كلم الأدمن.');
+  if (sha_(pin + '|' + low_(name) + '|' + teamSecret_('PIN_SALT')) !== saved) {
+    cache.put(ck, String(fails + 1), 600); throw new Error('الـ PIN غلط.');
+  }
+  cache.remove(ck);
+  const exp = Date.now() + 60 * 86400000, nm = Utilities.base64EncodeWebSafe(p.name).replace(/=+$/, '');
+  const v = 'u' + exp + '.' + nm;
+  return { token: v + '.' + teamSign_(v), name: p.name, manager: p.manager, expires: exp };
+}
+
+/** Who is calling. A manager token from the old "Extra reports" code also works, as Admin. */
+function requirePerson_(token) {
+  const t = str_(token), bad = () => { const e = new Error('ادخل تاني بالـ PIN.'); e.code = 'auth'; return e; };
+  if (t.charAt(0) !== 'u') { requireAdmin_(t); return { name: 'Admin', manager: true, cu: 'Admin' }; }
+  const parts = t.split('.');
+  if (parts.length !== 3 || teamSign_(parts[0] + '.' + parts[1]) !== parts[2] || Number(parts[0].slice(1)) < Date.now()) throw bad();
+  const name = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString();
+  const p = teamPeople_().find(x => x.active && x.name === name);
+  if (!p) throw bad();
+  return p;
+}
+
+function menuSetPin() {
+  const ui = SpreadsheetApp.getUi();
+  const people = teamPeople_();
+  const a = ui.prompt('Set a PIN', 'Name exactly as in the Team tab:\n' + people.map(p => p.name).join(', '), ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const p = people.find(x => low_(x.name) === low_(a.getResponseText()));
+  if (!p) return ui.alert('Not in the Team tab.');
+  const b = ui.prompt('PIN for ' + p.name, '4 to 8 digits.', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const pin = b.getResponseText().trim();
+  if (!/^\d{4,8}$/.test(pin)) return ui.alert('Use 4 to 8 digits.');
+  savePin_(p.name, pin);
+  ui.alert('PIN saved for ' + p.name + '.');
+}
+
+/** Gives a random 4-digit PIN to everyone who has none, and shows the list once. */
+function menuMakePins() {
+  const ui = SpreadsheetApp.getUi(), props = PropertiesService.getScriptProperties();
+  const made = [];
+  teamPeople_().filter(p => p.active && !props.getProperty(pinKey_(p.name))).forEach(p => {
+    const pin = String(1000 + Math.floor(Math.random() * 9000)); savePin_(p.name, pin); made.push(p.name + ': ' + pin);
+  });
+  ui.alert(made.length ? 'New PINs (copy them now, they are not shown again):\n\n' + made.join('\n') : 'Everyone already has a PIN. Use "Set a PIN" to change one.');
+}
+
+function savePin_(name, pin) {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(pinKey_(name), sha_(pin + '|' + low_(name) + '|' + teamSecret_('PIN_SALT')));
+  const sh = sheet_(TEAM_TAB, TEAM_COLS), v = sh.getDataRange().getValues();
+  for (let i = 1; i < v.length; i++) if (low_(v[i][0]) === low_(name)) sh.getRange(i + 1, 5).setValue('set ' + fmt_(new Date(), 'yyyy-MM-dd'));
+}
+
+/* ----- shared data ----- */
+
+/** Site Execution units from ClickUp: unit -> {client, owners[], pms[], reqs[], poc[], mobile} */
+function cuUnits_() {
+  const out = {};
+  rows_(CU_TAB).forEach(r => {
+    if (low_(r['Status']) !== CU.status) return;
+    const u = normUnit_(r['Unit']) || str_(r['Unit']); if (!u) return;
+    const x = out[u] = out[u] || { unit: u, client: '', owners: [], pms: [], reqs: [], poc: [] };
+    const add = (a, v) => { v = str_(v); if (v && v !== '-' && a.indexOf(v) < 0) a.push(v); };
+    if (!x.client) x.client = str_(r['Client']);
+    add(x.owners, r['Owner']); add(x.pms, r['PM']); add(x.reqs, r['Type']);
+    if (str_(r['POC']) !== '') x.poc.push(Number(r['POC']));
+  });
+  Object.keys(out).forEach(u => { const p = out[u].poc; out[u].poc = p.length ? Math.round(p.reduce((a, b) => a + b, 0) / p.length) : null; });
+  return out;
+}
+
+const isMine_ = (me, owners) => owners.some(o => low_(o) === low_(me.cu) || engKey_(o) === engKey_(me.name));
+
+function visitsByUnit_() {
+  const by = {};
+  closedVisits_(() => true).forEach(v => { const u = normUnit_(v.unit) || v.unit; (by[u] = by[u] || []).push(v); });
+  Object.keys(by).forEach(u => by[u].sort((a, b) => (b.closed || b.date).localeCompare(a.closed || a.date)));
+  return by;
+}
+
+function commentRows_() {
+  sheet_(COMMENTS_TAB, COMMENT_COLS);
+  return rows_(COMMENTS_TAB).filter(r => str_(r['ID'])).map(r => ({
+    id: str_(r['ID']), at: dt_(r['Created']), unit: str_(r['Unit']), visit: str_(r['Visit ID']), from: str_(r['From']), to: str_(r['To']),
+    text: str_(r['Text']), status: str_(r['Status']), parent: str_(r['Parent']), updated: dt_(r['Updated']),
+    closedBy: str_(r['Closed by']), closedVisit: str_(r['Closed with visit']) }));
+}
+
+/** Top-level comments with their replies, newest first. */
+function threads_(filter) {
+  const all = commentRows_(), reps = {};
+  all.filter(c => c.parent).forEach(c => (reps[c.parent] = reps[c.parent] || []).push({ from: c.from, text: c.text, at: c.at }));
+  return all.filter(c => !c.parent && filter(c)).map(c => Object.assign(c, { replies: reps[c.id] || [] }))
+    .sort((a, b) => (b.updated || b.at).localeCompare(a.updated || a.at));
+}
+
+const vShort_ = v => ({ id: v.id, d: v.date, t: (v.closed || '').slice(11, 16), by: v.by, items: v.items, ph: v.photos, work: v.workDone, mp: v.manpower });
+
+/* ----- engineer home (a manager can open anyone's with b.as) ----- */
+function home_(b, me) {
+  const who = me.manager && b.as ? (teamPeople_().find(p => p.name === b.as) || me) : me;
+  const cu = cuUnits_(), vis = visitsByUnit_(), today = fmt_(new Date(), 'yyyy-MM-dd');
+  const days = d => Math.round((new Date(today) - new Date(d)) / 86400000);
+  const units = Object.keys(cu).filter(u => isMine_(who, cu[u].owners)).map(u => {
+    const v = (vis[u] || [])[0];
+    return { unit: u, client: cu[u].client, reqs: cu[u].reqs, poc: cu[u].poc, pms: cu[u].pms, last: v ? vShort_(v) : null, ago: v ? days(v.date) : null };
+  }).sort((a, b) => (a.ago == null ? 9999 : a.ago) - (b.ago == null ? 9999 : b.ago) || a.unit.localeCompare(b.unit));
+  const mine = {}; units.forEach(u => mine[u.unit] = 1);
+  const elsewhere = [];
+  Object.keys(vis).forEach(u => vis[u].forEach(v => { if (!mine[u] && engKey_(v.by) === engKey_(who.name) && days(v.date) <= 14) elsewhere.push(Object.assign(vShort_(v), { unit: u })); }));
+  elsewhere.sort((a, b) => (b.d + b.t).localeCompare(a.d + a.t));
+  const forMe = threads_(c => low_(c.to) === low_(who.name));
+  return { me: { name: me.name, manager: me.manager }, who: who.name, units: units, elsewhere: elsewhere.slice(0, 40),
+    open: forMe.filter(c => c.status !== 'closed'), closed: forMe.filter(c => c.status === 'closed').slice(0, 30) };
+}
+
+/* ----- one unit ----- */
+function unitInfo_(b, me) {
+  const u = normUnit_(b.unit) || str_(b.unit);
+  const cu = cuUnits_()[u] || { unit: u, client: '', owners: [], pms: [], reqs: [], poc: null };
+  const vs = (visitsByUnit_()[u] || []).slice(0, 30);
+  if (!me.manager && !isMine_(me, cu.owners) && !vs.some(v => engKey_(v.by) === engKey_(me.name))) throw new Error('الوحدة دي مش من وحداتك.');
+  const crew = crewByVisit_(vs);
+  return { me: { name: me.name, manager: me.manager }, unit: u, client: cu.client, owners: cu.owners, pms: cu.pms, reqs: cu.reqs, poc: cu.poc,
+    visits: vs.map(v => Object.assign(vShort_(v), { crew: (crew[v.id] || []).map(c => [c.contractor, c.trade, c.count]) })),
+    comments: threads_(c => c.unit === u) };
+}
+
+function visitPhotos_(b, me) { return dashPhotos_({ visitId: b.visitId }); }
+
+/* ----- manager home ----- */
+function mgrHome_(b, me) {
+  if (!me.manager) throw new Error('للمديرين بس.');
+  const cu = cuUnits_(), vis = visitsByUnit_(), today = fmt_(new Date(), 'yyyy-MM-dd');
+  const d0 = new Date(today); d0.setDate(d0.getDate() - ((d0.getDay() + 1) % 7)); const weekFrom = fmt_(d0, 'yyyy-MM-dd');  // week starts Saturday
+  const days = d => Math.round((new Date(today) - new Date(d)) / 86400000);
+  // workload share, same rule as the Workload tab
+  const tasks = rows_(CU_TAB).filter(r => low_(r['Status']) === CU.status);
+  const V = {}, D = {};
+  tasks.forEach(r => { const o = str_(r['Owner']); if (!o || o === '-' || low_(o) === 'real estate') return;
+    V[o] = (V[o] || 0) + (Number(r['Amount']) || 0); D[o] = (D[o] || 0) + (Number(r['Days']) || 0); });
+  const TV = Object.keys(V).reduce((s, k) => s + V[k], 0) || 1, TD = Object.keys(D).reduce((s, k) => s + D[k], 0) || 1;
+  const team = teamPeople_();
+  const eng = Object.keys(V).map(o => {
+    const p = team.find(x => low_(x.cu) === low_(o)) || { name: o, cu: o };
+    const us = Object.keys(cu).filter(u => cu[u].owners.indexOf(o) >= 0);
+    const st = u => { const v = (vis[u] || [])[0]; return v ? days(v.date) : null; };
+    const todayVisits = Object.keys(vis).reduce((n, u) => n + vis[u].filter(v => v.date === today && engKey_(v.by) === engKey_(p.name)).length, 0);
+    return { cu: o, name: p.name, share: Math.round((0.6 * V[o] / TV + 0.4 * D[o] / TD) * 1000) / 10, units: us.length,
+      today: us.filter(u => st(u) === 0).length, week: us.filter(u => (vis[u] || []).some(v => v.date >= weekFrom)).length,
+      never: us.filter(u => st(u) == null).length, stale: us.filter(u => st(u) != null && st(u) >= 3).length, visitsToday: todayVisits };
+  }).sort((a, b) => b.share - a.share);
+  const owned = Object.keys(cu).filter(u => cu[u].owners.some(o => V[o] != null));
+  const todayAll = [].concat(...Object.keys(vis).map(u => vis[u].filter(v => v.date === today).map(v => Object.assign(v, { u: u }))));
+  const alerts = [];
+  const idle = eng.filter(e => !e.visitsToday).map(e => e.name);
+  if (idle.length) alerts.push(['r', idle.length + ' مهندس من غير ولا زيارة النهارده: ' + idle.join(' · ')]);
+  const never = owned.filter(u => !vis[u]).length; if (never) alerts.push(['r', never + ' وحدة Site Execution عمرها ما اتزارت']);
+  const other = todayAll.filter(v => cu[v.u] && cu[v.u].owners.length && !isMine_({ name: v.by, cu: v.by }, cu[v.u].owners));
+  if (other.length) alerts.push(['o', other.length + ' زيارة النهارده على وحدات مهندس تاني']);
+  const weak = todayAll.filter(v => str_(v.workDone).replace(/[\s.\-_,،]/g, '').length < 4);
+  if (weak.length) alerts.push(['o', weak.length + ' زيارة النهارده من غير وصف للشغل: ' + weak.map(v => v.u.replace(/^OW\//, '')).join(' · ')]);
+  const th = threads_(() => true), open = th.filter(c => c.status !== 'closed');
+  const late = open.filter(c => days(c.at.slice(0, 10)) >= 1 && !c.replies.length);
+  if (late.length) alerts.push(['o', late.length + ' كومنت مفتوح من أكتر من يوم من غير رد']);
+  return { me: { name: me.name, manager: true }, now: fmt_(new Date(), 'yyyy-MM-dd HH:mm'),
+    kpi: { units: owned.length, today: owned.filter(u => (vis[u] || []).some(v => v.date === today)).length,
+      week: owned.filter(u => (vis[u] || []).some(v => v.date >= weekFrom)).length,
+      visits: todayAll.length, workers: todayAll.reduce((s, v) => s + v.manpower, 0), idle: idle.length, open: open.length },
+    alerts: alerts, eng: eng,
+    units: Object.keys(cu).sort().map(u => { const v = (vis[u] || [])[0]; return [u, cu[u].client, cu[u].owners.join(', '), v ? v.date : '', v ? v.by : '']; }) };
+}
+
+function commentsList_(b, me) {
+  if (!me.manager) throw new Error('للمديرين بس.');
+  return { comments: threads_(() => true).slice(0, 300) };
+}
+
+/* ----- writing comments (also written on the unit's ClickUp task) ----- */
+function addComment_(b, me) {
+  if (!me.manager) throw new Error('الكومنتات للمديرين بس.');
+  const u = normUnit_(b.unit) || str_(b.unit), text = str_(b.text);
+  if (!u || !text) throw new Error('اكتب الكومنت.');
+  const cu = cuUnits_()[u] || { owners: [] };
+  const team = teamPeople_();
+  const to = cu.owners.map(o => (team.find(p => low_(p.cu) === low_(o)) || {}).name).filter(Boolean)[0] || '';
+  const id = 'C-' + fmt_(new Date(), 'yyyyMMdd-HHmmss') + '-' + Utilities.getUuid().slice(0, 4);
+  const v = b.visitId ? closedVisits_(x => x.id === str_(b.visitId))[0] : null;
+  const cuText = `📌 Site comment from ${me.name}${to ? ' to ' + to : ''}${v ? ` (visit ${v.date} by ${v.by})` : ''}:\n${text}`;
+  const cid = cuComment_(u, cuText);
+  const now = fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss');
+  sheet_(COMMENTS_TAB, COMMENT_COLS).appendRow([id, now, u, v ? v.id : '', me.name, to, text, 'open', '', cid, now, '', '']);
+  return { id: id, to: to, clickup: !!cid };
+}
+
+function replyComment_(b, me) {
+  const c = commentRows_().find(x => x.id === str_(b.id) && !x.parent);
+  if (!c) throw new Error('الكومنت ده مش موجود.');
+  if (!me.manager && low_(c.to) !== low_(me.name)) throw new Error('الكومنت ده مش ليك.');
+  const text = str_(b.text); if (!text) throw new Error('اكتب الرد.');
+  const now = fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss');
+  const cid = cuComment_(c.unit, `↩️ ${me.name}: ${text}`);
+  sheet_(COMMENTS_TAB, COMMENT_COLS).appendRow([c.id + '-r' + Utilities.getUuid().slice(0, 4), now, c.unit, '', me.name, '', text, '', c.id, cid, now, '', '']);
+  setComment_(c.id, { Status: me.manager ? c.status : 'replied', Updated: now });
+  return { done: true };
+}
+
+function closeComment_(b, me) {
+  const c = commentRows_().find(x => x.id === str_(b.id) && !x.parent);
+  if (!c) throw new Error('الكومنت ده مش موجود.');
+  if (!me.manager && low_(c.to) !== low_(me.name)) throw new Error('الكومنت ده مش ليك.');
+  const v = b.visitId ? closedVisits_(x => x.id === str_(b.visitId))[0] : null;
+  const now = fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss');
+  cuComment_(c.unit, `✅ Closed by ${me.name}${v ? ` with a new visit (${v.photos} photos)` : ''}.`);
+  setComment_(c.id, { Status: 'closed', Updated: now, 'Closed by': me.name, 'Closed with visit': v ? v.id : '' });
+  return { done: true };
+}
+
+function reopenComment_(b, me) {
+  if (!me.manager) throw new Error('للمديرين بس.');
+  setComment_(str_(b.id), { Status: 'open', Updated: fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss') });
+  return { done: true };
+}
+
+function setComment_(id, vals) {
+  const sh = sheet_(COMMENTS_TAB, COMMENT_COLS), v = sh.getDataRange().getValues(), h = v[0];
+  for (let i = 1; i < v.length; i++) if (str_(v[i][0]) === id) {
+    Object.keys(vals).forEach(k => { const c = h.indexOf(k); if (c >= 0) sh.getRange(i + 1, c + 1).setValue(vals[k]); });
+    return;
+  }
+}
+
+/** Posts a comment on the unit's first Site Execution task in ClickUp. Returns the ClickUp comment id, or '' if it could not. */
+function cuComment_(unit, text) {
+  try {
+    const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN'); if (!token) return '';
+    const ids = cuTaskIdsForUnit_(unit, token); if (!ids.length) return '';
+    const r = UrlFetchApp.fetch(`https://api.clickup.com/api/v2/task/${ids[0]}/comment`, { method: 'post', contentType: 'application/json',
+      headers: { Authorization: token }, payload: JSON.stringify({ comment_text: text, notify_all: false }), muteHttpExceptions: true });
+    if (r.getResponseCode() !== 200) { console.error('ClickUp comment ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 200)); return ''; }
+    return String(JSON.parse(r.getContentText()).id || '');
+  } catch (e) { console.error('ClickUp comment: ' + e); return ''; }
 }
 
 /* =========================== WEEKLY CLIENT REPORTS =========================== */
@@ -1617,6 +1911,9 @@ function onOpen() {
     .addItem('Set manager password', 'menuSetPassword')
     .addItem('Set dashboard password', 'menuSetDashPassword')
     .addItem('Rebuild Workload tab now', 'menuWorkload')
+    .addSeparator()
+    .addItem('Team: give PINs to everyone without one', 'menuMakePins')
+    .addItem('Team: set one PIN', 'menuSetPin')
     .addItem('Connect ClickUp (API token)', 'menuSetClickUpToken')
     .addItem('Connect AI writer (Gemini key)', 'menuSetAiKey')
     .addItem('Sync from ClickUp now', 'menuSync')

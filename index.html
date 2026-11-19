@@ -122,7 +122,7 @@ input[type=file]{display:none}
 <body>
 <header><div class="in">
   <div id="logo" style="-webkit-user-select:none;user-select:none;-webkit-touch-callout:none"><div class="brand">O WEST</div><div class="title">Site Camera</div></div>
-  <div class="hright"><button class="navbtn" id="navBtn" type="button">التقارير</button><div class="date" id="today"></div></div>
+  <div class="hright"><a class="navbtn" id="teamBtn" href="team.html" style="text-decoration:none">حسابي</a><button class="navbtn" id="navBtn" type="button">التقارير</button><div class="date" id="today"></div></div>
 </div></header>
 
 <main class="wrap">
@@ -234,6 +234,7 @@ input[type=file]{display:none}
     <div class="code" id="doneUnit"></div>
     <p id="doneSummary"></p>
     <button class="btn btn-main" id="again" type="button" style="width:100%">حالة جديدة</button>
+    <a class="btn btn-sub" href="team.html" style="width:100%;text-align:center;text-decoration:none;display:block">رجوع لحسابي</a>
   </section>
 </main>
 
@@ -560,6 +561,9 @@ async function maybeClose(){
     $("doneUnit").textContent=unit.unit;
     $("doneSummary").textContent=`${r.count} صورة · ${r.manpower||0} عامل${r.items&&r.items.length?" · "+r.items.map(itemLabel).join("، "):""}`;
     closing=false;show("done");
+    if(autoC){const cid=autoC;autoC=null;
+      try{await api("POST",{action:"commentClose",token:teamTok(),id:cid,visitId:visit.id});$("doneSummary").textContent+=" · اتقفل الكومنت ✓"}
+      catch(e2){$("doneSummary").textContent+=" · الكومنت ما اتقفلش: "+e2.message}}
   }catch(e){closing=false;counts();const h=$("dockHint");h.textContent="معرفناش نحفظ: "+e.message+" اضغط خلصت تاني.";h.classList.add("bad")}
 }
 $("again").onclick=()=>{unit=null;visit=null;jobs.length=0;$("queue").textContent="";$("q").value="";renderUnits();show("pick")};
@@ -573,7 +577,11 @@ $("cancel").onclick=()=>{
 window.addEventListener("beforeunload",e=>{if(pending()||closing){e.preventDefault();e.returnValue=""}});
 
 /* ---------- boot ---------- */
-function apply(d){data=Object.assign({units:[],engineers:[],contractors:[],trades:[]},d);renderNames();renderUnits();$("unitNote").textContent=`${data.units.length} وحدة`}
+/* opened from team.html: index.html?unit=OW/..&c=<comment id> starts that unit's visit and closes the comment when the visit is saved */
+const QS=new URLSearchParams(location.search);let autoUnit=QS.get("unit"),autoC=QS.get("c");
+function teamTok(){try{const t=JSON.parse(store.get("team")||"null");return t&&t.expires>Date.now()?t.token:""}catch(e){return ""}}
+function apply(d){data=Object.assign({units:[],engineers:[],contractors:[],trades:[]},d);renderNames();renderUnits();$("unitNote").textContent=`${data.units.length} وحدة`;
+  if(autoUnit&&data.units.length){const u=data.units.find(x=>x.unit===autoUnit);autoUnit=null;if(u&&view==="pick")setTimeout(()=>startVisit(u),0)}}
 try{const c=JSON.parse(store.get("boot4")||"null");if(c&&c.units)apply(c)}catch(e){}
 api("GET",{action:"units"}).then(j=>{delete j.ok;store.set("boot4",JSON.stringify(j));apply(j)})
   .catch(e=>{if(data.units.length){$("unitNote").textContent=`${data.units.length} وحدة (من القايمة المحفوظة)`;return}

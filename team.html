@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>O West Team</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#001641">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--n:#001641;--p:#e9b88f;--soft:#fbf3ec;--bg:#f4f5f8;--card:#fff;--line:#e2e5ec;--mute:#5f6779;--chip:#eceef4;
+--ok:#1f7a4d;--okb:#e3f2ea;--wr:#9a5b00;--wrb:#fdf0dc;--bad:#b3261e;--badb:#fde8e6;--bl:#2a4a9a;--blb:#e8eefc;--rep:#eef7f1;
+--f:system-ui,-apple-system,"Segoe UI",Roboto,Tahoma,sans-serif;--mono:ui-monospace,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--n:#e9ecf4;--bg:#0b1020;--card:#141b2e;--line:#26304a;--mute:#9aa3b8;--soft:#2a2218;--chip:#1c2540;
+--ok:#58c48e;--okb:#16301f;--wr:#e3a54a;--wrb:#33270f;--bad:#f08a80;--badb:#3a1714;--bl:#9db4f0;--blb:#1a2547;--rep:#132a1d;color-scheme:dark}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--n);font-family:var(--f);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+header{background:#001641;color:#f4f5f8;border-bottom:3px solid #e9b88f;padding-top:env(safe-area-inset-top,0)}
+header .in{max-width:760px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px}
+.brand{font-family:Georgia,serif;letter-spacing:.3em;font-size:11px;opacity:.85}
+.ttl{font-size:19px;font-weight:800;line-height:1.2}
+.who{font-size:12px;text-align:left;opacity:.9}.who b{display:block;color:#e9b88f;font-size:14px}
+.who button{font:inherit;font-size:11px;background:none;border:0;color:#cfd6e6;text-decoration:underline;padding:0}
+main{max-width:760px;margin:0 auto;padding:12px 16px 80px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:7px;min-width:0}
+button.card{font:inherit;color:inherit;text-align:start;width:100%}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.u{font-family:var(--mono);font-weight:800;direction:ltr;unicode-bidi:isolate}
+.cl{color:var(--mute);font-size:13px}
+.meta{display:flex;gap:4px 12px;flex-wrap:wrap;font-size:13px;color:var(--mute)}.meta b{color:var(--n)}
+.st{flex:none;font-size:12px;font-weight:800;border-radius:99px;padding:2px 10px;white-space:nowrap}
+.s1{background:var(--okb);color:var(--ok)}.s2{background:var(--wrb);color:var(--wr)}.s3{background:var(--badb);color:var(--bad)}.s4{background:var(--blb);color:var(--bl)}
+.h{font-weight:800;font-size:13px;color:var(--mute);margin:6px 2px 0;display:flex;gap:6px;align-items:center}
+.badge{background:var(--bad);color:#fff;border-radius:99px;font-size:11px;padding:1px 8px;font-weight:800}
+.btn{font:inherit;font-weight:800;border:0;border-radius:10px;padding:12px;min-height:46px;background:#001641;color:#fff;text-align:center;text-decoration:none;display:block;cursor:pointer}
+.btn.line{background:var(--card);color:var(--n);border:1px solid var(--n)}.btn.go{background:#1f7a4d}.btn.sm{padding:8px 10px;min-height:38px;font-size:14px}
+.btn:disabled{opacity:.5}
+.two{display:flex;gap:8px}.two>*{flex:1}
+.tabs{display:flex;background:var(--chip);border-radius:10px;padding:3px;gap:3px;overflow-x:auto}
+.tab{flex:1;font:inherit;font-weight:800;font-size:13px;border:0;background:none;color:var(--mute);border-radius:8px;padding:9px 6px;white-space:nowrap}
+.tab.on{background:var(--card);color:var(--n);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.cm{border-right:3px solid #e9b88f;background:var(--soft);border-radius:8px;padding:8px 10px;font-size:14px;display:flex;flex-direction:column;gap:3px;white-space:pre-line}
+.cm .by{font-size:11px;color:var(--mute);white-space:normal}.cm.rep{border-right-color:var(--ok);background:var(--rep)}
+textarea,input{font:inherit;font-size:16px;width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--card);color:var(--n)}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.k{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.k .n{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}.k .n small{font-size:13px;color:var(--mute);font-weight:600}
+.k .l{font-size:12px;color:var(--mute);font-weight:700}.k.big{grid-column:1/-1}
+@media(min-width:700px){.kpis{grid-template-columns:repeat(4,1fr)}.k.big{grid-column:span 2}}
+.bar{height:8px;border-radius:9px;background:var(--chip);overflow:hidden;display:flex;margin-top:6px}.bar i{display:block;height:100%}
+.al{display:flex;gap:8px;font-size:14px;padding:9px 11px;border-radius:10px}.al.r{background:var(--badb)}.al.o{background:var(--wrb)}
+.band{font-size:11px;font-weight:800;border-radius:99px;padding:2px 9px}
+.ph{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.ph img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;background:var(--chip);cursor:zoom-in}
+.prog{height:6px;width:70px;background:var(--chip);border-radius:9px;overflow:hidden;display:inline-block;vertical-align:middle}.prog i{display:block;height:100%;background:var(--ok)}
+.link{font:inherit;font-size:13px;background:none;border:0;color:var(--bl);padding:0;text-decoration:underline;cursor:pointer}
+.empty{text-align:center;color:var(--mute);padding:18px}
+.err{color:var(--bad);font-size:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:inherit;font-size:14px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--n);border-radius:99px;padding:7px 13px}
+.chip.on{background:#001641;color:#fff;border-color:#001641}
+.pin{display:flex;gap:10px;justify-content:center}.pin span{width:46px;height:54px;border:2px solid var(--line);border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:26px}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.keys button{font:inherit;font-size:22px;font-weight:700;background:var(--card);color:var(--n);border:1px solid var(--line);border-radius:10px;padding:13px}
+.light{position:fixed;inset:0;z-index:30;background:#000;display:flex;align-items:center;justify-content:center}.light img{max-width:100%;max-height:100%}
+.load{color:var(--mute);font-size:13px}
+.back{font:inherit;background:none;border:0;color:#cfd6e6;font-size:13px;padding:0;cursor:pointer}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div><div class="brand">O WEST · SITE CAMERA</div><div class="ttl" id="ttl">الفريق</div><button class="back" id="back" hidden>‹ رجوع</button></div>
+  <div class="who" id="who" hidden><span id="role"></span><b id="whoName"></b><button id="out">خروج</button></div>
+</div></header>
+<main id="main"></main>
+<div class="light" id="light" hidden><img id="limg" alt=""></div>
+
+<script>
+const API_URL="https://script.google.com/macros/s/AKfycbyPqz639Y6R1--7qazMyHZ0-LpQFSX7e_daagYkQgmgUK2TDYilBjrbOwUdojpsIB3_qQ/exec";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+let ME=null;try{ME=JSON.parse(store.get('team')||'null');if(ME&&ME.expires<Date.now())ME=null}catch(e){}
+const short=u=>String(u||'').replace(/^OW\//,'');
+const dmy=d=>d?d.slice(8,10)+'/'+d.slice(5,7):'';
+function ago(n){return n==null?'عمرها ما اتزارت':n<=0?'النهارده':n===1?'امبارح':`من ${n} يوم`}
+function agoCls(n){return n==null?'s3':n<=0?'s1':n<=2?'s4':'s2'}
+function since(t){if(!t)return'';const m=Math.round((Date.now()-new Date(t.replace(' ','T')))/60000);return m<60?`من ${Math.max(m,1)} دقيقة`:m<1440?`من ${Math.round(m/60)} ساعة`:`من ${Math.round(m/1440)} يوم`}
+
+async function api(body){
+  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:ME&&ME.token},body)),redirect:'follow'});
+  const j=await r.json();
+  if(!j.ok){if(j.code==='auth'){logout();}throw new Error(j.error||'حصلت مشكلة.')}
+  return j;
+}
+function logout(){ME=null;store.del('team');route('login')}
+$('out').onclick=logout;
+$('light').onclick=()=>$('light').hidden=true;
+
+/* ---------- routing ---------- */
+const hist=[];let cur=null;
+function route(v,arg,push){
+  if(push&&cur)hist.push(cur);cur=[v,arg];
+  $('back').hidden=!hist.length;
+  $('who').hidden=!ME;if(ME){$('whoName').textContent=ME.name;$('role').textContent=ME.manager?'مدير':'مهندس'}
+  window.scrollTo(0,0);
+  ({login,home,unit,mgr,comments,units:allUnits,eng:engView})[v](arg);
+}
+$('back').onclick=()=>{const p=hist.pop();cur=null;if(p)route(p[0],p[1])};
+const go=(v,a)=>route(v,a,true);
+function busy(t){$('main').innerHTML=`<div class="empty">${esc(t||'جاري التحميل…')}</div>`}
+function fail(e){$('main').innerHTML=`<div class="card"><div class="err">${esc(e.message)}</div><button class="btn line sm" onclick="route(cur[0],cur[1])">حاول تاني</button></div>`}
+
+/* ---------- login ---------- */
+async function login(){
+  $('ttl').textContent='دخول';hist.length=0;$('back').hidden=true;$('who').hidden=true;busy();
+  let people=[];try{people=(await api({action:'team'})).people}catch(e){return fail(e)}
+  let who=store.get('teamLast')||'',pin='';
+  const draw=()=>{
+    $('main').innerHTML=`<div class="card"><div class="ttl" style="font-size:17px">مين انت؟</div>
+      <div class="chips">${people.map(p=>`<button class="chip${p===who?' on':''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div></div>
+      <div class="card" ${who?'':'hidden'}><div class="cl" style="text-align:center">اكتب الـ PIN بتاعك</div>
+      <div class="pin">${[0,1,2,3].map(i=>`<span>${pin.length>i?'•':''}</span>`).join('')}</div>
+      <div class="keys">${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k=>k===''?'<span></span>':`<button data-k="${k}">${k}</button>`).join('')}</div>
+      <button class="btn" id="enter" ${pin.length>=4?'':'disabled'}>دخول</button><div class="err" id="lerr"></div></div>`;
+    $('main').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{who=b.dataset.p;pin='';draw()});
+    $('main').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k;pin=k==='⌫'?pin.slice(0,-1):(pin+k).slice(0,8);draw()});
+    const e=$('enter');if(e)e.onclick=async()=>{e.disabled=true;
+      try{const r=await api({action:'pinLogin',name:who,pin});ME={token:r.token,name:r.name,manager:r.manager,expires:r.expires};
+        store.set('team',JSON.stringify(ME));store.set('teamLast',r.name);store.set('by',r.name);route(ME.manager?'mgr':'home')}
+      catch(x){pin='';draw();$('lerr').textContent=x.message}};
+  };
+  draw();
+}
+
+/* ---------- comment cards ---------- */
+function thread(c,opts){
+  const st=c.status==='closed'?`<span class="st s1">اتقفل${c.closedVisit?' بزيارة':''}</span>`:c.status==='replied'?`<span class="st s2">اتردّ عليه</span>`:`<span class="st s3">مفتوح · ${esc(since(c.at))}</span>`;
+  return `<div class="card" data-c="${esc(c.id)}"><div class="row"><button class="link u" data-unit="${esc(c.unit)}">${esc(short(c.unit))}</button>${st}</div>
+    <div class="cm"><div>${esc(c.text)}</div><div class="by">${esc(c.from)} · ${esc(c.at.slice(5,16).replace('-','/'))}${c.to?' · لـ '+esc(c.to):''}${c.visit?' · على زيارة':''}</div></div>
+    ${c.replies.map(r=>`<div class="cm rep"><div>${esc(r.text)}</div><div class="by">${esc(r.from)} · ${esc(r.at.slice(5,16).replace('-','/'))}</div></div>`).join('')}
+    ${opts.actions&&c.status!=='closed'?`<div class="two"><button class="btn line sm" data-act="reply">رد</button>${ME.manager?`<button class="btn line sm" data-act="close">اقفل</button>`:`<a class="btn go sm" href="index.html?unit=${encodeURIComponent(c.unit)}&c=${encodeURIComponent(c.id)}">📷 صوّر واقفل</a>`}</div>`:''}
+    ${opts.actions&&c.status==='closed'&&ME.manager?`<button class="link" data-act="reopen" style="align-self:flex-start">افتحه تاني</button>`:''}
+    <div data-box hidden><textarea rows="2" placeholder="اكتب الرد…"></textarea><button class="btn sm" data-act="send" style="margin-top:6px;width:100%">ابعت</button></div></div>`;
+}
+function wire(root,reload){
+  root.querySelectorAll('[data-unit]').forEach(b=>b.onclick=()=>go('unit',b.dataset.unit));
+  root.querySelectorAll('[data-c]').forEach(card=>{
+    const id=card.dataset.c,q=s=>card.querySelector(s);
+    card.querySelectorAll('[data-act]').forEach(b=>b.onclick=async()=>{
+      const a=b.dataset.act;
+      if(a==='reply'){q('[data-box]').hidden=false;q('textarea').focus();return}
+      b.disabled=true;
+      try{
+        if(a==='send'){const t=q('textarea').value.trim();if(!t){b.disabled=false;return}await api({action:'reply',id,text:t})}
+        if(a==='close')await api({action:'commentClose',id});
+        if(a==='reopen')await api({action:'commentReopen',id});
+        reload();
+      }catch(e){b.disabled=false;alertBox(card,e)}
+    });
+  });
+  root.querySelectorAll('.unitcard').forEach(b=>b.onclick=()=>go('unit',b.dataset.u));
+}
+function alertBox(el,e){const d=document.createElement('div');d.className='err';d.textContent=e.message;el.append(d)}
+
+/* ---------- engineer home ---------- */
+let homeTab='units';
+async function home(as){
+  $('ttl').textContent=as?as:'أهلاً '+ME.name.split(' ')[0];busy();
+  let d;try{d=await api({action:'home',as:as||''})}catch(e){return fail(e)}
+  const unitCard=u=>`<button class="card unitcard" data-u="${esc(u.unit)}"><div class="row"><span class="u">${esc(short(u.unit))}</span><span class="st ${agoCls(u.ago)}">${ago(u.ago)}${u.last&&u.ago===0?' '+esc(u.last.t):''}</span></div>
+    <div class="meta"><span>${esc(u.client)}</span>${u.poc!=null?`<span>POC <span class="prog"><i style="width:${u.poc}%"></i></span> <b>${u.poc}%</b></span>`:''}</div>
+    <div class="meta"><span>${esc(u.reqs.join(' · '))}</span></div>
+    ${u.last?`<div class="cl">آخر زيارة: ${esc(dmy(u.last.d))} · ${esc(u.last.by)} · 📷 ${u.last.ph} — ${esc((u.last.work||'').slice(0,90))}</div>`:''}</button>`;
+  const draw=()=>{
+    const tabs=[['units',`${as?'وحداته':'وحداتي'} ${d.units.length}`],['else',`${as?'زياراته':'زياراتي'} على وحدات تانية ${d.elsewhere.length}`],['closed',`كومنتات اتقفلت ${d.closed.length}`]];
+    $('main').innerHTML=`${as?'':`<a class="btn" href="index.html">📷 زيارة جديدة</a>`}
+      <div class="h">${as?'كومنتات مفتوحة له':'مطلوب منك'} ${d.open.length?`<span class="badge">${d.open.length}</span>`:''}</div>
+      ${d.open.length?d.open.map(c=>thread(c,{actions:!as||ME.manager})).join(''):'<div class="card cl">مفيش حاجة مطلوبة دلوقتي.</div>'}
+      <div class="tabs">${tabs.map(t=>`<button class="tab${homeTab===t[0]?' on':''}" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>
+      <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>`;
+    const L=$('list');
+    if(homeTab==='units')L.innerHTML=d.units.length?d.units.map(unitCard).join(''):'<div class="empty">مفيش وحدات متسجلة باسمك في ClickUp.</div>';
+    if(homeTab==='else')L.innerHTML=d.elsewhere.length?d.elsewhere.map(v=>`<button class="card unitcard" data-u="${esc(v.unit)}"><div class="row"><span class="u">${esc(short(v.unit))}</span><span class="cl">${esc(dmy(v.d))} ${esc(v.t)} · 📷 ${v.ph}</span></div><div class="cl">${esc((v.work||'').slice(0,100))}</div></button>`).join(''):'<div class="empty">مفيش زيارات على وحدات تانية آخر أسبوعين.</div>';
+    if(homeTab==='closed')L.innerHTML=d.closed.length?d.closed.map(c=>thread(c,{actions:false})).join(''):'<div class="empty">مفيش.</div>';
+    $('main').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{homeTab=b.dataset.t;draw()});
+    wire($('main'),()=>home(as));
+  };
+  draw();
+}
+function engView(name){home(name)}
+
+/* ---------- unit ---------- */
+async function unit(u){
+  $('ttl').textContent=short(u);busy();
+  let d;try{d=await api({action:'unitInfo',unit:u})}catch(e){return fail(e)}
+  let target='';
+  const draw=()=>{
+    $('main').innerHTML=`<div class="card"><div class="meta"><span>العميل <b>${esc(d.client||'-')}</b></span><span>المسؤول <b>${esc(d.owners.join(', ')||'-')}</b></span><span>PM <b>${esc(d.pms.join(', ')||'-')}</b></span></div>
+      <div class="meta"><span>${esc(d.reqs.join(' · '))}</span>${d.poc!=null?`<span>POC <b>${d.poc}%</b></span>`:''}</div></div>
+      ${ME.manager?'':`<a class="btn" href="index.html?unit=${encodeURIComponent(d.unit)}">📷 زيارة جديدة للوحدة دي</a>`}
+      ${d.comments.length?`<div class="h">الكومنتات</div>${d.comments.map(c=>thread(c,{actions:ME.manager||c.to===ME.name})).join('')}`:''}
+      ${ME.manager?`<div class="card" id="newc"><div class="h" style="margin:0">كومنت جديد ${target?'· على زيارة '+esc(dmy((d.visits.find(v=>v.id===target)||{}).d)):'· على الوحدة'}</div>
+        ${target?`<button class="link" id="untarget" style="align-self:flex-start">خليه على الوحدة كلها</button>`:''}
+        <textarea id="ctext" rows="3" placeholder="اكتب المطلوب من المهندس…"></textarea>
+        <button class="btn" id="csend">ابعت${d.owners.length?' للمسؤول ('+esc(d.owners[0])+')':''}</button>
+        <div class="cl">بيظهر للمهندس في الموقع، وبيتكتب على التاسك في ClickUp.</div></div>`:''}
+      <div class="h">الزيارات ${d.visits.length}</div>
+      ${d.visits.length?d.visits.map(v=>`<div class="card"><div class="row"><b>${esc(dmy(v.d))} · ${esc(v.t)} · ${esc(v.by)}</b><span class="cl">📷 ${v.ph}</span></div>
+        <div class="meta"><span>${esc(v.items)}</span></div>
+        <div style="white-space:pre-line;font-size:14px${(v.work||'').replace(/[\s.\-_,،]/g,'').length<4?';color:var(--bad)':''}">${esc(v.work||'(من غير وصف)')}</div>
+        ${v.crew.length?`<div class="meta">${v.crew.map(c=>`<span>${esc(c[0])}${c[1]?' · '+esc(c[1]):''} · <b>${c[2]}</b></span>`).join('')}</div>`:''}
+        <div class="ph" data-ph="${esc(v.id)}"></div>
+        <div class="row"><button class="link" data-load="${esc(v.id)}">اعرض الصور (${v.ph})</button>${ME.manager?`<button class="link" data-target="${esc(v.id)}">علّق على الزيارة دي</button>`:''}</div></div>`).join(''):'<div class="card cl">مفيش زيارات على الوحدة دي لسه.</div>'}`;
+    wire($('main'),()=>unit(u));
+    $('main').querySelectorAll('[data-load]').forEach(b=>b.onclick=async()=>{const box=$('main').querySelector(`[data-ph="${CSS.escape(b.dataset.load)}"]`);b.textContent='جاري التحميل…';
+      try{const r=await api({action:'visitPhotos',visitId:b.dataset.load});box.innerHTML=r.photos.map(p=>`<img src="${p.src}" alt="${esc(p.item)}">`).join('');b.remove();
+        box.querySelectorAll('img').forEach(i=>i.onclick=()=>{$('limg').src=i.src;$('light').hidden=false})}catch(e){b.textContent='تعذر التحميل، دوس تاني'}});
+    $('main').querySelectorAll('[data-target]').forEach(b=>b.onclick=()=>{target=b.dataset.target;const t=$('ctext').value;draw();$('ctext').value=t;$('newc').scrollIntoView({behavior:'smooth'})});
+    if($('untarget'))$('untarget').onclick=()=>{const t=$('ctext').value;target='';draw();$('ctext').value=t};
+    if($('csend'))$('csend').onclick=async()=>{const t=$('ctext').value.trim();if(!t){$('ctext').focus();return}$('csend').disabled=true;
+      try{const r=await api({action:'comment',unit:d.unit,visitId:target,text:t});if(!r.clickup)alert('اتسجل الكومنت، بس ما اتكتبش في ClickUp.');unit(u)}catch(e){$('csend').disabled=false;alertBox($('newc'),e)}};
+  };
+  draw();
+}
+
+/* ---------- manager ---------- */
+function mgrTabs(on){return `<div class="tabs">${[['mgr','اللوحة'],['comments','الكومنتات'],['units','الوحدات']].map(t=>`<button class="tab${on===t[0]?' on':''}" data-m="${t[0]}">${t[1]}</button>`).join('')}</div>`}
+function wireTabs(){$('main').querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{hist.length=0;route(b.dataset.m)})}
+let MG=null;
+async function mgr(){
+  $('ttl').textContent='لوحة المديرين';busy();
+  try{MG=await api({action:'mgr'})}catch(e){return fail(e)}
+  const K=MG.kpi,band=s=>s>=30?['VERY HIGH','s3']:s>=15?['HIGH','s2']:s>=5?['MEDIUM','s4']:['LOW',''];
+  $('main').innerHTML=mgrTabs('mgr')+`<div class="cl">آخر تحديث ${esc(MG.now.slice(11))} · من ClickUp والموقع</div>
+    <div class="kpis"><div class="k big"><div class="l">وحدات اتزارت النهارده</div><div class="n">${K.today} <small>من ${K.units}</small></div><div class="bar"><i style="width:${K.today/Math.max(K.units,1)*100}%;background:var(--ok)"></i></div></div>
+    <div class="k"><div class="l">الأسبوع ده</div><div class="n">${K.week} <small>/ ${K.units}</small></div></div><div class="k"><div class="l">عمال النهارده</div><div class="n">${K.workers}</div></div>
+    <div class="k"><div class="l">زيارات النهارده</div><div class="n">${K.visits}</div></div><div class="k"><div class="l">كومنتات مفتوحة</div><div class="n">${K.open}</div></div></div>
+    ${MG.alerts.length?`<div class="h">⚠ محتاج تدخل</div>${MG.alerts.map(a=>`<div class="al ${a[0]}">${esc(a[1])}</div>`).join('')}`:''}
+    <div class="h">المهندسين · حسب الـ Workload</div>
+    ${MG.eng.map(e=>{const b=band(e.share);return `<button class="card" data-e="${esc(e.name)}"><div class="row"><b>${esc(e.name)}</b><span class="st ${b[1]}" style="${b[1]?'':'background:var(--chip)'}">${b[0]} · ${e.share}%</span></div>
+      <div class="bar"><i style="width:${e.today/Math.max(e.units,1)*100}%;background:var(--ok)"></i><i style="width:${(e.week-e.today)/Math.max(e.units,1)*100}%;background:#9fd3b6"></i><i style="width:${e.never/Math.max(e.units,1)*100}%;background:#f3b4ae"></i></div>
+      <div class="meta"><span>وحداته <b>${e.units}</b></span><span>النهارده <b>${e.today}</b></span><span>الأسبوع <b>${e.week}</b></span><span>زيارات النهارده <b>${e.visitsToday}</b></span><span style="color:var(--bad)">عمرها ما اتزارت <b style="color:var(--bad)">${e.never}</b></span></div></button>`}).join('')}`;
+  wireTabs();
+  $('main').querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>go('eng',b.dataset.e));
+}
+let cTab='open';
+async function comments(){
+  $('ttl').textContent='الكومنتات';busy();
+  let d;try{d=await api({action:'comments'})}catch(e){return fail(e)}
+  const g={open:d.comments.filter(c=>c.status==='open'),replied:d.comments.filter(c=>c.status==='replied'),closed:d.comments.filter(c=>c.status==='closed')};
+  const draw=()=>{
+    $('main').innerHTML=mgrTabs('comments')+`<div class="tabs">${[['open','مفتوحة'],['replied','اتردّ عليها'],['closed','مقفولة']].map(t=>`<button class="tab${cTab===t[0]?' on':''}" data-ct="${t[0]}">${t[1]} ${g[t[0]].length}</button>`).join('')}</div>
+      ${g[cTab].length?g[cTab].map(c=>thread(c,{actions:true})).join(''):'<div class="empty">مفيش.</div>'}
+      <div class="cl">عشان تكتب كومنت جديد: افتح الوحدة من "الوحدات" أو من صفحة المهندس.</div>`;
+    wireTabs();$('main').querySelectorAll('[data-ct]').forEach(b=>b.onclick=()=>{cTab=b.dataset.ct;draw()});wire($('main'),comments);
+  };
+  draw();
+}
+async function allUnits(){
+  $('ttl').textContent='الوحدات';
+  if(!MG){busy();try{MG=await api({action:'mgr'})}catch(e){return fail(e)}}
+  $('main').innerHTML=mgrTabs('units')+`<input id="uq" type="search" placeholder="ابحث برقم الوحدة أو العميل أو المهندس"><div id="ul" style="display:flex;flex-direction:column;gap:8px"></div>`;
+  wireTabs();
+  const today=MG.now.slice(0,10),days=d=>d?Math.round((new Date(today)-new Date(d))/86400000):null;
+  const draw=()=>{const q=$('uq').value.trim().toLowerCase();
+    const list=MG.units.filter(u=>!q||u.join(' ').toLowerCase().includes(q)).slice(0,150);
+    $('ul').innerHTML=list.map(u=>{const n=days(u[3]);return `<button class="card unitcard" data-u="${esc(u[0])}"><div class="row"><span class="u">${esc(short(u[0]))}</span><span class="st ${agoCls(n)}">${ago(n)}</span></div><div class="meta"><span>${esc(u[1])}</span><span>المسؤول <b>${esc(u[2]||'-')}</b></span>${u[4]?`<span>آخر زيارة ${esc(u[4])}</span>`:''}</div></button>`}).join('')||'<div class="empty">مفيش.</div>';
+    $('ul').querySelectorAll('.unitcard').forEach(b=>b.onclick=()=>go('unit',b.dataset.u));};
+  $('uq').oninput=draw;draw();
+}
+
+route(ME?(ME.manager?'mgr':'home'):'login');
+</script>
+</body>
+</html>
