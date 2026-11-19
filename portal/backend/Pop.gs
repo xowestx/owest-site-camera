@@ -41,7 +41,7 @@ const POP_F = {
   type: '8f185b3c-db17-4dac-b577-d377a949db9f'
 };
 
-/* ---------------- setup and the 1-minute check ---------------- */
+/* ---------------- setup and the 5-minute check (1 minute uses up the 90 min/day trigger quota) ---------------- */
 
 function popSetup() {
   sheet_(POP_TAB, POP_COLS);
@@ -49,7 +49,7 @@ function popSetup() {
   if (!props.getProperty('POP_START')) props.setProperty('POP_START', String(Date.now()));
   props.setProperty('POP_CHECKED', String(Date.now() - 3600000));
   if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'popWatch'))
-    ScriptApp.newTrigger('popWatch').timeBased().everyMinutes(1).create();
+    ScriptApp.newTrigger('popWatch').timeBased().everyMinutes(5).create();
   popWatch();
   try { SpreadsheetApp.getUi().alert('POP check point is on. From now on, ticking Paid in ClickUp starts the POP.'); } catch (e) {}
 }
