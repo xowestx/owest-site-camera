@@ -672,6 +672,15 @@ function workloadHtml_(day) {
 /* ---------- "Workload" tab: share of the site work per engineer, rebuilt on every ClickUp sync ---------- */
 /* Share = (0.6 × engineer's Amount ÷ all engineers' Amount + 0.4 × engineer's days ÷ all engineers' days) × 100.
    Days = ClickUp Duration (start → due, both days counted; none = 0). Real Estate and tasks with no Task Owner are left out. */
+/** Sheet menu: rebuild the Workload tab from the stored ClickUp tasks (no ClickUp call). Shows any error. */
+function menuWorkload() {
+  const tasks = rows_(CU_TAB).filter(r => low_(r['Status']) === CU.status).map(r => ({
+    unit: normUnit_(r['Unit']) || str_(r['Unit']), type: str_(r['Type']), owner: str_(r['Owner']), pm: str_(r['PM']),
+    amount: str_(r['Amount']), poc: str_(r['POC']), days: str_(r['Days']) }));
+  writeWorkloadTab_(tasks);
+  SpreadsheetApp.getActive().getSheetByName('Workload').activate();
+}
+
 function writeWorkloadTab_(tasks) {
   const day = fmt_(new Date(), 'yyyy-MM-dd HH:mm');
   const band = s => s >= 30 ? 'VERY HIGH' : s >= 15 ? 'HIGH' : s >= 5 ? 'MEDIUM' : 'LOW';
@@ -1607,6 +1616,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Set manager password', 'menuSetPassword')
     .addItem('Set dashboard password', 'menuSetDashPassword')
+    .addItem('Rebuild Workload tab now', 'menuWorkload')
     .addItem('Connect ClickUp (API token)', 'menuSetClickUpToken')
     .addItem('Connect AI writer (Gemini key)', 'menuSetAiKey')
     .addItem('Sync from ClickUp now', 'menuSync')
@@ -1928,7 +1938,8 @@ function syncClickUp_() {
     freshC.forEach(n => cSh.appendRow([n, 'Yes', '']));
 
     setSetting_('Last ClickUp sync', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ` · ${Object.keys(units).length} units`);
-    try { writeWorkloadTab_(tasks); } catch (e) { console.error('workload tab: ' + e); }
+    try { writeWorkloadTab_(tasks); setSetting_('Workload tab', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ' · OK'); }
+    catch (e) { console.error('workload tab: ' + e.stack); setSetting_('Workload tab', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ' · ERROR: ' + e.message); }
     clearBoot_();
     return { units: Object.keys(units).length, items: sRows.length, contractors: cRows.length, newContractors: freshC.length };
   } finally { if (lock) lock.releaseLock(); cache.remove('syncRunning'); }
