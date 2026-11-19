@@ -41,7 +41,7 @@ const POP_F = {
   type: '8f185b3c-db17-4dac-b577-d377a949db9f'
 };
 
-/* ---------------- setup and the 10-minute check ---------------- */
+/* ---------------- setup and the 1-minute check ---------------- */
 
 function popSetup() {
   sheet_(POP_TAB, POP_COLS);
@@ -49,7 +49,7 @@ function popSetup() {
   if (!props.getProperty('POP_START')) props.setProperty('POP_START', String(Date.now()));
   props.setProperty('POP_CHECKED', String(Date.now() - 3600000));
   if (!ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'popWatch'))
-    ScriptApp.newTrigger('popWatch').timeBased().everyMinutes(10).create();
+    ScriptApp.newTrigger('popWatch').timeBased().everyMinutes(1).create();
   popWatch();
   try { SpreadsheetApp.getUi().alert('POP check point is on. From now on, ticking Paid in ClickUp starts the POP.'); } catch (e) {}
 }
@@ -92,9 +92,24 @@ function popWatch() {
 function popNotify_(taskId, unit, token, sales, reminder) {
   const link = POP_PAGE + '#t=' + token;
   const head = reminder ? `Reminder: the POP for ${unit} is still waiting.` : `${unit} is marked Paid.`;
+  // A loud ClickUp comment: bold header, @mention, big link, and ASSIGNED to the Sales person,
+  // so it lands in their ClickUp Inbox / phone with a "Resolve" button (no need to open Outlook).
+  const uid = sales && sales.email ? cuUserId_(sales.email) : null;
+  const rich = [
+    { text: reminder ? 'REMINDER · POP CHECK POINT' : 'ACTION NEEDED · POP CHECK POINT', attributes: { bold: true } },
+    { text: '\n' }
+  ].concat(uid ? [{ type: 'tag', user: { id: uid } }, { text: ' ' }] : []).concat([
+    { text: head + '\n\n' },
+    { text: '>>> OPEN THE POP CHECK POINT <<<', attributes: { bold: true, link: link } },
+    { text: '\n\nUpload the signed quotation, check the data, press Send.' }
+  ]);
+  const extra = uid ? { assignee: uid } : {};
   try {
-    cuPost_(`/task/${taskId}/comment`, { comment_text: `${head}\nComplete the POP check point (upload the signed quotation, check the data, press Send):\n${link}`, notify_all: true });
-  } catch (e) { console.error(e); }
+    cuPost_(`/task/${taskId}/comment`, Object.assign({ comment: rich, notify_all: true }, extra));
+  } catch (e) {
+    console.error(e); // plain text fallback
+    try { cuPost_(`/task/${taskId}/comment`, Object.assign({ comment_text: `${head}\nComplete the POP check point (upload the signed quotation, check the data, press Send):\n${link}`, notify_all: true }, extra)); } catch (e2) { console.error(e2); }
+  }
   if (sales && sales.email) {
     // through the Info.ew relay: arrives inside the company at once, with no "external email" banner
     sendClientMail_({
@@ -348,6 +363,19 @@ function cuFields_(t) {
     drop: id => dropName_(f[id]),
     date: (id, p) => { const x = Number(raw(id)); return x ? fmt_(new Date(x), p || 'yyyy-MM-dd') : ''; }
   };
+}
+/** ClickUp user id of a workspace member by email (cached 6 h), or null. */
+function cuUserId_(email) {
+  const key = 'cu_uid_' + low_(email), cache = CacheService.getScriptCache();
+  const hit = cache.get(key); if (hit) return Number(hit) || null;
+  let id = null;
+  try {
+    (cuGet_('/team').teams || []).forEach(tm => (tm.members || []).forEach(m => {
+      if (m.user && low_(m.user.email) === low_(email)) id = m.user.id;
+    }));
+  } catch (e) { console.error(e); }
+  cache.put(key, String(id || 0), 21600);
+  return id;
 }
 function cuUnit_(t) { return cuFields_(t).text(POP_F.unit) || str_(t.name); }
 function popSales_(option) {
