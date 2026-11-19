@@ -216,7 +216,7 @@ function popSend_(ref, b) {
   sendClientMail_({ to: x.sales.email, subject: `${POP_TAG} ${subject}`, htmlBody: popHtml_(d, x.sales), attachments: files });
 
   // 2) client portal + welcome email from Info.ew
-  inviteClient_(d.unit, d.client, d.email, d.pm || x.sales.name, true, false);
+  inviteClient_(d.unit, d.client, d.email, d.pm || x.sales.name, true, false, { product: d.product, sales: x.sales.name, pm: d.pm });
 
   // 3) ClickUp: Welcome Mail ✓ and a note on the task
   try { cuPost_(`/task/${str_(ref.obj['Task ID'])}/field/${POP_F.welcome}`, { value: true }); } catch (e) { console.error(e); }
