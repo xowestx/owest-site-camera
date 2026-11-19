@@ -758,7 +758,8 @@ function inviteClient_(unit, name, email, by, send, newLink, info) {
       subject: `Welcome to O-Plus · ${u.unit}`.replace(/\|/g, '/'),
       htmlBody: mailHtml_('O-PLUS · WELCOME', 'Welcome to O-Plus', [
         `Dear ${name || 'Client'},`,
-        'Thank you for choosing O-Plus. Your request is confirmed and your unit now has its own page.',
+        'Thank you for choosing O-Plus.',
+        'We created this portal to make communication with you easier and to keep everything about your unit in one place. Your request is confirmed and your unit now has its own page.',
         `Unit: ${u.unit}`
       ].concat(r.product ? [`Request: ${r.product}`] : [])
        .concat(pm ? [`Your project manager: ${pm}`] : [])
