@@ -669,6 +669,74 @@ function workloadHtml_(day) {
     <table style="border-collapse:collapse;width:100%;max-width:900px">${rows}</table></div>`;
 }
 
+/* ---------- "Workload" tab: share of the site work per engineer, rebuilt on every ClickUp sync ---------- */
+/* Share = (0.6 × engineer's Amount ÷ all engineers' Amount + 0.4 × engineer's days ÷ all engineers' days) × 100.
+   Days = ClickUp Duration (start → due, both days counted; none = 0). Real Estate and tasks with no Task Owner are left out. */
+function writeWorkloadTab_(tasks) {
+  const day = fmt_(new Date(), 'yyyy-MM-dd HH:mm');
+  const band = s => s >= 30 ? 'VERY HIGH' : s >= 15 ? 'HIGH' : s >= 5 ? 'MEDIUM' : 'LOW';
+  const num = x => { const n = Number(str_(x)); return str_(x) === '' || isNaN(n) ? null : n; };
+  const notRead = tasks.filter(t => str_(t.days) === '').length;
+  const by = {}, noOwner = [];
+  let realEstate = 0;
+  tasks.forEach(t => {
+    const o = str_(t.owner);
+    if (!o || o === '-') noOwner.push(t);
+    else if (low_(o) === 'real estate') realEstate++;
+    else (by[o] = by[o] || []).push(t);
+  });
+  const names = Object.keys(by);
+  const V = {}, D = {};
+  names.forEach(e => { V[e] = by[e].reduce((s, t) => s + (num(t.amount) || 0), 0); D[e] = by[e].reduce((s, t) => s + (num(t.days) || 0), 0); });
+  const TV = names.reduce((s, e) => s + V[e], 0) || 1, TD = names.reduce((s, e) => s + D[e], 0) || 1;
+  const S = {}; names.forEach(e => S[e] = (0.6 * V[e] / TV + 0.4 * D[e] / TD) * 100);
+  const rank = names.slice().sort((a, b) => S[b] - S[a]);
+  const all = [].concat(...names.map(e => by[e]));
+  const W = 7, row = a => { const r = a.slice(0, W); while (r.length < W) r.push(''); return r; };
+  const out = [], bold = [], heads = [], pct = [], money = [];
+  const push = (a, kind) => { out.push(row(a)); const n = out.length; if (kind === 'b') bold.push(n); if (kind === 'h') heads.push(n); return n; };
+  push(['Site engineers workload · updated ' + day + ' from ClickUp (Site Execution)'], 'b');
+  if (notRead) push([`Still reading ${notRead} tasks from ClickUp: numbers complete after the next sync.`]);
+  push([]);
+  push(['Rank', 'Engineer', 'Units', 'Value (EGP)', 'Days', 'Workload share %', 'Density band'], 'h');
+  rank.forEach((e, i) => { const n = push([i + 1, e, by[e].length, Math.round(V[e]), D[e], S[e] / 100, band(S[e])]); pct.push([n, 6]); money.push(n); });
+  const tot = push(['', 'Total', all.length, Math.round(TV), TD, 1, ''], 'b'); pct.push([tot, 6]); money.push(tot);
+  push([]);
+  push(['Data gaps (engineers\' units)'], 'b');
+  push(['Duration empty (0 days)', all.filter(t => !num(t.days)).length]);
+  push(['Progress not entered', all.filter(t => num(t.poc) === null).length]);
+  push(['PM empty', all.filter(t => !str_(t.pm)).length]);
+  push(['Duration exactly 1 day', all.filter(t => num(t.days) === 1).length]);
+  push(['Real Estate tasks (left out)', realEstate]);
+  push(['Tasks with no Task Owner (left out, listed at the end)', noOwner.length]);
+  push(['Share = (0.6 × value ÷ all value + 0.4 × days ÷ all days) × 100. Days = ClickUp Duration. Bands: ≥30 VERY HIGH · 15–30 HIGH · 5–15 MEDIUM · <5 LOW. Units = ClickUp tasks.']);
+  const unitRows = list => list.slice().sort((a, b) => (a.unit + a.type).localeCompare(b.unit + b.type)).forEach(t => {
+    const p = num(t.poc); const n = push([t.unit, t.type || '-', p === null ? 'not entered' : p / 100, str_(t.pm) || '-']); if (p !== null) pct.push([n, 3]);
+  });
+  rank.forEach((e, i) => {
+    push([]); push([]);
+    push([e], 'b');
+    push(['Name', 'Units', 'Workload share %', 'Density band', 'Rank'], 'h');
+    const n = push([e, by[e].length, S[e] / 100, band(S[e]), `${i + 1} of ${rank.length}`]); pct.push([n, 3]);
+    push([]);
+    push(['Unit ID', 'Request', 'Progress on site (%)', 'PM'], 'h');
+    unitRows(by[e]);
+  });
+  push([]); push([]);
+  push([`No Task Owner (${noOwner.length})`], 'b');
+  push(['Unit ID', 'Request', 'Progress on site (%)', 'PM'], 'h');
+  unitRows(noOwner);
+  const sh = sheet_('Workload', row(['']));
+  sh.clear();
+  sh.getRange(1, 1, out.length, W).setValues(out);
+  bold.forEach(n => sh.getRange(n, 1).setFontWeight('bold'));
+  heads.forEach(n => sh.getRange(n, 1, 1, W).setFontWeight('bold').setBackground('#eef1f6'));
+  pct.forEach(([n, c]) => sh.getRange(n, c).setNumberFormat('0.0%'));
+  money.forEach(n => sh.getRange(n, 4, 1, 2).setNumberFormat('#,##0'));
+  sh.getRange(1, 1).setFontSize(13);
+  [12, 30, 18, 18, 10, 16, 14].forEach((w, i) => sh.setColumnWidth(i + 1, w * 8));
+}
+
 /* =========================== WEEKLY CLIENT REPORTS =========================== */
 /* Every Thursday: one PDF per unit with that unit's photos of the last 7 days and a short, professional
    progress text (rewritten by AI from what the engineers typed). Emailed to "Weekly report to", CC "Weekly report cc".
@@ -1741,7 +1809,10 @@ const CU = {
     client: '75747da4-250c-42e7-8d65-98d9d503060f',
     email: 'ecdc4bdb-8444-4074-b32c-cd4c36274f25',
     mobile: '1707ad3e-025b-457f-a4f3-cf1d7b6b1a7e',
-    owner: 'd7255ee0-9352-4cb6-8e1e-6d412405d400'   // "Task Owner" = site engineer in charge of the unit
+    owner: 'd7255ee0-9352-4cb6-8e1e-6d412405d400',  // "Task Owner" = site engineer in charge of the unit
+    pm: 'f91d9a67-0ed7-4e6a-81c3-1b7bf673546f',
+    amount: 'f480622e-13eb-43c9-a141-f74a78d866e9',
+    poc: '640aa77a-6d8d-4b4d-b8a6-b4dfd74baa9f'      // "Actual POC %" = progress on site
   },
   // weekly report button lives only on the private Construction Team list
   team: { list: '901525752325', report: 'dfe137c2-147d-4810-8af3-439514d62fe4', whatsapp: '4180e90a-f5f6-4a54-b010-1aceb35fbd02' },
@@ -1857,6 +1928,7 @@ function syncClickUp_() {
     freshC.forEach(n => cSh.appendRow([n, 'Yes', '']));
 
     setSetting_('Last ClickUp sync', fmt_(new Date(), 'yyyy-MM-dd HH:mm') + ` · ${Object.keys(units).length} units`);
+    try { writeWorkloadTab_(tasks); } catch (e) { console.error('workload tab: ' + e); }
     clearBoot_();
     return { units: Object.keys(units).length, items: sRows.length, contractors: cRows.length, newContractors: freshC.length };
   } finally { if (lock) lock.releaseLock(); cache.remove('syncRunning'); }
@@ -1864,7 +1936,7 @@ function syncClickUp_() {
 
 /* ---------- ClickUp task store ("ClickUp Tasks" tab) ---------- */
 const CU_TAB = 'ClickUp Tasks';
-const CU_COLS = ['Unit', 'Task ID', 'Status', 'Client', 'Email', 'Mobile', 'Type', 'Description', 'Contractor', 'Updated', 'Checked', 'Owner'];
+const CU_COLS = ['Unit', 'Task ID', 'Status', 'Client', 'Email', 'Mobile', 'Type', 'Description', 'Contractor', 'Updated', 'Checked', 'Owner', 'PM', 'Amount', 'POC', 'Days'];
 
 /** Compact row from a full ClickUp task object. */
 function cuCompact_(t) {
@@ -1874,8 +1946,17 @@ function cuCompact_(t) {
     unit: normUnit_(t.name) || str_(t.name), id: str_(t.id), status: str_(t.status && t.status.status),
     client: v(CU.f.client), email: v(CU.f.email), mobile: v(CU.f.mobile), type: dropName_(f[CU.f.requestType]),
     desc: v(CU.f.description).slice(0, 200), contractor: v(CU.f.contractor), updated: str_(t.date_updated), checked: String(Date.now()),
-    owner: dropName_(f[CU.f.owner]) || '-'   // '-' = read, no owner set ('' = not read yet by this version)
+    owner: dropName_(f[CU.f.owner]) || '-',  // '-' = read, no owner set
+    pm: dropName_(f[CU.f.pm]), amount: v(CU.f.amount), poc: v(CU.f.poc),
+    days: String(cuDays_(t.start_date, t.due_date))   // '' only on rows not read yet by this version
   };
+}
+
+/** ClickUp "Duration": whole days from start date to due date, both counted (Cairo dates). 0 when either is missing. */
+function cuDays_(start, due) {
+  if (!start || !due) return 0;
+  const d = ms => { const s = Utilities.formatDate(new Date(Number(ms)), 'Africa/Cairo', 'yyyy-MM-dd'); return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)); };
+  return Math.round((d(due) - d(start)) / 86400000) + 1;
 }
 
 /** Updates the tab and returns every stored task (all statuses). Safe to run often. */
@@ -1886,7 +1967,8 @@ function cuSyncTasks_(token) {
   rows_(CU_TAB).forEach(r => {
     const id = str_(r['Task ID']); if (!id) return;
     byId[id] = { unit: str_(r['Unit']), id: id, status: str_(r['Status']), client: str_(r['Client']), email: str_(r['Email']), mobile: str_(r['Mobile']),
-      type: str_(r['Type']), desc: str_(r['Description']), contractor: str_(r['Contractor']), updated: str_(r['Updated']), checked: str_(r['Checked']), owner: str_(r['Owner']) };
+      type: str_(r['Type']), desc: str_(r['Description']), contractor: str_(r['Contractor']), updated: str_(r['Updated']), checked: str_(r['Checked']), owner: str_(r['Owner']),
+      pm: str_(r['PM']), amount: str_(r['Amount']), poc: str_(r['POC']), days: str_(r['Days']) };
   });
   const H = { Authorization: token };
   const props = PropertiesService.getScriptProperties();
@@ -1903,8 +1985,9 @@ function cuSyncTasks_(token) {
   }
   // b) re-read rows never read or not read for 24 h, one task per call, for at most ~2.5 minutes
   //    (rows without an owner value yet come first, so the engineer split fills in on the first sync)
-  const stale = Object.keys(byId).filter(id => !byId[id].owner || !byId[id].checked || started - Number(byId[id].checked) > 86400000)
-    .sort((a, b) => (byId[a].owner ? 1 : 0) - (byId[b].owner ? 1 : 0) || Number(byId[a].checked || 0) - Number(byId[b].checked || 0));
+  //    (rows not read by this version yet — no Days value — come first, so new columns fill in on the first sync)
+  const stale = Object.keys(byId).filter(id => byId[id].days === '' || !byId[id].checked || started - Number(byId[id].checked) > 86400000)
+    .sort((a, b) => (byId[a].days === '' ? 0 : 1) - (byId[b].days === '' ? 0 : 1) || Number(byId[a].checked || 0) - Number(byId[b].checked || 0));
   for (let i = 0; i < stale.length && Date.now() - started < 150000; i += 25) {
     const ids = stale.slice(i, i + 25);
     const res = UrlFetchApp.fetchAll(ids.map(id => ({ url: `https://api.clickup.com/api/v2/task/${id}`, headers: H, muteHttpExceptions: true })));
@@ -1919,7 +2002,7 @@ function cuSyncTasks_(token) {
   }
   if (incOk) props.setProperty('CU_LAST', String(started));
   const list = Object.keys(byId).map(id => byId[id]).sort((a, b) => (a.unit + a.id).localeCompare(b.unit + b.id));
-  rewrite_(sh, CU_COLS, list.map(t => [t.unit, t.id, t.status, t.client, t.email, t.mobile, t.type, t.desc, t.contractor, t.updated, t.checked, t.owner || '']));
+  rewrite_(sh, CU_COLS, list.map(t => [t.unit, t.id, t.status, t.client, t.email, t.mobile, t.type, t.desc, t.contractor, t.updated, t.checked, t.owner || '', t.pm || '', t.amount || '', t.poc || '', t.days == null ? '' : t.days]));
   CU_UNITS = null;
   return list;
 }
