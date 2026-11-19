@@ -119,6 +119,7 @@ function popApi_(a, b) {
   if (a === 'pop.send') return popSend_(ref, b);
   if (a === 'pop.extra') return popExtra_(ref, b);
   if (a === 'pop.extraDel') return popExtraDel_(ref, b);
+  if (a === 'pop.email') return popEmail_(ref, b);
   throw new Error('Unknown action.');
 }
 
@@ -178,6 +179,15 @@ function popExtra_(ref, b) {
   list.push({ id: file.getId(), name: name, size: bytes.length });
   setCells_(ref, { 'Extra files': JSON.stringify(list) }); ref.obj['Extra files'] = JSON.stringify(list);
   return popView_(ref);
+}
+/* An email pasted on the check point (Ctrl+A, Ctrl+C in Outlook) is saved as a PDF and added like any other file. */
+function popEmail_(ref, b) {
+  const html = String(b.html || '').replace(/<script[\s\S]*?<\/script>/gi, '').slice(0, 900000);
+  if (!html.replace(/<[^>]+>/g, '').trim()) throw new Error('Paste the email in the box first.');
+  const title = (str_(b.title) || 'Email').replace(/[\\/|:*?"<>]/g, '-').slice(0, 60).replace(/[.\s]+$/, '');
+  const doc = `<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:12px;color:#1A2238}img{max-width:100%}</style></head><body>${html}</body></html>`;
+  const pdf = Utilities.newBlob(doc, 'text/html', 'email.html').getAs('application/pdf');
+  return popExtra_(ref, { data: Utilities.base64Encode(pdf.getBytes()), name: `Email - ${title}.pdf`, type: 'application/pdf' });
 }
 function popExtraDel_(ref, b) {
   const list = popExtras_(ref), keep = list.filter(e => e.id !== str_(b.id));

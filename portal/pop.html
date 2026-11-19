@@ -18,6 +18,10 @@ textarea{min-height:56px}.miss input{border-color:var(--bad);background:var(--ba
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-size:10px;text-transform:uppercase}
 .btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;font:600 15px Poppins,sans-serif;background:var(--ok);color:#fff;cursor:pointer}.btn[disabled]{background:#9aa3b5;cursor:not-allowed}
 .mu{color:var(--muted);font-size:12px}
+.up.drag{border-color:var(--navy);background:#E9EEF8}
+.pastebox{border:2px dashed var(--line);border-radius:10px;padding:12px;min-height:90px;max-height:260px;overflow:auto;background:var(--bg);font-size:12px;margin-top:8px}
+.pastebox:empty::before{content:attr(data-ph);color:var(--muted)}
+.btn2{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:8px;padding:9px 14px;font:600 13px Poppins,sans-serif;cursor:pointer;margin-top:10px}
 .ex{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}.ex span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ex button{border:0;background:none;color:var(--bad);font-size:16px;cursor:pointer;padding:0 4px}
 </style></head><body>
 <div class="hd"><b>O-Plus · POP check point</b><h1 id="title">Loading…</h1></div>
@@ -58,19 +62,32 @@ function render() {
     : `<div class="banner ok">Everything is ready. Check it, then press Send.</div>`;
   h += `<div class="card"><h2>Unit and payment</h2><div class="g">${MAIN.map(field).join("")}</div></div>`;
   h += `<div class="card"><h2>Signed quotation</h2>`;
-  if (!sent) h += `<label class="up ${V.hasFile ? "" : "miss"}" for="file"><b>${V.hasFile ? "✓ Quotation uploaded · upload again to replace" : "Upload the signed quotation (PDF)"}</b><br>It fills the totals and the cheque schedule for you.</label><input type="file" id="file" accept="application/pdf" hidden>`;
+  if (!sent) h += `<label class="up ${V.hasFile ? "" : "miss"}" for="file"><b>${V.hasFile ? "✓ Quotation uploaded · drop again to replace" : "Drag the signed quotation (PDF) here"}</b><br>or click to choose it. It fills the totals and the cheque schedule for you.</label><input type="file" id="file" accept="application/pdf" hidden>`;
   h += `<div class="g" style="margin-top:10px">${QUOTE.map(field).join("")}</div>`;
   if (sch.length) h += `<div class="mu" style="margin:10px 0 4px">Cheque schedule (from the quotation)</div><table><tr><th>Payment</th><th>Amount</th><th>Date</th></tr>${sch.map(s => `<tr><td>${esc(s.label)}</td><td>${money(s.amount)}</td><td>${esc(s.date)}</td></tr>`).join("")}</table>`;
   const ex = V.extras || [];
-  h += `</div><div class="card"><h2>Other attachments (optional)</h2><div class="mu" style="margin-bottom:8px">Proof of payment, signed papers, photos, or an Outlook email (drag it from Outlook to your desktop, then add the file). They go with the POP only. The client does not see them.</div>`;
+  h += `</div><div class="card"><h2>Other attachments (optional)</h2><div class="mu" style="margin-bottom:8px">Drag in the proof of payment, signed papers or photos. For an email (for example finance confirming a cheque), use <b>Add an email</b>. They go with the POP only. The client does not see them.</div>`;
   h += ex.length ? ex.map(e => `<div class="ex"><span>📎 ${esc(e.name)}</span><span class="mu" style="flex:none">${kb(e.size)}</span>${sent ? "" : `<button data-del="${esc(e.id)}" title="Remove">✕</button>`}</div>`).join("") : (sent ? `<div class="mu">None</div>` : "");
-  if (!sent) h += `<label class="up" for="extra" style="margin-top:10px"><b>+ Add files</b><br>PDF, photos, Word, Excel or Outlook emails (.msg)</label><input type="file" id="extra" multiple hidden>`;
+  if (!sent) h += `<label class="up" for="extra" style="margin-top:10px"><b>Drag files here</b><br>proof of payment, signed papers, photos… (or click to choose)</label><input type="file" id="extra" multiple hidden>
+    <button class="btn2" id="pasteBtn" type="button">✉ Add an email</button>
+    <div id="pasteWrap" hidden><div class="mu" style="margin-top:8px">Open the email in Outlook, press <b>Ctrl+A</b> then <b>Ctrl+C</b>, click in the box below and press <b>Ctrl+V</b>. It is added as a PDF.</div>
+    <div class="pastebox" id="pastebox" contenteditable="true" data-ph="Paste the email here (Ctrl+V)"></div>
+    <button class="btn2" id="pasteAdd" type="button">Add this email</button></div>`;
   h += `</div><div class="card"><h2>Note for finance (optional)</h2><textarea id="f_note" ${sent ? "readonly" : ""} placeholder="e.g. Client paid 10% now and will complete the other 10% next month.">${esc(d.note || "")}</textarea></div>`;
   if (!sent) h += `<div class="card"><h2>When you press Send</h2><div class="mu">1. The POP goes from <b>your Outlook</b> to the usual finance list, with the quotation and the other attachments.<br>2. The client gets the welcome email from <b>Info.ew</b> with the link to their portal.<br>3. ClickUp is updated (Welcome Mail ✓).</div></div>
     <button class="btn" id="send">Send POP &amp; open the client portal</button>`;
   $("app").innerHTML = h;
   const fi = $("file"); if (fi) fi.onchange = upload;
   const xi = $("extra"); if (xi) xi.onchange = addExtra;
+  // drag and drop: the quotation box takes one PDF, the other box takes any files (also emails dragged from Outlook)
+  document.querySelectorAll("label.up").forEach(l => {
+    l.ondragover = e => { e.preventDefault(); l.classList.add("drag"); };
+    l.ondragleave = () => l.classList.remove("drag");
+    l.ondrop = e => { e.preventDefault(); l.classList.remove("drag"); const f = Array.from(e.dataTransfer.files || []); if (!f.length) return;
+      if (l.htmlFor === "file") upload({ target: { files: [f.find(x => x.type === "application/pdf") || f[0]] } }); else addExtra({ target: { files: f } }); };
+  });
+  const pb = $("pasteBtn"); if (pb) pb.onclick = () => { $("pasteWrap").hidden = false; pb.hidden = true; $("pastebox").focus(); };
+  const pa = $("pasteAdd"); if (pa) pa.onclick = addEmail;
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => delExtra(b.dataset.del));
   const s = $("send"); if (s) s.onclick = send;
 }
@@ -105,6 +122,15 @@ async function addExtra(e) {
   } catch (err) { alert(err.message); render(); } finally { busy = false; }
 }
 
+async function addEmail() {
+  const box = $("pastebox"), text = box.innerText.trim();
+  if (!text || busy) return alert("Paste the email in the box first.");
+  busy = true; $("pasteAdd").textContent = "Adding…";
+  const first = text.split("\n").map(x => x.trim()).find(x => x && !/^(from|sent|to|cc|date)\s*:/i.test(x)) || "Email";
+  try { V = await api("pop.email", { html: box.innerHTML.slice(0, 900000), title: first.slice(0, 60) }); render(); }
+  catch (err) { alert(err.message); $("pasteAdd").textContent = "Add this email"; } finally { busy = false; }
+}
+
 async function delExtra(id) {
   if (busy) return; busy = true;
   try { V = await api("pop.extraDel", { id }); render(); } catch (err) { alert(err.message); } finally { busy = false; }
@@ -118,6 +144,7 @@ async function send() {
   finally { busy = false; }
 }
 
+addEventListener("dragover", e => e.preventDefault()); addEventListener("drop", e => e.preventDefault());
 (async () => {
   if (!T) { $("app").innerHTML = `<div class="banner bad">This link is not complete. Open it again from the ClickUp comment or the email.</div>`; return; }
   try { V = await api("pop.get"); render(); }
