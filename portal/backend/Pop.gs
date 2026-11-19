@@ -286,8 +286,10 @@ function popParse_(text) {
   const out = { fields: {}, schedule: [], scope: [] };
   const title = m(/QUOTATION\s*\n+\s*([^\n]+)/i);
   const ref = m(/quotation\s+(\d{3,6})\b/i) || m(/REF\.?\s*NO\.?[\s\S]{0,300}?\b(\d{3,6})\b(?![\/\-])/i);
-  const total = num(m(/Total incl\.?\s*VAT[\s\S]{0,160}?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)/i));
-  const dpPct = num(m(/DOWN PAYMENT\s*[·\-]?\s*(\d{1,3})\s*%/i));
+  const total = num(m(/Total incl\.?\s*VAT[\s\S]{0,400}?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)/i))
+    || num(m(/PAYMENT PLAN[\s\S]{0,300}?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)\s*EGP/i));
+  // "DOWN PAYMENT · 20%" (instalments) or "PAYMENT · 100%" (paid in full)
+  const dpPct = num(m(/(?:DOWN\s+)?PAYMENT\s*[·\-–]?\s*(\d{1,3})\s*%/i));
   const months = num(m(/(\d{1,3})\s+equal monthly/i));
   const sch = t.slice(Math.max(0, t.search(/CHEQUE SCHEDULE/i)));
   const re = /(Down Payment[^\n\d]*(?:\(\d+%\))?|Payment\s+\d{1,3})\s+([\d,]+\.\d{2})\s+(\d{1,2}\/\d{1,2}\/\d{4})/gi;
@@ -304,6 +306,7 @@ function popParse_(text) {
   if (dpPct != null) f.dpPct = String(dpPct);
   if (dp) f.dpAmount = dp.amount.toFixed(2);
   else if (total && dpPct != null) f.dpAmount = (total * dpPct / 100).toFixed(2);
+  if (dpPct === 100 || /No instal?ments/i.test(t)) { f.months = '0'; f.monthly = '0.00'; }
   if (months || inst.length) f.months = String(months || inst.length);
   if (inst.length) f.monthly = inst[0].amount.toFixed(2);
   else if (total && f.dpAmount && months) f.monthly = ((total - Number(f.dpAmount)) / months).toFixed(2);
