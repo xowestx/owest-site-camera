@@ -67,10 +67,10 @@ function render() {
   if (sch.length) h += `<div class="mu" style="margin:10px 0 4px">Cheque schedule (from the quotation)</div><table><tr><th>Payment</th><th>Amount</th><th>Date</th></tr>${sch.map(s => `<tr><td>${esc(s.label)}</td><td>${money(s.amount)}</td><td>${esc(s.date)}</td></tr>`).join("")}</table>`;
   const ex = V.extras || [];
   h += `</div><div class="card"><h2>Other attachments (optional)</h2><div class="mu" style="margin-bottom:8px">Drag in the proof of payment, signed papers or photos. For an email (for example finance confirming a cheque), use <b>Add an email</b>. They go with the POP only. The client does not see them.</div>`;
-  h += ex.length ? ex.map(e => `<div class="ex"><span>📎 ${esc(e.name)}</span><span class="mu" style="flex:none">${kb(e.size)}</span>${sent ? "" : `<button data-del="${esc(e.id)}" title="Remove">✕</button>`}</div>`).join("") : (sent ? `<div class="mu">None</div>` : "");
+  h += ex.length ? ex.map(e => `<div class="ex"><span>${e.inline ? "✉" : "📎"} ${esc(e.name)}</span><span class="mu" style="flex:none">${kb(e.size)}</span>${sent ? "" : `<button data-del="${esc(e.id)}" title="Remove">✕</button>`}</div>`).join("") : (sent ? `<div class="mu">None</div>` : "");
   if (!sent) h += `<label class="up" for="extra" style="margin-top:10px"><b>Drag files here</b><br>proof of payment, signed papers, photos… (or click to choose)</label><input type="file" id="extra" multiple hidden>
     <button class="btn2" id="pasteBtn" type="button">✉ Add an email</button>
-    <div id="pasteWrap" hidden><div class="mu" style="margin-top:8px">Open the email in Outlook, press <b>Ctrl+A</b> then <b>Ctrl+C</b>, click in the box below and press <b>Ctrl+V</b>. It is added as a PDF.</div>
+    <div id="pasteWrap" hidden><div class="mu" style="margin-top:8px">Open the email in Outlook, press <b>Ctrl+A</b> then <b>Ctrl+C</b>, click in the box below and press <b>Ctrl+V</b>. It is shown inside the POP email for finance.</div>
     <div class="pastebox" id="pastebox" contenteditable="true" data-ph="Paste the email here (Ctrl+V)"></div>
     <button class="btn2" id="pasteAdd" type="button">Add this email</button></div>`;
   h += `</div><div class="card"><h2>Note for finance (optional)</h2><textarea id="f_note" ${sent ? "readonly" : ""} placeholder="e.g. Client paid 10% now and will complete the other 10% next month.">${esc(d.note || "")}</textarea></div>`;
