@@ -1533,9 +1533,12 @@ function spread_(list, n) {
    the weekly PDF simply has photos only. */
 
 let AI_DOWN = false;   // after one failure in a run, skip AI for the rest of that run (photos only)
+/** Settings "AI text" = Off: reports go out with photos only, no AI call at all. */
+function aiOff_() { return low_(settings_()['AI text']) === 'off'; }
+
 function polishWeek_(unit, items, days) {
   const key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
-  if (!key || AI_DOWN) return null;
+  if (!key || AI_DOWN || aiOff_()) return null;
   const notes = days.filter(d => d.notes.length);
   if (!notes.length) return null;
   const input = JSON.stringify({ unit: unit, scope: items, days: notes });
@@ -1597,7 +1600,7 @@ function aiStatus_(text) { try { setSetting_('AI status', fmt_(new Date(), 'yyyy
 function polishDay_(list) {
   const key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
   const notes = list.filter(v => v.workDone).map(v => ({ id: v.id, unit: v.unit, note: v.workDone }));
-  if (!key || AI_DOWN || !notes.length) return {};
+  if (!key || AI_DOWN || aiOff_() || !notes.length) return {};
   const input = JSON.stringify(notes);
   const cache = CacheService.getScriptCache();
   const ck = 'aid:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, input, Utilities.Charset.UTF_8));
