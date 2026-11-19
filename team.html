@@ -68,7 +68,7 @@ textarea,input{font:inherit;font-size:16px;width:100%;border:1px solid var(--lin
 <body>
 <header><div class="in">
   <div><div class="brand">O WEST · SITE CAMERA</div><div class="ttl" id="ttl">الفريق</div><button class="back" id="back" hidden>‹ رجوع</button></div>
-  <div class="who" id="who" hidden><span id="role"></span><b id="whoName"></b><button id="out">خروج</button></div>
+  <div class="who" id="who" hidden><span id="role"></span><b id="whoName"></b><button id="pinBtn">غيّر الـ PIN</button> · <button id="out">خروج</button></div>
 </div></header>
 <main id="main"></main>
 <div class="light" id="light" hidden><img id="limg" alt=""></div>
@@ -93,6 +93,20 @@ async function api(body){
 }
 function logout(){ME=null;store.del('team');route('login')}
 $('out').onclick=logout;
+$('pinBtn').onclick=()=>{
+  $('main').insertAdjacentHTML('afterbegin',`<div class="card" id="pinBox"><div class="h" style="margin:0">غيّر الـ PIN</div>
+    <input id="oldPin" type="password" inputmode="numeric" placeholder="الـ PIN الحالي">
+    <input id="newPin" type="password" inputmode="numeric" placeholder="الـ PIN الجديد (4 لـ 8 أرقام)">
+    <input id="newPin2" type="password" inputmode="numeric" placeholder="اكتب الجديد تاني">
+    <div class="two"><button class="btn sm" id="pinSave">احفظ</button><button class="btn line sm" id="pinCancel">إلغاء</button></div><div id="pinMsg" class="cl"></div></div>`);
+  window.scrollTo(0,0);
+  $('pinCancel').onclick=()=>$('pinBox').remove();
+  $('pinSave').onclick=async()=>{const a=$('newPin').value.trim();
+    if(a!==$('newPin2').value.trim()){$('pinMsg').innerHTML='<span class="err">الـ PIN الجديد مش زي بعضه في المرتين.</span>';return}
+    $('pinSave').disabled=true;
+    try{await api({action:'changePin',old:$('oldPin').value.trim(),pin:a});$('pinBox').innerHTML='<div style="color:var(--ok);font-weight:800">اتغيّر الـ PIN ✓</div>';setTimeout(()=>{const b=$('pinBox');if(b)b.remove()},2500)}
+    catch(e){$('pinSave').disabled=false;$('pinMsg').innerHTML='<span class="err">'+esc(e.message)+'</span>'}};
+};
 $('light').onclick=()=>$('light').hidden=true;
 
 /* ---------- routing ---------- */

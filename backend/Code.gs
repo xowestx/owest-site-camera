@@ -59,10 +59,10 @@ function doPost(e) {
     if (b.action === 'sync') { requireAdmin_(b.token); return json_(Object.assign({ ok: true }, syncClickUp_())); }
     if (b.action === 'pinLogin') return json_(Object.assign({ ok: true }, pinLogin_(b)));
     if (b.action === 'team') return json_({ ok: true, people: teamPeople_().filter(p => p.active).map(p => p.name) });
-    if (/^(home|unitInfo|visitPhotos|mgr|comments|comment|reply|commentClose|commentReopen)$/.test(b.action)) {
+    if (/^(home|unitInfo|visitPhotos|mgr|comments|comment|reply|commentClose|commentReopen|changePin)$/.test(b.action)) {
       const me = requirePerson_(b.token);
       const fn = { home: home_, unitInfo: unitInfo_, visitPhotos: visitPhotos_, mgr: mgrHome_, comments: commentsList_,
-        comment: addComment_, reply: replyComment_, commentClose: closeComment_, commentReopen: reopenComment_ }[b.action];
+        comment: addComment_, reply: replyComment_, commentClose: closeComment_, commentReopen: reopenComment_, changePin: changePin_ }[b.action];
       return json_(Object.assign({ ok: true }, fn(b, me)));
     }
     if (b.action === 'dashLogin') return json_(Object.assign({ ok: true }, dashLogin_(b)));
@@ -840,6 +840,17 @@ function menuMakePins() {
     const pin = String(1000 + Math.floor(Math.random() * 9000)); savePin_(p.name, pin); made.push(p.name + ': ' + pin);
   });
   ui.alert(made.length ? 'New PINs (copy them now, they are not shown again):\n\n' + made.join('\n') : 'Everyone already has a PIN. Use "Set a PIN" to change one.');
+}
+
+/** Anyone can change his own PIN from team.html: old PIN, then the new one. */
+function changePin_(b, me) {
+  const props = PropertiesService.getScriptProperties();
+  const hash = pin => sha_(pin + '|' + low_(me.name) + '|' + teamSecret_('PIN_SALT'));
+  if (props.getProperty(pinKey_(me.name)) !== hash(str_(b.old))) throw new Error('الـ PIN القديم غلط.');
+  const pin = str_(b.pin);
+  if (!/^\d{4,8}$/.test(pin)) throw new Error('الـ PIN الجديد لازم يكون من 4 لـ 8 أرقام.');
+  savePin_(me.name, pin);
+  return { done: true };
 }
 
 function savePin_(name, pin) {
