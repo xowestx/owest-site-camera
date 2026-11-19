@@ -730,7 +730,9 @@ function pmInvite_(b) {
 }
 
 /** Saves the client's private link and, with send, emails the welcome (from Info.ew). Returns the link. */
-function inviteClient_(unit, name, email, by, send, newLink) {
+const OPLUS_WHATSAPP = 'https://wa.me/message/4ABCTFS7T6AZK1'; // O-Plus WhatsApp Business
+
+function inviteClient_(unit, name, email, by, send, newLink, info) {
   const u = { unit: unit };
   const b = { send: send, newLink: newLink };
   if (b.send && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Add the client email first.');
@@ -749,16 +751,22 @@ function inviteClient_(unit, name, email, by, send, newLink) {
   });
   const link = PORTAL_URL + '#t=' + token;
   if (b.send) {
+    // welcome email (matches the welcome page): the request, who will contact the client, no prices
+    const r = info || clientRequest_(u.unit) || {}, pm = r.pm || by;
     sendClientMail_({
       to: email,
-      subject: `Your O-Plus client portal · ${u.unit}`,
-      htmlBody: mailHtml_('O-PLUS · CLIENT PORTAL', 'Your unit now has its own portal', [
+      subject: `Welcome to O-Plus · ${u.unit}`.replace(/\|/g, '/'),
+      htmlBody: mailHtml_('O-PLUS · WELCOME', 'Welcome to O-Plus', [
         `Dear ${name || 'Client'},`,
-        `From today, every scope item, date and material selection for ${u.unit} will be shared with you in one place. You can approve each one, request changes, and send us any concern.`,
-        'The portal is the agreed record between you and O West. WhatsApp stays for quick messages.',
-        'No password is needed: the button opens your portal directly, so please keep this email private. When you approve or reject an item, we email you a 6-digit code to confirm it is you.',
-        `Your project manager: ${by}`
-      ], { label: 'Open my portal', url: link })
+        'Thank you for choosing O-Plus. Your request is confirmed and your unit now has its own page.',
+        `Unit: ${u.unit}`
+      ].concat(r.product ? [`Request: ${r.product}`] : [])
+       .concat(pm ? [`Your project manager: ${pm}`] : [])
+       .concat(r.sales ? [`Your account manager: ${r.sales}`] : [])
+       .concat([
+        'Your project manager will contact you shortly to agree the start of the works, as soon as possible and within the agreed execution time.',
+        'Please keep this email: the button below opens your unit page at any time.'
+      ]), { label: 'Open my unit page', url: link }, { label: 'Chat with O-Plus on WhatsApp', url: OPLUS_WHATSAPP, color: '#1F8F4E' })
     });
     log_(u.unit, 'Portal invitation sent', '', '', '', 'To ' + maskEmail_(email), by, '');
   }
@@ -1054,9 +1062,10 @@ function sendClientMail_(m) {
   MailApp.sendEmail(mail);
 }
 
-function mailHtml_(eyebrow, title, lines, button) {
+function mailHtml_(eyebrow, title, lines, button, button2) {
   const p = lines.map(l => `<p style="margin:0 0 12px;font-size:14px;line-height:22px;color:#1A2238">${esc_(l)}</p>`).join('');
-  const btn = button ? `<a href="${esc_(button.url)}" style="display:inline-block;background:#001641;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:8px;margin:6px 0 16px">${esc_(button.label)}</a>` : '';
+  const a = (b, bg) => `<a href="${esc_(b.url)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:8px;margin:6px 0 16px">${esc_(b.label)}</a>`;
+  const btn = (button ? a(button, '#001641') : '') + (button2 ? '<br>' + a(button2, button2.color || '#001641') : '');
   return `<div style="background:#F3F5F9;padding:16px 0;font-family:Poppins,Arial,sans-serif">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #DCDFE6">
     <tr><td style="background:#001641;padding:14px 20px">
@@ -1068,7 +1077,7 @@ function mailHtml_(eyebrow, title, lines, button) {
       <div style="font-size:20px;line-height:27px;font-weight:700;color:#001641;margin-top:4px">${esc_(title)}</div>
       <div style="width:32px;height:3px;background:#F0B323;margin:8px 0 16px"></div>
       ${p}${btn}
-      <p style="margin:0 0 12px;font-size:13px;color:#5F677A">Kind regards,<br>O West Extra Works</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#5F677A">Kind regards,<br>O-Plus Team</p>
     </td></tr>
     <tr><td style="border-top:1px solid #DCDFE6;padding:10px 22px;font-size:11px;color:#5F677A"><b style="color:#001641">O-PLUS</b> · O West by Orascom Development</td></tr>
   </table></div>`;

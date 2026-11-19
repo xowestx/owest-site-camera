@@ -119,6 +119,7 @@ function popApi_(a, b) {
   if (a === 'pop.send') return popSend_(ref, b);
   if (a === 'pop.extra') return popExtra_(ref, b);
   if (a === 'pop.extraDel') return popExtraDel_(ref, b);
+  if (a === 'pop.email') return popEmail_(ref, b);
   throw new Error('Unknown action.');
 }
 
@@ -156,7 +157,7 @@ function popMissing_(x) {
 function popView_(ref) {
   const x = popData_(ref);
   return { status: x.status, data: x.d, fromClickUp: x.cu, quote: x.q, hasFile: x.hasFile, sales: x.sales, missing: popMissing_(x), sentAt: dt_(ref.obj['Sent at']),
-    extras: popExtras_(ref).map(e => ({ id: e.id, name: e.name, size: e.size })) };
+    extras: popExtras_(ref).map(e => ({ id: e.id, name: e.name, size: e.size, inline: !!e.inline })) };
 }
 
 /* Other attachments (proof of payment, signed papers, saved Outlook emails ...): they go with the POP only, never to the client. */
@@ -178,6 +179,26 @@ function popExtra_(ref, b) {
   list.push({ id: file.getId(), name: name, size: bytes.length });
   setCells_(ref, { 'Extra files': JSON.stringify(list) }); ref.obj['Extra files'] = JSON.stringify(list);
   return popView_(ref);
+}
+/* An email pasted on the check point (Ctrl+A, Ctrl+C in Outlook) is shown INSIDE the POP email
+   under "Supporting email" (not as an attachment). It is kept as an .html file in the unit's POP folder. */
+function popEmail_(ref, b) {
+  const html = popCleanHtml_(b.html);
+  if (!html.replace(/<[^>]+>/g, '').trim()) throw new Error('Paste the email in the box first.');
+  const title = (str_(b.title) || 'Email').replace(/[\\/|:*?"<>]/g, '-').slice(0, 60).replace(/[.\s]+$/, '');
+  const unit = str_(ref.obj['Unit']);
+  const file = folderPath_([PORTAL_ROOT, safeUnit_(unit), 'POP']).createFile(Utilities.newBlob(html, 'text/html', `Email - ${title}.html`));
+  const list = popExtras_(ref);
+  list.push({ id: file.getId(), name: `Email - ${title}`, size: html.length, inline: true });
+  setCells_(ref, { 'Extra files': JSON.stringify(list) }); ref.obj['Extra files'] = JSON.stringify(list);
+  return popView_(ref);
+}
+function popCleanHtml_(h) {
+  return String(h || '').slice(0, 900000)
+    .replace(/<(script|style|iframe|object|embed|form)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(script|iframe|object|embed|form|input|button|meta|link)[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*("|')\s*(javascript|blob):[^"']*\2/gi, '');
 }
 function popExtraDel_(ref, b) {
   const list = popExtras_(ref), keep = list.filter(e => e.id !== str_(b.id));
@@ -212,11 +233,13 @@ function popSend_(ref, b) {
   // 1) POP from the Sales person's Outlook. The ready POP goes to the Sales person from Info.ew (inside the
   //    company, so it arrives at once); their Power Automate flow sends it on to finance and deletes it.
   const subject = `${d.unit} ${d.product} POP`.replace(/\|/g, '/');
-  const files = [file.getBlob()].concat(popExtras_(ref).map(e => DriveApp.getFileById(e.id).getBlob().setName(e.name)));
-  sendClientMail_({ to: x.sales.email, subject: `${POP_TAG} ${subject}`, htmlBody: popHtml_(d, x.sales), attachments: files });
+  const ex = popExtras_(ref);
+  const files = [file.getBlob()].concat(ex.filter(e => !e.inline).map(e => DriveApp.getFileById(e.id).getBlob().setName(e.name)));
+  const emails = ex.filter(e => e.inline).map(e => { try { return DriveApp.getFileById(e.id).getBlob().getDataAsString('UTF-8'); } catch (x) { return ''; } }).filter(Boolean);
+  sendClientMail_({ to: x.sales.email, subject: `${POP_TAG} ${subject}`, htmlBody: popHtml_(d, x.sales, emails), attachments: files });
 
   // 2) client portal + welcome email from Info.ew
-  inviteClient_(d.unit, d.client, d.email, d.pm || x.sales.name, true, false);
+  inviteClient_(d.unit, d.client, d.email, d.pm || x.sales.name, true, false, { product: d.product, sales: x.sales.name, pm: d.pm });
 
   // 3) ClickUp: Welcome Mail ✓ and a note on the task
   try { cuPost_(`/task/${str_(ref.obj['Task ID'])}/field/${POP_F.welcome}`, { value: true }); } catch (e) { console.error(e); }
@@ -229,7 +252,7 @@ function popSend_(ref, b) {
 }
 
 /** The POP body, same layout as the email Sales send today. */
-function popHtml_(d, sales) {
+function popHtml_(d, sales, emails) {
   const th = 'border:1px solid #000;background:#FBE2D5;padding:2px 8px;text-align:center;font-weight:bold';
   const td = 'border:1px solid #000;padding:2px 8px;text-align:center';
   const cols = [['Unit number', d.unit], ['Product', d.product], ['Amount in EGP', Number(d.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })], ['S.E', d.se || 'N/A'], ['AM', sales.name], ['Payment Date', d.payDate]];
@@ -238,7 +261,8 @@ function popHtml_(d, sales) {
 ${d.note ? `<p>${esc_(d.note)}</p>` : ''}
 <table style="border-collapse:collapse"><tr>${cols.map(c => `<td style="${th}">${esc_(c[0])}</td>`).join('')}</tr>
 <tr>${cols.map(c => `<td style="${td}">${esc_(c[1])}</td>`).join('')}</tr></table>
-<p>&nbsp;</p><p>Regards,</p><p><b>${esc_(sales.name)}</b><br>Account Manager<br><a href="mailto:${esc_(sales.email)}">${esc_(sales.email)}</a></p></div>`;
+<p>&nbsp;</p><p>Regards,</p><p><b>${esc_(sales.name)}</b><br>Account Manager<br><a href="mailto:${esc_(sales.email)}">${esc_(sales.email)}</a></p>
+${(emails || []).map(h => `<hr style="border:0;border-top:1px solid #999;margin:18px 0 10px"><p style="margin:0 0 8px"><b>Supporting email</b></p><div style="border-left:3px solid #999;padding-left:10px">${h}</div>`).join('')}</div>`;
 }
 
 /* ---------------- quotation PDF → data ---------------- */
@@ -262,8 +286,10 @@ function popParse_(text) {
   const out = { fields: {}, schedule: [], scope: [] };
   const title = m(/QUOTATION\s*\n+\s*([^\n]+)/i);
   const ref = m(/quotation\s+(\d{3,6})\b/i) || m(/REF\.?\s*NO\.?[\s\S]{0,300}?\b(\d{3,6})\b(?![\/\-])/i);
-  const total = num(m(/Total incl\.?\s*VAT[\s\S]{0,160}?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)/i));
-  const dpPct = num(m(/DOWN PAYMENT\s*[·\-]?\s*(\d{1,3})\s*%/i));
+  const total = num(m(/Total incl\.?\s*VAT[\s\S]{0,400}?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)/i))
+    || num(m(/PAYMENT PLAN[\s\S]{0,300}?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)\s*EGP/i));
+  // "DOWN PAYMENT · 20%" (instalments) or "PAYMENT · 100%" (paid in full)
+  const dpPct = num(m(/(?:DOWN\s+)?PAYMENT\s*[·\-–]?\s*(\d{1,3})\s*%/i));
   const months = num(m(/(\d{1,3})\s+equal monthly/i));
   const sch = t.slice(Math.max(0, t.search(/CHEQUE SCHEDULE/i)));
   const re = /(Down Payment[^\n\d]*(?:\(\d+%\))?|Payment\s+\d{1,3})\s+([\d,]+\.\d{2})\s+(\d{1,2}\/\d{1,2}\/\d{4})/gi;
@@ -280,6 +306,7 @@ function popParse_(text) {
   if (dpPct != null) f.dpPct = String(dpPct);
   if (dp) f.dpAmount = dp.amount.toFixed(2);
   else if (total && dpPct != null) f.dpAmount = (total * dpPct / 100).toFixed(2);
+  if (dpPct === 100 || /No instal?ments/i.test(t)) { f.months = '0'; f.monthly = '0.00'; }
   if (months || inst.length) f.months = String(months || inst.length);
   if (inst.length) f.monthly = inst[0].amount.toFixed(2);
   else if (total && f.dpAmount && months) f.monthly = ((total - Number(f.dpAmount)) / months).toFixed(2);
