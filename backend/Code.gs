@@ -1082,7 +1082,14 @@ function weeklyStart_(endDay, send) {
 function weeklyWork_() {
   const props = PropertiesService.getScriptProperties();
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return { busy: true };
+  if (!lock.tryLock(30000)) {
+    // something else holds the lock (a sync, the daily job): try again in a minute instead of dropping the run
+    if (props.getProperty(WEEK_KEY)) {
+      ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'weeklyContinue') ScriptApp.deleteTrigger(t); });
+      ScriptApp.newTrigger('weeklyContinue').timeBased().after(60 * 1000).create();
+    }
+    return { busy: true };
+  }
   try {
     const raw = props.getProperty(WEEK_KEY);
     if (!raw) return { units: 0 };
