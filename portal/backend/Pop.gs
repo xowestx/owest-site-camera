@@ -21,6 +21,7 @@ const POP_COLS = ['Task ID', 'Unit', 'Status', 'Token', 'Client', 'Client email'
   'Quote file ID', 'Quote data', 'Form', 'Sent at', 'Sent by', 'Extra files'];
 const POP_EXTRA_MAX = 18 * 1024 * 1024; // all attachments together must fit in one email
 const POP_LIST = '1201250000001676'; // ClickUp: O-Plus › Projects Pipeline & Teams › Main Tracking Sheet
+const POP_TEAM = '90152601622'; // ClickUp workspace
 const POP_PAGE = PORTAL_URL + 'pop.html';
 const POP_TAG = '[POP-SEND]';
 const POP_OLD = 'Old', POP_WAIT = 'Waiting', POP_SENT = 'Sent', POP_SKIP = 'Skipped';
@@ -345,11 +346,25 @@ function cuPost_(path, body) {
 }
 /** Tasks on the Main Tracking Sheet changed since the given time (ms) with Paid ticked. */
 function cuPaidTasks_(since) {
+  // Ask ClickUp only for tasks with Paid ticked. The plain list call returns every changed task with all its
+  // data, and a busy hour went over Apps Script's 50 MB response limit (cut-off JSON → SyntaxError).
+  try { return cuPaidTasksFiltered_(since); } catch (e) { console.error('filtered paid query failed: ' + e); }
   const out = [];
   for (let page = 0; page < 20; page++) {
     const res = cuGet_(`/list/${POP_LIST}/task?include_closed=true&page=${page}&date_updated_gt=${Math.floor(since)}&order_by=updated`);
     (res.tasks || []).forEach(t => { if (cuFields_(t).check(POP_F.paid)) out.push(t); });
     if (res.last_page !== false || !(res.tasks || []).length) break;
+  }
+  return out;
+}
+function cuPaidTasksFiltered_(since) {
+  const cf = encodeURIComponent(JSON.stringify([{ field_id: POP_F.paid, operator: '=', value: true }]));
+  const out = [];
+  for (let page = 0; page < 20; page++) {
+    const res = cuGet_(`/team/${POP_TEAM}/task?list_ids[]=${POP_LIST}&include_closed=true&subtasks=true&page=${page}` +
+      `&date_updated_gt=${Math.floor(since)}&order_by=updated&custom_fields=${cf}`);
+    (res.tasks || []).forEach(t => { if (cuFields_(t).check(POP_F.paid)) out.push(t); });
+    if (res.last_page !== false || (res.tasks || []).length < 100) break;
   }
   return out;
 }
