@@ -63,7 +63,8 @@ function popWatch() {
   const rows = rows_(POP_TAB);
   const byId = {};
   rows.forEach(r => byId[str_(r['Task ID'])] = r);
-  cuPaidTasks_(since).forEach(t => {
+  // ClickUp pre-filters with 4 days (a little wider than startDay); the exact check is below
+  cuPaidTasks_(since, start - 4 * 86400000, start).forEach(t => {
     if (byId[t.id]) return;
     const f = cuFields_(t), pay = f.date(POP_F.payDate);
     const isNew = pay ? pay >= startDay : Number(t.date_created) >= start;
@@ -335,7 +336,9 @@ function cuGet_(path) {
   const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
   const r = UrlFetchApp.fetch('https://api.clickup.com/api/v2' + path, { headers: { Authorization: token }, muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('ClickUp ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
-  return JSON.parse(r.getContentText());
+  const txt = r.getContentText();
+  try { return JSON.parse(txt); }
+  catch (e) { throw new Error(`ClickUp reply could not be read (${Math.round(txt.length / 1048576)} MB, ${path.split('?')[0]}): ${e.message}`); }
 }
 function cuPost_(path, body) {
   const token = PropertiesService.getScriptProperties().getProperty('CLICKUP_TOKEN');
@@ -343,14 +346,27 @@ function cuPost_(path, body) {
   if (r.getResponseCode() >= 300) throw new Error('ClickUp ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
   return JSON.parse(r.getContentText() || '{}');
 }
-/** Tasks on the Main Tracking Sheet changed since the given time (ms) with Paid ticked. */
-function cuPaidTasks_(since) {
-  const out = [];
-  for (let page = 0; page < 20; page++) {
-    const res = cuGet_(`/list/${POP_LIST}/task?include_closed=true&page=${page}&date_updated_gt=${Math.floor(since)}&order_by=updated`);
-    (res.tasks || []).forEach(t => { if (cuFields_(t).check(POP_F.paid)) out.push(t); });
-    if (res.last_page !== false || !(res.tasks || []).length) break;
-  }
+/** Tasks on the Main Tracking Sheet changed since the given time (ms) with Paid ticked and a NEW payment:
+ *  Payment Date on/after payFrom (ms), or no Payment Date and created after createdFrom (ms).
+ *  ClickUp does the filtering. Without it a busy night (many old tasks updated) returned pages
+ *  over 50 MB; Apps Script cuts replies at 50 MB, so JSON.parse failed on every run. */
+function cuPaidTasks_(since, payFrom, createdFrom) {
+  const paid = { field_id: POP_F.paid, operator: '=', value: 'true' };
+  const queries = [
+    [paid, { field_id: POP_F.payDate, operator: '>=', value: String(Math.floor(payFrom)) }],
+    [paid, { field_id: POP_F.payDate, operator: 'IS NULL' }]
+  ];
+  const out = [], seen = {};
+  queries.forEach((cf, qi) => {
+    for (let page = 0; page < 20; page++) {
+      let q = `/list/${POP_LIST}/task?include_closed=true&page=${page}&date_updated_gt=${Math.floor(since)}&order_by=updated`
+        + `&custom_fields=${encodeURIComponent(JSON.stringify(cf))}`;
+      if (qi === 1) q += `&date_created_gt=${Math.floor(createdFrom)}`;
+      const res = cuGet_(q);
+      (res.tasks || []).forEach(t => { if (!seen[t.id] && cuFields_(t).check(POP_F.paid)) { seen[t.id] = 1; out.push(t); } });
+      if (res.last_page !== false || !(res.tasks || []).length) break;
+    }
+  });
   return out;
 }
 function cuFields_(t) {
